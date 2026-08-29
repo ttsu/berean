@@ -1,0 +1,32 @@
+# Generated protobuf
+gen/
+*_pb2.py
+*_pb2_grpc.py
+*.pb.go
+
+# Go
+/bin/
+*.test
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.uv/
+.pytest_cache/
+.ruff_cache/
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+*.key
+
+# Corpus source files — check licensing before committing any of these
+/data/raw/
+
+# Local model cache
+/models/
+
+# OS
+.DS_Store

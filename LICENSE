@@ -1,0 +1,9 @@
+PLACEHOLDER — replace with the full Apache License 2.0 text.
+
+  curl -o LICENSE https://www.apache.org/licenses/LICENSE-2.0.txt
+
+Or, if GitHub already added one when the repo was created, keep theirs and delete this file.
+Do not paraphrase or hand-type it.
+
+See docs/adr/0007-apache-2-0.md for why this license was chosen and what it forbids
+depending on.
