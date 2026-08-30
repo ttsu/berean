@@ -41,7 +41,8 @@ False confidence here is worse than no profile at all.
 
 ## Corpus IDs
 
-**Edition-specific, always.** Format: `<work>-<edition>-<qualifier>`.
+**Edition-specific, always.** Format: `[<tradition>-]<work>-<edition>[-<qualifier>]`. The tradition
+prefix is used where the work is denomination-specific, as a church order is.
 
 - `wcf-1788-american` — correct
 - `wcf` — **wrong**, and a bug

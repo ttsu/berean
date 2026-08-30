@@ -23,8 +23,9 @@ tree, so a second module buys nothing and complicates codegen paths.
 **Go is the trust boundary. Python is the model layer.**
 
 Python produces claims; Go adjudicates them. Python's output is untrusted. There is
-**exactly one gRPC call from Go into Python per user turn**. If you find yourself adding a
-second call per turn, the seam is in the wrong place — stop and raise it.
+**one gRPC call from Go into Python per generation attempt** — once per turn, plus at most one
+regeneration when verification fails (ADR-0010). If you find yourself adding any other call, the
+seam is in the wrong place — stop and raise it.
 
 - `services/gateway` (Go) — auth, sessions, profile resolution, **citation verification**,
   trace persistence, ESV API fetch, SSE to client.

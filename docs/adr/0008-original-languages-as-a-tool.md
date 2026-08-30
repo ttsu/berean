@@ -1,6 +1,7 @@
 # ADR-0008: Hebrew and Greek are a deterministic tool, not a retrieval corpus
 
 - **Status:** Accepted
+- **Date:** 2026-08-29
 - **Phase:** implemented 3–4, but **metadata implications are Phase 1**
 
 ## Context

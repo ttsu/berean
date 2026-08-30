@@ -1,6 +1,7 @@
 # ADR-0002: Exactly one gRPC call per user turn
 
 - **Status:** Accepted
+- **Date:** 2026-08-29
 - **Phase:** 1
 
 ## Context

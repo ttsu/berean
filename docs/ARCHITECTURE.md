@@ -62,8 +62,8 @@ Prompt-only tradition steering produces confident nonsense. All three layers are
 2. **Prompting** — inject profile summary plus citation rules; doctrinal claims must cite
    binding or governing tier.
 3. **Validation** — programmatically verify each doctrinal assertion resolves to an in-profile
-   binding source, and that any `contrary` citation is labelled as such. Reject and regenerate
-   on failure.
+   `binding` or `governing` source, and that any `contrary` or `excluded` citation is labelled as
+   such. Reject and regenerate on failure.
 
 Layer 3 is what makes this an enterprise system rather than a RAG demo, and it is the layer
 almost nobody builds.
@@ -93,8 +93,8 @@ This is ordinary software. It is also the most valuable component in the system.
 ## Streaming
 
 Verification breaks naive token streaming — you cannot stream an answer you have not validated.
-Stream **trace events** over SSE instead: retrieving, reranking, verifying. Then deliver the
-verified answer.
+Stream **trace events** over SSE instead — dispatched, received, verifying, verified. Then deliver
+the verified answer.
 
 Because the Python call is unary and verification happens after it returns, the live SSE feed
 is **Go narrating its own stages** — dispatched, received, verifying, verified. Python's trace

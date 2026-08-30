@@ -1,6 +1,7 @@
 # ADR-0009: Langfuse (self-hosted) for tracing and evals
 
 - **Status:** Accepted
+- **Date:** 2026-08-29
 - **Phase:** 1 — instrument from day one, not retrofitted
 
 ## Context

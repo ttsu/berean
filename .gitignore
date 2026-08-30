@@ -22,8 +22,11 @@ __pycache__/
 !.env.example
 *.key
 
-# Corpus source files — check licensing before committing any of these
+# Corpus scratch — downloads, intermediate conversions, anything unreviewed
 /data/raw/
+
+# Licensed sources that Task 4 commits live in /data/corpus/ and are deliberately NOT ignored.
+# Check licensing before adding anything there.
 
 # Local model cache
 /models/
