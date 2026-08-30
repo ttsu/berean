@@ -22,8 +22,15 @@ stances that are not "include" are where the value is.
 denomination in 2007" is a valuable answer a naive filter cannot produce. Populate it — a profile
 with no `excluded` entries has probably not been thought through.
 
-`contrary` entries **require** a `label`. An unlabelled contrary citation is exactly the failure
-the tier system exists to prevent, so the loader treats a missing label as an error.
+`contrary` and `excluded` entries **require** a `label`. An unlabelled citation at either tier is
+exactly the failure the tier system exists to prevent, so the loader treats a missing label as an
+error.
+
+**Scripture carries the stance the profile gives it, defaulting to `binding`** (ADR-0011). Set it
+explicitly only where the tradition needs something other than the default, and never to `contrary`
+or `excluded` — the loader rejects both. What distinguishes traditions here is rarely Scripture's
+own stance but what stands alongside it: a profile that marks a magisterium or a confession
+`binding` is making that claim through those entries, not by moving Scripture down.
 
 ## 2. Get the editions right
 
@@ -68,7 +75,8 @@ PCA profile, and the equivalent for every pair.
 ## 6. Validate
 
 - [ ] Every corpus ID is edition-specific and exists in the database
-- [ ] Every `contrary` entry has a `label`
+- [ ] Every `contrary` and `excluded` entry has a `label`
+- [ ] Scripture stance set deliberately, or knowingly left at the `binding` default
 - [ ] `excluded` is populated where the tradition has actually repudiated something
 - [ ] Contested loci modelled with their rulings
 - [ ] Corpus depth honestly represented

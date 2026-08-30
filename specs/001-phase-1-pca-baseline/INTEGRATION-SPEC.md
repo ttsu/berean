@@ -125,6 +125,7 @@ YAML, loaded by Go, never sent to Python.
 profile: string                  # e.g. pca
 scripture:
   translation: string            # WEB in Phase 1
+  stance: string                 # optional; binding | governing | advisory, default binding
 corpora:
   - id: string                   # edition-specific, required
     stance: binding | governing | advisory | contrary | excluded
@@ -150,6 +151,13 @@ authority.
 the filter spec is built. It is not a separate channel — Scripture chunks are retrieved, cited, and
 verified exactly like any other corpus, and a translation left out of `corpora` makes every verse
 citation fail as a fabrication.
+
+`scripture.stance` defaults to `binding` when absent and accepts `binding`, `governing`, or
+`advisory` only. `contrary` and `excluded` are load errors: no tradition in scope repudiates
+Scripture, so either value means the profile is wrong (ADR-0011). The stance becomes that corpus's
+tier in the filter spec and is checked at verification like any other. Setting it below `binding` is
+a substantive claim — under check 3 it means Scripture alone cannot carry a doctrinal claim for that
+tradition — so it is a behavioural change, not a labelling one.
 
 ## Normalisation contract
 
