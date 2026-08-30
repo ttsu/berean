@@ -46,7 +46,8 @@ it in two places is the classic polyglot drift bug.
 
 **Failure mode to avoid:** Go orchestrating the agent loop by calling Python per step. Chatty,
 leaks state across the boundary, makes multi-hop retrieval miserable to debug. The whole loop
-belongs on one side. More than one cross-language call per turn means the seam is wrong.
+belongs on one side. Beyond the bounded regeneration retry (ADR-0010), more than one
+cross-language call per turn means the seam is wrong.
 
 If the wait turns out to feel dead in practice, the escape hatch is making the Python call a
 server-streaming RPC so Python emits retrieval progress live. More granular, more complex
@@ -109,8 +110,9 @@ Parse → normalise → chunk on structural boundaries → enrich metadata → e
 Chunk on structural boundaries: verse, article, question/objection/reply for Aquinas. **Never
 naive 512-token splits.**
 
-**Metadata is the product.** Every chunk carries work, author, era, tradition, canonical locator,
-language, text-form, edition, license, attribution, and `embedding_model` + `dim`. The last two
+**Metadata is the product.** Every chunk carries its edition-specific corpus ID, work, author, era,
+tradition, canonical locator, language, text-form, edition, license, attribution, and
+`embedding_model` + `dim`. The last two
 make a model swap a re-index job rather than a schema migration.
 
 Retrieval is hybrid BM25 + dense, then a cross-encoder reranker. Theological vocabulary is

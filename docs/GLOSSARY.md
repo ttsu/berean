@@ -65,8 +65,10 @@ A locator that does not resolve is a verification failure, not a formatting nit.
 
 ## Chunk metadata
 
-Every chunk carries: `work`, `author`, `era`, `tradition`, `locator`, `language`, `text_form`,
-`edition`, `license`, `attribution`, `embedding_model`, `dim`.
+Every chunk carries: `corpus_id`, `work`, `author`, `era`, `tradition`, `locator`, `language`,
+`text_form`, `edition`, `license`, `attribution`, `embedding_model`, `dim`.
+
+`corpus_id` is the edition-specific join key — `work` is a display name and resolves nothing.
 
 `language` and `text_form` are required **from day one** even though original-language support is
 Phase 3–4 — otherwise the corpus needs re-ingesting (ADR-0008). `embedding_model` and `dim` make a
