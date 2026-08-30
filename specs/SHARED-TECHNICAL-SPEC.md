@@ -26,7 +26,10 @@ MUST / SHOULD / MAY are used in the RFC 2119 sense.
 
 ## 2. Licensing
 
-- All bundled models MUST be permissively licensed. **CC-BY-NC is disqualifying**, not a tradeoff.
+- All bundled models, datasets, and corpora MUST be permissively licensed. **CC-BY-NC is
+  disqualifying**, not a tradeoff, and so is **CC-BY-ND** — chunking, embedding, and serving
+  excerpts is plausibly a derivative work. Personal non-commercial intent does not rescue a
+  restrictively licensed dependency (ADR-0007).
 - ESV and NIV text MUST NOT appear anywhere in the repository — source, fixtures, test data, or
   the eval golden set.
 - Every chunk MUST carry `license` and `attribution`. A corpus addition without them is a blocking
