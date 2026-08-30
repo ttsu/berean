@@ -18,7 +18,8 @@ Use [0000-template.md](0000-template.md).
 | [0005](0005-postgres-pgvector-single-datastore.md) | Postgres + pgvector as the single datastore | Accepted |
 | [0006](0006-bge-m3-as-a-tested-default.md) | BGE-M3 as a tested default, re-decided at Phase 2 | Accepted (provisional) |
 | [0007](0007-apache-2-0.md) | Apache-2.0, and what it forbids depending on | Accepted |
-| [0008](0008-original-languages-as-a-tool.md) | Hebrew/Greek as a deterministic tool | Accepted |
+| [0008](0008-original-languages-as-a-tool.md) | Hebrew/Greek as a deterministic tool | Accepted (amended by 0012) |
 | [0009](0009-langfuse-over-langsmith.md) | Langfuse (self-hosted) for tracing and evals | Accepted |
 | [0010](0010-regeneration-retry-exception.md) | A verification failure permits one regeneration call | Accepted |
 | [0011](0011-scripture-tier-is-profile-configurable.md) | Scripture's tier is profile-configurable, defaulting to binding | Accepted |
+| [0012](0012-drop-tyndale-house-gnt.md) | Drop Tyndale House GNT; SBLGNT and OSHB are the base texts | Accepted |

@@ -13,9 +13,12 @@ any chunk whose `license` does not permit it, using the same mechanism as tier c
 - Calvin, *Institutes*
 - *Book of Concord*
 - Westminster Standards (WCF, WLC, WSC)
-- Vatican.va documents (permissive)
+- Vatican.va documents (terms vary — Libreria Editrice Vaticana asserts copyright over much of
+  the corpus; check each before ingestion)
 - Vulgate
-- KJV, ASV, WEB
+- ASV, WEB
+- KJV (public domain in the US; in the UK under perpetual Crown copyright, printed under letters
+  patent — check before shipping to UK deployers)
 - OSHB (CC-BY — **requires attribution**)
 - SBLGNT (own terms — check before ingestion)
 - NET Bible — unusually permissive terms, plus roughly 60,000 translators' notes covering
@@ -28,7 +31,10 @@ any chunk whose `license` does not permit it, using the same mechanism as tier c
 - ESV, NIV
 - Most modern critical commentaries
 - Most 20th-century systematics
-- NA28, BHS (use SBLGNT, Tyndale House GNT, OSHB instead)
+- NA28, BHS (use SBLGNT or OSHB instead)
+- Tyndale House GNT — CC BY-NC-ND. The NC term is disqualifying under ADR-0007, and ND is a second,
+  independent problem: chunking, embedding, and serving excerpts is plausibly a derivative work.
+  See ADR-0012
 
 ## The rule that gets violated first
 

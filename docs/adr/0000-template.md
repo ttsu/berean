@@ -1,6 +1,6 @@
 # ADR-NNNN: Title
 
-- **Status:** Proposed | Accepted | Accepted (provisional) | Superseded by ADR-NNNN
+- **Status:** Proposed | Accepted | Accepted (provisional) | Amended by ADR-NNNN | Superseded by ADR-NNNN
 - **Date:** YYYY-MM-DD
 - **Phase:** when this becomes expensive to reverse
 
