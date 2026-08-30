@@ -32,7 +32,8 @@ anything yet; the acceptance test passes.
 - [ ] `docker compose up` succeeds with no external accounts and no network egress
 - [ ] Postgres reachable with pgvector extension available
 - [ ] Langfuse reachable
-- [ ] Two DB roles created with disjoint write grants per INTEGRATION-SPEC
+- [ ] Two DB roles created, with schema-level grants and `ALTER DEFAULT PRIVILEGES` per
+      INTEGRATION-SPEC — no tables exist yet, so table grants are re-asserted by the DDL task
 - [ ] `make dev` documented in README
 
 ---
@@ -51,15 +52,20 @@ anything yet; the acceptance test passes.
 
 ---
 
-## Task 3: Corpus schema and migrations
+## Task 3: Corpus and trace schema, and migrations
 
 **Depends on:** Task 1
 
+All DDL lands here. Task 8 writes `VerificationResult` rows and Task 9 writes traces, so both need
+their tables before either starts — splitting the DDL across Tasks 3 and 9 makes the two circular.
+
 - [ ] `works`, `chunks`, `chunk_embeddings` tables
-- [ ] All twelve required metadata fields NOT NULL where the spec requires it
+- [ ] `responses`, `traces`, `verification_results` tables
+- [ ] All thirteen required metadata fields NOT NULL where the spec requires it (`author` nullable)
 - [ ] pgvector index on embeddings
 - [ ] Migration is reversible
 - [ ] Insert without `license` or `attribution` fails at the database level, not in application code
+- [ ] Table grants applied for both roles, disjoint per INTEGRATION-SPEC
 
 ---
 
@@ -85,7 +91,7 @@ Getting the edition wrong here silently poisons everything downstream. Verify by
 - [ ] WCF chunked per numbered section; WLC/WSC per Q&A pair, never split
 - [ ] BCO chunked per numbered paragraph
 - [ ] WEB Scripture chunked per verse
-- [ ] All twelve metadata fields populated on every chunk
+- [ ] All thirteen metadata fields populated on every chunk
 - [ ] Corpus IDs edition-specific (`wcf-1788-american`)
 - [ ] Text NFC-normalised at ingestion, via a single shared function
 - [ ] BGE-M3 behind an embedder interface; `embedding_model` and `dim` written per chunk
@@ -128,8 +134,8 @@ Getting the edition wrong here silently poisons everything downstream. Verify by
 The phase's reason for existing.
 
 - [ ] Locator resolution: corpus ID + locator → exactly one chunk
-- [ ] Quote match: byte-identical after NFC normalisation, same function as ingestion
-- [ ] Tier check against the tier **in Postgres**, not the tier Python claimed
+- [ ] Quote match: exact substring containment after NFC normalisation, same function as ingestion
+- [ ] Tier check against the **resolved profile**, not the tier Python claimed
 - [ ] License check refuses non-permitting chunks
 - [ ] Citation to a corpus not in the sent FilterSpec fails immediately
 - [ ] Empty `citations` on any argument fails the answer
@@ -144,9 +150,10 @@ The phase's reason for existing.
 
 **Depends on:** Tasks 7, 8
 
-- [ ] `responses`, `traces`, `verification_results` tables
+Tables come from Task 3; this task is the persistence path that writes them.
+
 - [ ] Trace persisted for every response including degraded ones
-- [ ] Schema reviewed against Phase 2's needs before merge
+- [ ] Schema reviewed against Phase 2's needs before merge — revise the Task 3 migration if short
 - [ ] Gateway role only; Catena has no write access
 
 ---

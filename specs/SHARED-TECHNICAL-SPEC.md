@@ -61,7 +61,10 @@ MUST / SHOULD / MAY are used in the RFC 2119 sense.
 
 - One Postgres instance. Two clients with **disjoint write scope**: Python writes corpus tables,
   Go writes session and trace tables. Neither writes the other's.
-- Exactly one gRPC call from Go into Python per user turn. More than one means the seam is wrong.
+- One gRPC call from Go into Python per **generation attempt**. A verification failure permits
+  exactly one retry call (ADR-0010), so a turn makes at most two. Anything beyond that —
+  per-step orchestration, an agent loop driven from Go, multi-hop retrieval across the boundary —
+  means the seam is wrong.
 - The Go→Python payload MUST be a *resolved filter spec*, never the profile itself.
 - The cross-language contract MUST be defined once in protobuf and generated for both sides. It
   MUST NOT be hand-maintained on either side.

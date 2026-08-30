@@ -44,11 +44,12 @@ Structural chunking only:
 - **BCO** — one chunk per numbered paragraph (`BCO 21-4`).
 - **WEB Scripture** — one chunk per verse. Proof texts in the Standards resolve to these.
 
-Required metadata on every chunk, no exceptions:
+Required metadata on every chunk, with one exception — `author` may be null for corporate
+documents, which is most of the Phase 1 corpus. Nothing else may be:
 
 ```
-work, author, era, tradition, locator, language, text_form,
-edition, license, attribution, embedding_model, dim
+corpus_id, work, author, era, tradition, locator, language,
+text_form, edition, license, attribution, embedding_model, dim
 ```
 
 `language` and `text_form` are required now even though original-language support is Phase 3–4
@@ -99,6 +100,18 @@ contested:
 
 Go resolves this into the filter spec sent to Python. **The profile itself never crosses the
 boundary.**
+
+Resolution injects `scripture.translation` into the corpora list as an edition-specific corpus ID
+(`web-2000` for the WEB text in Phase 1). Scripture is not a parallel channel: a verse citation is
+verified by the same four checks as a confessional one, and a `corpus_id` absent from the filter
+spec is treated as a fabrication. Leaving Scripture outside `corpora` makes every proof text in the
+Standards unverifiable.
+
+**Open decision — resolve with Task 6:** which tier Scripture carries. `binding` is the
+recommendation, and the only tier consistent with a Reformed profile's own doctrine of Scripture.
+It is a theological commitment rather than a default, and it decides whether a Scripture-only
+answer can satisfy a doctrinal claim, so record it as an ADR rather than letting the loader imply
+it.
 
 Even with one profile, the schema is built as if there were eight — presets and fine-grained user
 control are the same object, and building the schema twice is the avoidable version of this

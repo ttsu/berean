@@ -24,11 +24,14 @@ logic here, stop — it belongs in Catena.
 
 ## Rules
 
-- **Exactly one gRPC call into Catena per turn.** A second call means the seam is wrong. Raise it
-  rather than working around it.
+- **One gRPC call into Catena per generation attempt.** A verification failure permits exactly one
+  retry call (ADR-0010); a turn therefore makes at most two. Any other second call means the seam is
+  wrong — raise it rather than working around it.
 - Send a **resolved FilterSpec**, never the profile. No profile name, user identity, or session
   state crosses the boundary. There is a unit test asserting this; keep it passing.
-- Verification checks the tier recorded **in Postgres**, never the tier Python claimed.
+- Verification checks tier against the **resolved profile Go holds**, never the tier Python claimed.
+  Tier is a per-tradition stance, not a property of the corpus — the same corpus is `contrary` under
+  one profile and `binding` under another, so there is no single tier to record against it.
 - A citation to a corpus that was not in the FilterSpec is a fabrication. Fail immediately.
 - On verification failure: regenerate once, then degrade. **Never render with a warning attached.**
 - Write scope: session and trace tables only. The `gateway` DB role is read-only on corpus tables

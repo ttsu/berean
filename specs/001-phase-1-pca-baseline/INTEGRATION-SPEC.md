@@ -8,7 +8,8 @@ document is stale and must be fixed.
 
 ## The one call
 
-`CatenaService.Answer` — unary. Exactly one invocation per user turn (ADR-0002).
+`CatenaService.Answer` — unary. One invocation per generation attempt: once per turn, plus at most
+one regeneration on verification failure (ADR-0002, ADR-0010).
 
 ### Request: Go → Python
 
@@ -68,9 +69,10 @@ Constraints Go enforces on receipt — Python's output is untrusted:
 - `arguments[].citations` non-empty. An empty list fails the answer.
 - `corpus_id` present in the filter spec that was sent. A citation to an unsent corpus is a
   fabrication and fails immediately.
-- `quote` byte-identical to source chunk text after NFC normalisation.
+- `quote` appears verbatim in the source chunk text after NFC normalisation — exact substring
+  containment, never fuzzy or partial matching.
 - `locator` resolves to exactly one chunk.
-- `tier` matches the tier recorded for that corpus in Postgres, not the tier Python claims.
+- `tier` matches the stance the resolved profile assigns that corpus, never the tier Python claims.
 
 **There is no field for the model's reasoning about its own process, and there must never be
 one.** `warrant` is the theological justification for a claim — the argumentative link from
@@ -129,12 +131,18 @@ contested:
 Validation: unknown `stance` is an error, not a default. `contrary` without `label` is an error —
 an unlabelled contrary citation is exactly the failure mode the tier system exists to prevent.
 
+`scripture.translation` is resolved into the corpora list as an edition-specific corpus ID before
+the filter spec is built. It is not a separate channel — Scripture chunks are retrieved, cited, and
+verified exactly like any other corpus, and a translation left out of `corpora` makes every verse
+citation fail as a fabrication.
+
 ## Chunk metadata contract
 
 Every chunk in `chunks`. Ingestion rejects a chunk missing any of these.
 
 | Field | Notes |
 | --- | --- |
+| `corpus_id` | Edition-specific. The join key to `works`, and half of every citation reference |
 | `work` | Human-readable work name |
 | `author` | May be null for corporate documents |
 | `era` | For filtering and display |

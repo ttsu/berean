@@ -52,11 +52,11 @@ Format: `<work>-<edition>-<qualifier>`.
 If a document's structure does not fit these, work out the right unit and document it here before
 writing the parser.
 
-## 5. Populate all twelve metadata fields
+## 5. Populate all thirteen metadata fields
 
 ```
-work, author, era, tradition, locator, language, text_form,
-edition, license, attribution, embedding_model, dim
+corpus_id, work, author, era, tradition, locator, language,
+text_form, edition, license, attribution, embedding_model, dim
 ```
 
 `language` and `text_form` are required even for English-only corpora and even though
@@ -89,7 +89,7 @@ Then check by hand:
 - [ ] License permits ingestion, not merely quotation
 - [ ] Corpus ID is edition-specific
 - [ ] Chunked on structural boundaries
-- [ ] All twelve metadata fields populated
+- [ ] All thirteen metadata fields populated
 - [ ] NFC-normalised with the shared function
 - [ ] Idempotent on re-run
 - [ ] Two locators spot-checked by reading them
