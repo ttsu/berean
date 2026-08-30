@@ -81,6 +81,7 @@ A YAML document, loaded and resolved by Go:
 profile: pca
 scripture:
   translation: WEB
+  stance: binding              # optional; defaults to binding
 corpora:
   - id: wcf-1788-american
     stance: binding
@@ -108,11 +109,13 @@ verified by the same four checks as a confessional one, and a `corpus_id` absent
 spec is treated as a fabrication. Leaving Scripture outside `corpora` makes every proof text in the
 Standards unverifiable.
 
-**Open decision — resolve with Task 6:** which tier Scripture carries. `binding` is the
-recommendation, and the only tier consistent with a Reformed profile's own doctrine of Scripture.
-It is a theological commitment rather than a default, and it decides whether a Scripture-only
-answer can satisfy a doctrinal claim, so record it as an ADR rather than letting the loader imply
-it.
+**Scripture's tier is profile-configurable, defaulting to `binding`** (ADR-0011). Scripture is
+authoritative in every tradition in scope, so `binding` is the default and the PCA profile takes it.
+It is a profile field rather than a constant because traditions differ on what stands *alongside*
+Scripture, not on whether Scripture binds — and that difference is carried by what else the profile
+marks `binding`, which is exactly the kind of commitment that belongs in a profile rather than in
+the engine. `contrary` and `excluded` are rejected at load: no tradition in scope repudiates
+Scripture, so either value means the profile is wrong.
 
 Even with one profile, the schema is built as if there were eight — presets and fine-grained user
 control are the same object, and building the schema twice is the avoidable version of this

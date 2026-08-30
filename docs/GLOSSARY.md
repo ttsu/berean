@@ -35,6 +35,10 @@ A stance assigned per corpus, not an include/exclude filter.
 `excluded` is the tier that justifies the whole model: "this view was examined and rejected by
 your denomination in 2007" is a valuable answer a naive filter cannot produce.
 
+**Scripture is tiered like any other corpus**, at the stance its profile assigns — `binding` by
+default (ADR-0011). It is not a special case in retrieval or verification: a verse citation passes
+the same four checks as a confessional one.
+
 **`contested`** is not a tier — it is a flag on a *locus*, marking genuine intramural
 disagreement (creation days, women in diaconal service, subscription boundaries in the PCA).
 False confidence here is worse than no profile at all.

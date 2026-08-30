@@ -114,7 +114,9 @@ Getting the edition wrong here silently poisons everything downstream. Verify by
 **Depends on:** Task 2
 
 - [ ] PCA profile YAML per INTEGRATION-SPEC
-- [ ] Loader validates: unknown stance is an error; `contrary` without `label` is an error
+- [ ] Loader validates: unknown stance is an error; `contrary` or `excluded` without `label` is an error
+- [ ] `scripture.stance` defaults to `binding` when absent; `contrary`/`excluded` rejected (ADR-0011)
+- [ ] `scripture.translation` resolved into the corpora list carrying that stance as its tier
 - [ ] Resolves to a `FilterSpec` carrying corpus IDs, tiers, weights — **and nothing else**
 - [ ] Unit test asserts no profile name, user identity, or session state appears in the FilterSpec
 - [ ] Schema handles N profiles though only one is populated

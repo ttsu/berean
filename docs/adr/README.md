@@ -21,3 +21,4 @@ Use [0000-template.md](0000-template.md).
 | [0008](0008-original-languages-as-a-tool.md) | Hebrew/Greek as a deterministic tool | Accepted |
 | [0009](0009-langfuse-over-langsmith.md) | Langfuse (self-hosted) for tracing and evals | Accepted |
 | [0010](0010-regeneration-retry-exception.md) | A verification failure permits one regeneration call | Accepted |
+| [0011](0011-scripture-tier-is-profile-configurable.md) | Scripture's tier is profile-configurable, defaulting to binding | Accepted |
