@@ -32,7 +32,8 @@ Determine the `license` and `attribution` values now. They are required fields.
 
 ## 3. Assign an edition-specific corpus ID
 
-Format: `<work>-<edition>-<qualifier>`.
+Format: `[<tradition>-]<work>-<edition>[-<qualifier>]` — prefix the tradition where the work is
+denomination-specific (`pca-bco-2024`), omit it where it is not (`wcf-1788-american`).
 
 - `wcf-1788-american` ✓
 - `wcf` ✗ — this is a bug, not a shorthand
@@ -66,9 +67,10 @@ original-language support is Phase 3–4. Backfilling means re-ingesting (ADR-00
 
 ## 6. Normalise to NFC
 
-Use the shared normalisation function — the same one verification uses. A mismatch between
-ingestion and verification normalisation produces quote-match failures on visually identical text,
-and that is genuinely miserable to diagnose.
+Follow the normalisation contract in INTEGRATION-SPEC and assert the shared test vectors. Ingestion
+is Python and verification is Go, so there is no single shared function — the vectors are what keep
+the two implementations honest. A mismatch produces quote-match failures on visually identical text,
+and that is genuinely miserable to diagnose from the symptom.
 
 For Hebrew, store both pointed and unpointed forms.
 

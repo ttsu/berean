@@ -18,7 +18,8 @@ TECHNICAL-SPEC.md. Every task below assumes the Go CLI.
 
 - [ ] Decision recorded as an ADR
 - [ ] TECHNICAL-SPEC.md open-decision section replaced with the outcome
-- [ ] If Python-only: tasks 3, 6, 7, 8 rewritten before starting
+- [ ] If Python-only: tasks 6, 7, 8, 10 rewritten before starting — 6, 8 and 10 are Go, and 7 loses
+      its gRPC server
 
 ---
 
@@ -29,7 +30,9 @@ TECHNICAL-SPEC.md. Every task below assumes the Go CLI.
 Compose stack with Postgres + pgvector, Langfuse, and empty service containers. Nothing does
 anything yet; the acceptance test passes.
 
-- [ ] `docker compose up` succeeds with no external accounts and no network egress
+- [ ] `docker compose up` succeeds with no external accounts
+- [ ] Documented provisioning step pulls images, the Ollama model, and BGE-M3 into `/models/`
+- [ ] After provisioning, the stack comes up and serves with egress blocked
 - [ ] Postgres reachable with pgvector extension available
 - [ ] Langfuse reachable
 - [ ] Two DB roles created, with schema-level grants and `ALTER DEFAULT PRIVILEGES` per
@@ -73,12 +76,15 @@ their tables before either starts — splitting the DDL across Tasks 3 and 9 mak
 
 **Depends on:** —
 
-Obtain the 1788 American revision of WCF/WLC/WSC and the current BCO in a parseable form.
+Obtain the 1788 American revision of WCF/WLC/WSC and the current BCO in a parseable form, plus the
+1646 original — needed for the edition check below, and declared `contrary` in the PCA profile.
 
 - [ ] Source files acquired with recorded provenance URL and retrieval date
 - [ ] **Verified as the 1788 American revision** — check WCF ch. 23 against the 1646 text
+- [ ] 1646 original acquired as `wcf-1646-original`, the profile's only `contrary` corpus
 - [ ] License and attribution confirmed for each source
-- [ ] Sources committed or a fetch script provided, whichever the license permits
+- [ ] Sources committed to `data/corpus/` or a fetch script provided, whichever the licence permits
+      (`/data/raw/` is gitignored scratch — a source committed there disappears silently)
 
 Getting the edition wrong here silently poisons everything downstream. Verify by hand.
 
@@ -90,10 +96,13 @@ Getting the edition wrong here silently poisons everything downstream. Verify by
 
 - [ ] WCF chunked per numbered section; WLC/WSC per Q&A pair, never split
 - [ ] BCO chunked per numbered paragraph
-- [ ] WEB Scripture chunked per verse
+- [ ] WEB Scripture chunked per verse, ingested under the corpus ID the profile resolves to
+- [ ] `wcf-1646-original` ingested, so the profile's `contrary` entry resolves and UC-3 has a
+      counterpart to contrast against
 - [ ] All thirteen metadata fields populated on every chunk
 - [ ] Corpus IDs edition-specific (`wcf-1788-american`)
-- [ ] Text NFC-normalised at ingestion, via a single shared function
+- [ ] Text normalised at ingestion per the INTEGRATION-SPEC normalisation contract
+- [ ] Shared test-vector fixture committed and asserted by the Python suite
 - [ ] BGE-M3 behind an embedder interface; `embedding_model` and `dim` written per chunk
 - [ ] Re-running ingestion is idempotent
 - [ ] Spot-check: `WCF 7.2` and `WSC Q&A 1` retrieve and read correctly
@@ -134,7 +143,8 @@ Getting the edition wrong here silently poisons everything downstream. Verify by
 The phase's reason for existing.
 
 - [ ] Locator resolution: corpus ID + locator → exactly one chunk
-- [ ] Quote match: exact substring containment after NFC normalisation, same function as ingestion
+- [ ] Quote match: exact substring containment after normalisation
+- [ ] Go asserts the same shared normalisation vectors the Python ingestion suite asserts
 - [ ] Tier check against the **resolved profile**, not the tier Python claimed
 - [ ] License check refuses non-permitting chunks
 - [ ] Citation to a corpus not in the sent FilterSpec fails immediately

@@ -1,6 +1,7 @@
 # ADR-0001: Go is the trust boundary, Python is the model layer
 
 - **Status:** Accepted
+- **Date:** 2026-08-29
 - **Phase:** 1 — structural, expensive to reverse after Phase 4
 
 ## Context

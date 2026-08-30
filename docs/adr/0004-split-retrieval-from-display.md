@@ -1,6 +1,7 @@
 # ADR-0004: Split Bible retrieval from Bible display
 
 - **Status:** Accepted
+- **Date:** 2026-08-29
 - **Phase:** 1 — retrofitting this later means re-ingesting the corpus
 
 ## Context

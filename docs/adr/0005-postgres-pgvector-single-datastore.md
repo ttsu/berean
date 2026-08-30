@@ -1,6 +1,7 @@
 # ADR-0005: Postgres + pgvector as the single datastore
 
 - **Status:** Accepted
+- **Date:** 2026-08-29
 - **Phase:** 1
 
 ## Context

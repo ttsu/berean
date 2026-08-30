@@ -1,6 +1,7 @@
 # ADR-0006: BGE-M3 as the starting embedding model — a tested default, not a locked choice
 
-- **Status:** Accepted, **provisional**
+- **Status:** Accepted (provisional)
+- **Date:** 2026-08-29
 - **Phase:** re-decided at Phase 2 against the golden set; expensive only from Phase 3
 
 ## Context

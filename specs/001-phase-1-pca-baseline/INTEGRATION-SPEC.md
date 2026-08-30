@@ -45,7 +45,7 @@ AnswerObject:
   arguments: [ Argument ]
   contrary_positions: [ ContraryPosition ]
   contested: { is_contested: bool, state_of_debate: string }
-  confidence: { level: enum, reason: string }
+  confidence: { level: enum, reason: string }   # reason is Go-derived, never model-authored
 
 Argument:
   claim: string
@@ -71,8 +71,15 @@ Constraints Go enforces on receipt — Python's output is untrusted:
   fabrication and fails immediately.
 - `quote` appears verbatim in the source chunk text after NFC normalisation — exact substring
   containment, never fuzzy or partial matching.
-- `locator` resolves to exactly one chunk.
+- `{corpus_id, locator}` resolves to exactly one chunk. A locator alone is not unique — `WCF 7.2`
+  exists in both the 1788 and 1646 editions.
 - `tier` matches the stance the resolved profile assigns that corpus, never the tier Python claims.
+
+`confidence.reason` is **derived by Go from the verification result** — citation counts by tier,
+contested flags, degraded checks — and states what was found, never how the model felt about it.
+Python MUST NOT populate it, and Go MUST overwrite anything Python puts there. A model-authored
+`reason` would be introspection wearing a structured field's clothes, and it is the likeliest way
+for §4 to be violated without anyone noticing.
 
 **There is no field for the model's reasoning about its own process, and there must never be
 one.** `warrant` is the theological justification for a claim — the argumentative link from
@@ -122,19 +129,44 @@ corpora:
   - id: string                   # edition-specific, required
     stance: binding | governing | advisory | contrary | excluded
     note: string                 # optional, internal
-    label: string                # required when stance is `contrary`; shown to the user
+    label: string                # required when stance is `contrary` or `excluded`; shown to the user
 contested:
   - locus: string
     ruling: string
 ```
 
-Validation: unknown `stance` is an error, not a default. `contrary` without `label` is an error —
-an unlabelled contrary citation is exactly the failure mode the tier system exists to prevent.
+Validation: unknown `stance` is an error, not a default. `contrary` or `excluded` without `label`
+is an error — an unlabelled citation at either tier is exactly the failure mode the tier system
+exists to prevent.
+
+`excluded` is the tier the product is built around, so its handling is specified rather than left
+to fall out of the others. An `excluded` corpus is retrievable and citable; its citations MUST
+carry their label at render time, exactly as `contrary` does; and it MUST NOT support a doctrinal
+claim affirmatively. "Your denomination examined this view and repudiated it in 2007" is the
+answer it exists to produce — that is a claim *about* the source, not one resting on its
+authority.
 
 `scripture.translation` is resolved into the corpora list as an edition-specific corpus ID before
 the filter spec is built. It is not a separate channel — Scripture chunks are retrieved, cited, and
 verified exactly like any other corpus, and a translation left out of `corpora` makes every verse
 citation fail as a fabrication.
+
+## Normalisation contract
+
+Ingestion runs in Python and verification runs in Go, so a single shared function is not available
+and the specs must not ask for one. What is shared is the **contract** — the same ordered steps,
+pinned by test vectors both sides assert against:
+
+1. Unicode NFC.
+2. Collapse runs of whitespace, including newlines, to a single space.
+3. Trim leading and trailing whitespace.
+4. Nothing else. No case folding, no quote or dash folding, no punctuation stripping — a quote that
+   differs from source by a curly apostrophe is a genuine mismatch and must fail.
+
+The vectors live in one committed fixture file, and both the Python ingestion suite and the Go
+verification suite read that same file. Drift between the two implementations is the failure this
+prevents, and it surfaces as quote-match failures on visually identical text, which is miserable to
+diagnose from the symptom.
 
 ## Chunk metadata contract
 

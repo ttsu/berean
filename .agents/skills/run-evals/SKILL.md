@@ -58,8 +58,11 @@ The golden set is the only evaluation that reflects archaic English and Latin. M
 0.5-point MTEB gap is noise.
 
 Procedure: re-index with the candidate, run the same golden set, compare recall@k on identical
-questions. Vary only the model. Record the result as an ADR update whether or not the default
-changes.
+questions. Vary only the model.
+
+Record the result as a **new ADR superseding ADR-0006**, whether or not the default changes — ADRs
+are immutable once accepted, so the result does not go into 0006. A run that confirms the incumbent
+is still a decision worth recording, and it is the run most likely to go unwritten.
 
 ## Checklist
 

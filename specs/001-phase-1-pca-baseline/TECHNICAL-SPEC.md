@@ -58,9 +58,10 @@ text_form, edition, license, attribution, embedding_model, dim
 Ingestion is idempotent and re-runnable. It is a batch job invoked by hand in Phase 1; it is never
 in the request path.
 
-Text is normalised to NFC at ingestion. Quote comparison at verification uses the same
-normalisation. A mismatch here produces verification failures on visually identical text and is
-extremely annoying to diagnose, so normalise once, centrally, and test it.
+Text is normalised at ingestion per the normalisation contract in INTEGRATION-SPEC, and quote
+comparison at verification applies the identical steps. The two run in different languages, so what
+is shared is the contract and its test vectors rather than a function. A mismatch here produces
+verification failures on visually identical text and is extremely annoying to diagnose.
 
 ## Retrieval — deliberately naive
 
@@ -117,6 +118,13 @@ Even with one profile, the schema is built as if there were eight — presets an
 control are the same object, and building the schema twice is the avoidable version of this
 mistake.
 
+**The Phase 1 profile has no `excluded` entry, deliberately.** Populating it means acquiring the
+PCA's 2007 Federal Vision report, whose copyright status is unchecked, and Phase 1 does not widen
+for it. The consequence is worth stating plainly: the tier the product is differentiated on is
+schema-complete but unexercised end to end until it is populated. **Phase 2 obligation** — acquire
+the report, confirm its licence, populate `excluded`, and add a golden-set question that expects a
+repudiation answer.
+
 ## Verification
 
 Four checks per citation, all in Go, all ordinary software:
@@ -124,7 +132,8 @@ Four checks per citation, all in Go, all ordinary software:
 1. **Locator resolves** — the corpus ID and locator identify exactly one chunk.
 2. **Quote matches** — the verbatim quote appears in that chunk's text after NFC normalisation.
 3. **Tier permitted** — the chunk's corpus is in the active profile at a tier the claim allows.
-   Doctrinal claims require `binding` or `governing`. Any `contrary` citation must carry a label.
+   Doctrinal claims require `binding` or `governing`. Any `contrary` or `excluded` citation must
+   carry a label, and an `excluded` citation may never support a doctrinal claim affirmatively.
 4. **License permits serving** — the chunk's `license` allows display.
 
 Answer-level: **any claim without a citation fails.**

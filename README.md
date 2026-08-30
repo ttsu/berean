@@ -33,7 +33,8 @@ and declines to resolve them.
 ## Architecture in one line
 
 **Go is the trust boundary. Python is the model layer.** Python produces claims; Go adjudicates
-them. Exactly one gRPC call per user turn.
+them. One gRPC call per generation attempt — once per turn, plus at most one regeneration when
+verification fails.
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) and [docs/adr/](docs/adr/).
 

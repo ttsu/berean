@@ -7,8 +7,13 @@ MUST / SHOULD / MAY are used in the RFC 2119 sense.
 
 ## 1. Portability — the acceptance test
 
-- `docker compose up` MUST give a working system with **no external accounts and no network
-  egress required**. If a change breaks this, the change is wrong.
+- `docker compose up` MUST give a working system with **no external accounts**. If a change breaks
+  this, the change is wrong.
+- First run MAY fetch container images and model weights. **Steady-state operation MUST require no
+  network egress**: once provisioned, the system runs fully offline, and any code path that reaches
+  the public internet to answer a question is a defect. The ESV adapter is the sole exception and is
+  deployer-enabled, never default.
+- Model weights MUST be fetched by a documented provisioning step, not silently on first query.
 - The system MUST NOT depend on any managed service in its default path. No RDS, no EKS, no SQS,
   no Secrets Manager, no proprietary SaaS observability.
 - Object storage MUST be accessed through an S3-compatible client, with MinIO as the local
@@ -41,7 +46,9 @@ MUST / SHOULD / MAY are used in the RFC 2119 sense.
 - On verification failure the system MUST regenerate once, then degrade. It MUST NOT ship
   unverified content with a warning attached.
 - Verification MUST run in the Go gateway. It MUST NOT be delegated to the model layer.
-- Any `contrary`-tier citation MUST be labelled as another tradition's position at render time.
+- Any `contrary`-tier citation MUST be labelled as another tradition's position at render time, and
+  any `excluded`-tier citation MUST be labelled as repudiated by the active tradition. An `excluded`
+  citation MUST NOT support a doctrinal claim affirmatively.
 - Corpus IDs MUST be edition-specific. A bare work ID is a bug.
 - Text MUST be normalised to NFC before storage and before quote comparison.
 

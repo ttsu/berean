@@ -1,6 +1,7 @@
 # ADR-0003: Stream trace events, not tokens
 
 - **Status:** Accepted
+- **Date:** 2026-08-29
 - **Phase:** 1 (constrains Phase 4 UI)
 
 ## Context
