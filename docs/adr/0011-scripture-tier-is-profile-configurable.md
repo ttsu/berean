@@ -1,6 +1,6 @@
 # ADR-0011: Scripture's authority tier is profile-configurable, defaulting to binding
 
-- **Status:** Accepted
+- **Status:** Accepted (check 3 restated by ADR-0016 — the rule holds, its wording changed)
 - **Date:** 2026-08-30
 - **Phase:** 1 — decided with the profile engine, cheap now and a migration later
 
