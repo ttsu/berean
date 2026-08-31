@@ -22,11 +22,13 @@ __pycache__/
 !.env.example
 *.key
 
-# Corpus scratch — downloads, intermediate conversions, anything unreviewed
-/data/raw/
+# Corpus text NEVER enters this repository (ADR-0014). All of /data/ is ignored, with no
+# exceptions and no negation patterns — downloads, intermediate conversions, and staged
+# records all live here and none of them are committable.
+/data/
 
-# Licensed sources that Task 4 commits live in /data/corpus/ and are deliberately NOT ignored.
-# Check licensing before adding anything there.
+# Acquisition manifests and fingerprints live in /corpora/ and contain no corpus text.
+# Acquisition scripts live in /tools/acquire/. Both are committed.
 
 # Local model cache
 /models/

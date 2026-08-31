@@ -159,6 +159,49 @@ tier in the filter spec and is checked at verification like any other. Setting i
 a substantive claim — under check 3 it means Scripture alone cannot carry a doctrinal claim for that
 tradition — so it is a behavioural change, not a labelling one.
 
+## Corpus acquisition contract
+
+No corpus text is committed (ADR-0014). What the repository carries instead, per corpus:
+
+```
+corpora/<corpus-id>/manifest.yaml
+corpora/<corpus-id>/fingerprints.txt
+tools/acquire/<corpus-id>.py
+```
+
+```yaml
+corpus_id: wcf-1788-american    # edition-specific
+source_url: string              # where the text was obtained
+archive_url: string             # snapshot fallback, for when upstream moves
+retrieved: YYYY-MM-DD
+upstream_sha256: string         # detects upstream drift on re-acquisition
+license: string                 # confirmed, never assumed
+attribution: string
+normalisation_version: int      # fingerprints are over normalised text; see below
+chunk_count: int
+edition_check:
+  diagnostic: string            # e.g. WCF 23.3
+  expected: string              # the actual divergent text, quoted
+  verified_by: string
+  verified: YYYY-MM-DD
+```
+
+`fingerprints.txt` is one `<locator>  <sha256-of-normalised-text>` per line, sorted by locator.
+
+The fingerprints are the mechanism that replaces committing the text. On acquisition, a corpus is
+fetched, segmented, normalised, and hashed, and every hash must match the committed value. That is a
+stronger guarantee than a committed copy would give: it proves the text was reconstructed exactly as
+hand-verified **and** that normalisation is deterministic across runs and machines.
+
+The hashes are over post-normalisation text, so **a change to the normalisation contract invalidates
+every fingerprint file**. `normalisation_version` records which contract version a manifest was
+blessed under; bumping the contract means re-blessing every corpus, and that is intended to be
+visible and deliberate.
+
+First acquisition of a corpus has nothing to verify against. `--bless` covers that case: it runs the
+pipeline, presents the output for human edition verification, and writes the manifest. Every run
+after that verifies, and a mismatch is a hard failure with a diff summary — never a silent update.
+
 ## Normalisation contract
 
 Ingestion runs in Python and verification runs in Go, so a single shared function is not available
