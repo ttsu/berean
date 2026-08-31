@@ -59,11 +59,12 @@ Prompt-only tradition steering produces confident nonsense. All three layers are
 
 1. **Retrieval** — metadata filter on the active profile, then rerank with tier weighting so
    binding sources outrank advisory.
-2. **Prompting** — inject profile summary plus citation rules; doctrinal claims must cite
-   binding or governing tier.
-3. **Validation** — programmatically verify each doctrinal assertion resolves to an in-profile
-   `binding` or `governing` source, and that any `contrary` or `excluded` citation is labelled as
-   such. Reject and regenerate on failure.
+2. **Prompting** — inject profile summary plus citation rules; an affirmative claim must cite
+   binding or governing tier, and anything else belongs in a descriptive slot.
+3. **Validation** — programmatically verify each affirmative claim resolves to an in-profile
+   `binding` or `governing` source, that no `contrary` or `excluded` citation appears in one, and
+   that every such citation is labelled. Reject and regenerate on failure. The check is structural:
+   which slot a claim occupies, never what it means (ADR-0016).
 
 Layer 3 is what makes this an enterprise system rather than a RAG demo, and it is the layer
 almost nobody builds.

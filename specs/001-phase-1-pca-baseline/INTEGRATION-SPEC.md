@@ -58,8 +58,9 @@ Two top-level parts: the **answer object** and the **retrieval trace**.
 
 ```
 AnswerObject:
-  position: string
-  arguments: [ Argument ]
+  position: string               # empty when `arguments` is empty
+  arguments: [ Argument ]        # affirmative — tier floor enforced
+  descriptions: [ Description ]  # descriptive — no floor, labels required
   contrary_positions: [ ContraryPosition ]
   contested: Contested
   confidence: { level: enum, reason: string }   # reason is Go-derived, never model-authored
@@ -74,6 +75,11 @@ Citation:
   locator: string                # e.g. "WCF 18.3"
   tier: Tier
   quote: string                  # verbatim, NFC-normalised
+
+Description:
+  subject: string                # what is described — a person, document, or tradition
+  content: string                # what that source says, not whether it is true
+  citations: [ Citation ]        # MUST be non-empty; any tier
 
 ContraryPosition:
   position: string
@@ -97,6 +103,14 @@ Constraints Go enforces on receipt — Python's output is untrusted:
 - `{corpus_id, locator}` resolves to exactly one chunk. A locator alone is not unique — `WCF 7.2`
   exists in both the 1788 and 1646 editions.
 - `tier` matches the stance the resolved profile assigns that corpus, never the tier Python claims.
+- Every `Argument` carries at least one `binding` or `governing` citation. An argument resting only
+  on `advisory` fails — advisory corroborates, it never establishes.
+- `contrary` and `excluded` citations never appear in `arguments[].citations`. They appear in
+  `descriptions` and `contrary_positions`, and carry their label there.
+- `descriptions[].citations` is non-empty and may draw on any tier. A `contrary` or `excluded`
+  citation here MUST carry its label at render time.
+- `position` is empty when `arguments` is empty. A purely descriptive answer reports what sources
+  say and states no position of its own.
 - `contested.locus` is one of the loci sent in the request. An unsent locus is a fabrication and
   fails immediately, exactly as an unsent `corpus_id` does.
 - When `is_contested`, `contested.citations` includes the ruling named for that locus, and
@@ -117,6 +131,22 @@ A residual gap, stated rather than papered over: the omission check fires only w
 the ruling. An answer that resolves a contested locus while citing neither the ruling nor anything
 that reaches it is still possible, and nothing here catches it. Phase 2's eval harness is what
 measures that rate; UC-4 in the golden set is not a substitute for measuring it.
+
+**Affirmative and descriptive claims are separated structurally, not semantically** (ADR-0016).
+An earlier draft made check 3 turn on whether a claim was "doctrinal", a predicate no field carried
+and no document defined — so it could only be read as "everything", which makes `advisory` and
+`contrary` unusable, or as "nothing", which makes the check a silent no-op. Membership in
+`arguments` now *is* the affirmative claim: Go checks which list a claim is in and what tiers its
+citations carry, never what the claim means.
+
+This is what makes an `excluded` citation expressible. "Your denomination examined this view and
+repudiated it in 2007" is a `Description` whose citation sits at `excluded` tier and carries its
+label — a claim *about* a source, which is what that tier was always for.
+
+One hole this does not close: `position` is prose with no citations of its own, so a model could
+state affirmatively there what the routing rules would have rejected in `arguments`. The empty-when-
+descriptive rule bounds it, and nothing checks it semantically. Phase 2's eval harness is where that
+rate gets measured.
 
 `confidence.reason` is **derived by Go from the verification result** — citation counts by tier,
 contested flags, degraded checks — and states what was found, never how the model felt about it.
@@ -205,8 +235,8 @@ mode with no verification story. The declared list is what supplies one.
 
 `excluded` is the tier the product is built around, so its handling is specified rather than left
 to fall out of the others. An `excluded` corpus is retrievable and citable; its citations MUST
-carry their label at render time, exactly as `contrary` does; and it MUST NOT support a doctrinal
-claim affirmatively. "Your denomination examined this view and repudiated it in 2007" is the
+carry their label at render time, exactly as `contrary` does; and they appear in `descriptions` or
+`contrary_positions`, never in `arguments`. "Your denomination examined this view and repudiated it in 2007" is the
 answer it exists to produce — that is a claim *about* the source, not one resting on its
 authority.
 
@@ -219,7 +249,7 @@ citation fail as a fabrication.
 `advisory` only. `contrary` and `excluded` are load errors: no tradition in scope repudiates
 Scripture, so either value means the profile is wrong (ADR-0011). The stance becomes that corpus's
 tier in the filter spec and is checked at verification like any other. Setting it below `binding` is
-a substantive claim — under check 3 it means Scripture alone cannot carry a doctrinal claim for that
+a substantive claim — under check 3 it means Scripture alone cannot carry an `Argument` for that
 tradition — so it is a behavioural change, not a labelling one.
 
 ## Corpus acquisition contract

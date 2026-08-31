@@ -55,8 +55,12 @@ MUST / SHOULD / MAY are used in the RFC 2119 sense.
   unverified content with a warning attached.
 - Verification MUST run in the Go gateway. It MUST NOT be delegated to the model layer.
 - Any `contrary`-tier citation MUST be labelled as another tradition's position at render time, and
-  any `excluded`-tier citation MUST be labelled as repudiated by the active tradition. An `excluded`
-  citation MUST NOT support a doctrinal claim affirmatively.
+  any `excluded`-tier citation MUST be labelled as repudiated by the active tradition. Neither MAY
+  appear in an affirmative claim; both belong in the descriptive slots, where a claim reports what a
+  source says rather than resting on its authority.
+- An affirmative claim MUST carry at least one `binding` or `governing` citation. Affirmative and
+  descriptive claims MUST be separated structurally, by which slot of the answer object they occupy,
+  and MUST NOT be told apart by classifying what a claim means (ADR-0016).
 - Corpus IDs MUST be edition-specific. A bare work ID is a bug.
 - Text MUST be normalised to NFC before storage and before quote comparison.
 
