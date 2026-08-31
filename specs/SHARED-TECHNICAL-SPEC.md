@@ -30,8 +30,13 @@ MUST / SHOULD / MAY are used in the RFC 2119 sense.
   disqualifying**, not a tradeoff, and so is **CC-BY-ND** — chunking, embedding, and serving
   excerpts is plausibly a derivative work. Personal non-commercial intent does not rescue a
   restrictively licensed dependency (ADR-0007).
-- ESV and NIV text MUST NOT appear anywhere in the repository — source, fixtures, test data, or
-  the eval golden set.
+- **No corpus text of any kind MUST appear in the repository**, whatever its licence — not in
+  source, fixtures, test data, or the eval golden set (ADR-0014). The repository carries
+  acquisition manifests, per-chunk fingerprints, and acquisition scripts. Text is acquired to
+  gitignored local storage and is never distributed. The rule is unconditional so that it needs no
+  per-corpus licensing judgement and can be enforced mechanically.
+- ESV and NIV carry an additional restriction beyond that: they MUST NOT be ingested at all, at any
+  point, and are fetched at render time only.
 - Every chunk MUST carry `license` and `attribution`. A corpus addition without them is a blocking
   review failure.
 - The verification layer MUST refuse to serve any chunk whose license does not permit it, using

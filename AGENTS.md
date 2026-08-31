@@ -41,11 +41,14 @@ alternatives: [docs/adr/](docs/adr/).
 
 These are not style preferences. Violating any of them is a correctness or legal failure.
 
-1. **No ESV or NIV text anywhere in this repository.** Not in source, not in fixtures, not
-   in test data, and specifically **not in the eval golden set** — that is the likeliest
-   place it gets in, because golden sets naturally contain expected passages. Retrieval runs
-   on public-domain WEB text; copyrighted translations are fetched at render time via API
-   with a deployer-supplied key. See [docs/CORPUS-POLICY.md](docs/CORPUS-POLICY.md).
+1. **No corpus text in this repository — none, from any source, whatever its licence.** Not in
+   `data/`, not in fixtures, not in test data, and specifically **not in the eval golden set**,
+   which is the likeliest way it gets in because golden sets naturally contain expected
+   passages. The repo carries acquisition manifests, fingerprints, and scripts; text is
+   acquired locally and never distributed (ADR-0014). This is a bright line precisely so it
+   needs no per-corpus judgement. ESV and NIV are the sharpest case and carry an additional
+   rule — they never enter the database at all, and are fetched at render time via a
+   deployer-supplied key. See [docs/CORPUS-POLICY.md](docs/CORPUS-POLICY.md).
 2. **Corpus IDs are edition-specific.** Write `wcf-1788-american`, never `wcf`. The PCA holds
    the 1788 American revision, which differs from the 1646 original on the civil magistrate.
    A bare work ID is a bug.

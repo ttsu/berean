@@ -77,6 +77,29 @@ displayed, an esv.org link on each page, and no sharing or publishing of the acc
 **Open question:** the ESV API caching clause constrains what may be stored. Resolve before
 building the render path.
 
+## No corpus text in the repository
+
+**This repository contains no corpus text, from any source, whatever its licence** (ADR-0014). Not
+public-domain text, not permissively licensed text, not fixtures, not golden sets.
+
+The rule is deliberately unconditional. A per-corpus rule would be more permissive and would keep
+public-domain text committed for reproducibility, but it requires a licensing judgement on every
+corpus addition, forever — and those judgements get made in a hurry by whoever is adding a corpus.
+An unconditional rule needs no judgement, holds for corpora nobody has considered yet, and can be
+enforced mechanically by a single `.gitignore` entry.
+
+It also means the repository never becomes a distribution channel. Everything in this document about
+what may be redistributed applies to publication; with nothing published, the question does not
+arise for the repository itself, and the remaining licensing questions are about what a deployer may
+ingest and serve locally.
+
+Acquisition is a pipeline (see the acquisition contract in the Phase 1 INTEGRATION-SPEC): the repo
+carries manifests, per-chunk fingerprints, and acquisition scripts, and text is fetched to
+gitignored local storage. The fingerprints preserve reproducibility without carrying expression.
+
+This generalises what ADR-0004 already established for copyrighted Bible translations — store
+locators, fetch text — and applies it to every corpus rather than only the ones that force it.
+
 ## Per-chunk license metadata
 
 Every chunk carries `license` and `attribution`. This makes the attribution page generate

@@ -19,7 +19,9 @@ no spec, because people trust it.
 
 These are correctness or legal failures, not style preferences:
 
-1. No ESV or NIV text anywhere — source, fixtures, tests, or golden sets.
+1. No corpus text in the repo — none, from any source, including fixtures, tests, and golden
+   sets. Manifests and fingerprints only (ADR-0014). ESV and NIV additionally never enter the
+   database at all.
 2. Corpus IDs are edition-specific. `wcf` is a bug; `wcf-1788-american` is correct.
 3. Nothing renders unverified.
 4. No token streaming.

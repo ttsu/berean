@@ -32,13 +32,16 @@ Compose stack with Postgres + pgvector, Langfuse, and empty service containers. 
 anything yet; the acceptance test passes.
 
 - [ ] `docker compose up` succeeds with no external accounts
-- [ ] Documented provisioning step pulls images, the Ollama model, and BGE-M3 into `/models/`
+- [ ] Documented provisioning step pulls images, the Ollama model, and BGE-M3 into `/models/`,
+      and runs corpus acquisition (Task 4) into `/data/` — neither ships in the repo
 - [ ] After provisioning, the stack comes up and serves with egress blocked
 - [ ] Postgres reachable with pgvector extension available
 - [ ] Langfuse reachable
 - [ ] Two DB roles created, with schema-level grants and `ALTER DEFAULT PRIVILEGES` per
       INTEGRATION-SPEC — no tables exist yet, so table grants are re-asserted by the DDL task
 - [ ] `make dev` documented in README
+- [ ] Guard that fails on any staged file containing corpus text — a bright line that nothing
+      checks will erode (ADR-0014)
 
 ---
 
@@ -74,39 +77,62 @@ their tables before either starts — splitting the DDL across Tasks 3 and 9 mak
 
 ---
 
-## Task 4: Source acquisition and provenance
+## Task 4: Corpus acquisition pipeline and provenance
 
 **Depends on:** —
 
-Obtain the 1788 American revision of WCF/WLC/WSC and the current BCO in a parseable form, plus the
-1646 original — needed for the edition check below, and declared `contrary` in the PCA profile.
+Build the acquisition pipeline, then use it to acquire the 1788 American revision of WCF/WLC/WSC,
+the current BCO, the 1646 original (needed for the edition check, and the profile's only `contrary`
+corpus), and the WEB text.
 
-- [ ] Source files acquired with recorded provenance URL and retrieval date
-- [ ] **Verified as the 1788 American revision** — check WCF ch. 23 against the 1646 text
-- [ ] 1646 original acquired as `wcf-1646-original`, the profile's only `contrary` corpus
-- [ ] License and attribution confirmed for each source
-- [ ] Sources committed to `data/corpus/` or a fetch script provided, whichever the licence permits
-      (`/data/raw/` is gitignored scratch — a source committed there disappears silently)
+**No corpus text enters the repository** (ADR-0014). The repo carries manifests, fingerprints, and
+scripts; text lands in gitignored `/data/`.
+
+Pipeline:
+
+- [ ] `catena acquire --corpus <id>` runs fetch → extract → segment → normalise → verify → stage
+- [ ] Each stage independently re-runnable and idempotent; fetch caches on `upstream_sha256`
+- [ ] Structural chunking lives in the segment stage — WCF per numbered section, WLC/WSC per Q&A
+      pair never split, BCO per numbered paragraph, WEB per verse
+- [ ] `--bless` writes a new manifest after human edition verification; the default mode verifies
+      against the committed manifest and fails loudly, never silently, on any mismatch
+- [ ] `--from-file` accepts a local copy, so a dead or moved upstream does not block a deployer
+- [ ] `make corpus-verify` re-acquires every corpus and diffs against committed fingerprints —
+      this is how upstream drift gets noticed
+
+Provenance and licensing:
+
+- [ ] Manifest per corpus: source URL, archive fallback URL, retrieval date, licence, attribution,
+      edition diagnostic with its expected text, normalisation contract version, chunk count
+- [ ] Fingerprints file: one `<locator>  <sha256-of-normalised-text>` per line, sorted
+- [ ] **Verified as the 1788 American revision** — WCF ch. 23 checked by hand against the 1646
+      text, with the divergence recorded in the manifest as quoted text rather than a checkbox
+- [ ] Licence and attribution confirmed per source and recorded, never assumed
+- [ ] Bare text only, never a modern edition's apparatus — footnotes, cross-references, modernised
+      spelling, and proof-text selections can carry fresh copyright over public-domain text
 
 Getting the edition wrong here silently poisons everything downstream. Verify by hand.
 
 ---
 
-## Task 5: Ingestion — parse, chunk, enrich, embed
+## Task 5: Ingestion — enrich, embed, load
 
 **Depends on:** Tasks 3, 4
 
-- [ ] WCF chunked per numbered section; WLC/WSC per Q&A pair, never split
-- [ ] BCO chunked per numbered paragraph
-- [ ] WEB Scripture chunked per verse, ingested under the corpus ID the profile resolves to
+Chunking and normalisation happen in acquisition, so ingestion never parses an upstream format and
+never touches the network. It reads staged records, enriches, embeds, and loads.
+
+- [ ] Reads staged records from gitignored `/data/staged/<corpus-id>/`; no network in this path
+- [ ] Records re-verified against committed fingerprints before insert — ingestion refuses text
+      that does not match what was blessed
+- [ ] WEB ingested under the corpus ID the profile resolves to
 - [ ] `wcf-1646-original` ingested, so the profile's `contrary` entry resolves and UC-3 has a
       counterpart to contrast against
 - [ ] All thirteen metadata fields populated on every chunk
 - [ ] Corpus IDs edition-specific (`wcf-1788-american`)
-- [ ] Text normalised at ingestion per the INTEGRATION-SPEC normalisation contract
-- [ ] Shared test-vector fixture committed and asserted by the Python suite
+- [ ] Shared normalisation test-vector fixture committed and asserted by the Python suite
 - [ ] BGE-M3 behind an embedder interface; `embedding_model` and `dim` written per chunk
-- [ ] Re-running ingestion is idempotent
+- [ ] Re-running ingestion is idempotent, keyed on the per-chunk hash
 - [ ] Spot-check: `WCF 7.2` and `WSC Q&A 1` retrieve and read correctly
 
 ---
@@ -194,7 +220,8 @@ Tables come from Task 3; this task is the persistence path that writes them.
 - [ ] UC-3 (civil magistrate) returns 1788 American text
 - [ ] UC-4 (creation days) flags contested, does not resolve
 - [ ] UC-5 (fabricated citation) caught, regenerated, degraded, and logged
-- [ ] `docker compose up` from a clean clone reproduces all of the above
+- [ ] Clean clone → documented provisioning (models + `catena acquire`) → `docker compose up`
+      reproduces all of the above, with acquisition verifying against committed fingerprints
 - [ ] README documents the full path from clone to first answer
 
 ---

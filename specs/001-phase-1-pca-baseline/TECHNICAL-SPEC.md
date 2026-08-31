@@ -55,8 +55,14 @@ text_form, edition, license, attribution, embedding_model, dim
 `language` and `text_form` are required now even though original-language support is Phase 3–4
 (ADR-0008). `edition` is what makes `wcf-1788-american` distinguishable from `wcf-1646-original`.
 
-Ingestion is idempotent and re-runnable. It is a batch job invoked by hand in Phase 1; it is never
-in the request path.
+Structural chunking happens during **acquisition**, not ingestion (ADR-0014). Acquisition fetches,
+extracts, segments on the boundaries above, normalises, and verifies against committed
+fingerprints; ingestion reads the staged records, enriches, embeds, and loads. So ingestion never
+parses upstream formats and never touches the network — and per-chunk fingerprints are meaningful,
+because chunking has already happened when they are computed.
+
+Ingestion is idempotent and re-runnable, keyed on the per-chunk hash. It is a batch job invoked by
+hand in Phase 1; it is never in the request path.
 
 Text is normalised at ingestion per the normalisation contract in INTEGRATION-SPEC, and quote
 comparison at verification applies the identical steps. The two run in different languages, so what
