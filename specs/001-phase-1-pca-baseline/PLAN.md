@@ -83,7 +83,10 @@ their tables before either starts — splitting the DDL across Tasks 3 and 9 mak
 
 Build the acquisition pipeline, then use it to acquire the 1788 American revision of WCF/WLC/WSC,
 the current BCO, the 1646 original (needed for the edition check, and the profile's only `contrary`
-corpus), and the WEB text.
+corpus), the WEB text, and the 28th General Assembly (2000) creation study committee report
+(`pca-ga28-2000-creation-study`) — the document that establishes the contested status of
+`creation-days`. Without it the corpus says only "in the space of six days" (WCF 4.1) and UC-4
+cannot be answered from any ingested text.
 
 **No corpus text enters the repository** (ADR-0014). The repo carries manifests, fingerprints, and
 scripts; text lands in gitignored `/data/`.
@@ -93,7 +96,12 @@ Pipeline:
 - [ ] `catena acquire --corpus <id>` runs fetch → extract → segment → normalise → verify → stage
 - [ ] Each stage independently re-runnable and idempotent; fetch caches on `upstream_sha256`
 - [ ] Structural chunking lives in the segment stage — WCF per numbered section, WLC/WSC per Q&A
-      pair never split, BCO per numbered paragraph, WEB per verse
+      pair never split, BCO per numbered paragraph, WEB per verse, the 2000 report per numbered
+      section with its recommendations segmented separately from the expository body
+- [ ] The 2000 report's recommendations are independently addressable, so a profile's
+      `ruling_source` resolves to the ruling and never to the expository body. The body argues
+      four views the denomination did not adopt; tier is per corpus, not per chunk, so nothing
+      else separates advocacy from ruling
 - [ ] `--bless` writes a new manifest after human edition verification; the default mode verifies
       against the committed manifest and fails loudly, never silently, on any mismatch
 - [ ] `--from-file` accepts a local copy, so a dead or moved upstream does not block a deployer
