@@ -18,6 +18,7 @@ one regeneration on verification failure (ADR-0002, ADR-0010).
 | `query` | The user's question, verbatim |
 | `conversation_context` | Empty in Phase 1; present in the contract so Phase 4 is not a proto break |
 | `filter_spec` | The **resolved** filter — see below |
+| `contested_loci` | `[ { locus, ruling: { corpus_id, locator } } ]` — see below |
 | `request_id` | Correlates trace, response, and Langfuse span |
 
 **`filter_spec`** carries corpus IDs grouped by tier plus tier weights. It does **not** carry the
@@ -35,6 +36,22 @@ filter_spec:
 Tier weights are carried in Phase 1 but unused, since there is no reranker yet. Present in the
 contract so Phase 3 is not a proto break.
 
+**`contested_loci`** is a sibling of `filter_spec`, not part of it. `filter_spec` is retrieval
+policy; contested loci are generation context, and mixing them would make the filter mean two
+things. The FilterSpec resolution rule and its unit test are unchanged.
+
+It carries, per locus the tradition holds open, a stable ID and the location of the ruling that
+establishes it — **a pointer, never prose**. Python resolves that pointer through ordinary
+retrieval, reads the passage, and grounds `state_of_debate` in it. Go does not resolve the quote
+before sending: Python owns retrieval, Go owns verification, and having Go fetch chunk text to
+build a request would invert that for no gain.
+
+This does not reintroduce identity. Python still learns nothing about who asked, and the resolved
+`corpora` list already fingerprints a tradition more precisely than a locus list does — a
+`filter_spec` naming `wcf-1788-american` at `binding` alongside the BCO is unmistakably the PCA.
+What the boundary refuses is a profile *identity* Python could branch on, key state to, or log as
+a user attribute. A locus and a locator are neither (ADR-0015).
+
 ### Response: Python → Go
 
 Two top-level parts: the **answer object** and the **retrieval trace**.
@@ -44,7 +61,7 @@ AnswerObject:
   position: string
   arguments: [ Argument ]
   contrary_positions: [ ContraryPosition ]
-  contested: { is_contested: bool, state_of_debate: string }
+  contested: Contested
   confidence: { level: enum, reason: string }   # reason is Go-derived, never model-authored
 
 Argument:
@@ -62,6 +79,12 @@ ContraryPosition:
   position: string
   held_by: [ string ]            # traditions
   citations: [ Citation ]        # tier will be `contrary`
+
+Contested:
+  is_contested: bool
+  locus: string                  # MUST be one of the loci sent, when is_contested
+  citations: [ Citation ]        # MUST include the locus's ruling, when is_contested
+  state_of_debate: string        # MUST quote the ruling verbatim
 ```
 
 Constraints Go enforces on receipt — Python's output is untrusted:
@@ -74,6 +97,26 @@ Constraints Go enforces on receipt — Python's output is untrusted:
 - `{corpus_id, locator}` resolves to exactly one chunk. A locator alone is not unique — `WCF 7.2`
   exists in both the 1788 and 1646 editions.
 - `tier` matches the stance the resolved profile assigns that corpus, never the tier Python claims.
+- `contested.locus` is one of the loci sent in the request. An unsent locus is a fabrication and
+  fails immediately, exactly as an unsent `corpus_id` does.
+- When `is_contested`, `contested.citations` includes the ruling named for that locus, and
+  `state_of_debate` contains its quote verbatim under the same NFC substring rule as any other
+  quote. A contested claim is a cited claim or it is not shown.
+- When a verified citation resolves to a locus's ruling and `is_contested` is false, the answer
+  fails. This is the one omission check in the system, and it exists because every other check
+  catches fabrication instead.
+
+Contested failures take the ordinary path: regenerate once with reasons fed back, degrade on the
+second failure (ADR-0010). **Go does not rewrite the answer.** Substituting the ruling for a
+model-authored `position` would make the trust boundary an author, and a verifier that edits what
+it verifies is no longer a verifier. `confidence.reason` remains the only Go-authored field, and it
+is verification metadata rather than answer content — a distinction worth holding, because the
+first exception to it is the one that ends the guarantee.
+
+A residual gap, stated rather than papered over: the omission check fires only when the model cites
+the ruling. An answer that resolves a contested locus while citing neither the ruling nor anything
+that reaches it is still possible, and nothing here catches it. Phase 2's eval harness is what
+measures that rate; UC-4 in the golden set is not a substitute for measuring it.
 
 `confidence.reason` is **derived by Go from the verification result** — citation counts by tier,
 contested flags, degraded checks — and states what was found, never how the model felt about it.

@@ -153,8 +153,11 @@ never touches the network. It reads staged records, enriches, embeds, and loads.
 - [ ] Loader validates: unknown stance is an error; `contrary` or `excluded` without `label` is an error
 - [ ] `scripture.stance` defaults to `binding` when absent; `contrary`/`excluded` rejected (ADR-0011)
 - [ ] `scripture.translation` resolved into the corpora list carrying that stance as its tier
+- [ ] `contested` entries validated: `ruling_source.corpus_id` absent from `corpora` is a load error
 - [ ] Resolves to a `FilterSpec` carrying corpus IDs, tiers, weights — **and nothing else**
 - [ ] Unit test asserts no profile name, user identity, or session state appears in the FilterSpec
+- [ ] Contested loci resolve to a **sibling** request field, never into the FilterSpec — pointers
+      only (`locus`, `corpus_id`, `locator`), never resolved prose (ADR-0015)
 - [ ] Schema handles N profiles though only one is populated
 
 ---
@@ -166,6 +169,8 @@ never touches the network. It reads staged records, enriches, embeds, and loads.
 - [ ] gRPC server implementing `Answer`
 - [ ] Dense-only top-k search filtered to the corpus IDs in the FilterSpec
 - [ ] **No reranking, no BM25, no query rewriting** — naive is the requirement
+- [ ] Resolves a sent locus's `ruling` pointer through ordinary retrieval and grounds
+      `state_of_debate` in that passage; populates `contested.locus` only from the loci sent
 - [ ] Generation behind an OpenAI-compatible interface, default Ollama
 - [ ] Structured output conforming to `AnswerObject`
 - [ ] `RetrievalTrace` populated including excluded candidates with reasons
@@ -186,6 +191,11 @@ The phase's reason for existing.
 - [ ] Tier check against the **resolved profile**, not the tier Python claimed
 - [ ] License check refuses non-permitting chunks
 - [ ] Citation to a corpus not in the sent FilterSpec fails immediately
+- [ ] `contested.locus` not among the loci sent fails immediately, as an unsent corpus does
+- [ ] When `is_contested`, the locus's ruling is cited and quoted verbatim in `state_of_debate`
+- [ ] A verified citation resolving to a locus's ruling while `is_contested` is false fails — the
+      system's only omission check
+- [ ] Go never rewrites the answer; contested failures regenerate then degrade like any other
 - [ ] Empty `citations` on any argument fails the answer
 - [ ] Regenerate once on failure with reasons fed back; degrade on second failure
 - [ ] Degraded output is "I can't source this adequately" with no partial unverified content
@@ -226,7 +236,7 @@ Tables come from Task 3; this task is the persistence path that writes them.
 - [ ] **Zero unverified citations in output** — the phase's hard gate
 - [ ] UC-2 (silent corpus) produces an honest non-answer
 - [ ] UC-3 (civil magistrate) returns 1788 American text
-- [ ] UC-4 (creation days) flags contested, does not resolve
+- [ ] UC-4 (creation days) flags contested, cites the 2000 report's ruling, does not resolve
 - [ ] UC-5 (fabricated citation) caught, regenerated, degraded, and logged
 - [ ] Clean clone → documented provisioning (models + `catena acquire`) → `docker compose up`
       reproduces all of the above, with acquisition verifying against committed fingerprints
