@@ -118,11 +118,10 @@ identity, or session state, and no prose the profile authored.
 
 The report is `advisory` because that is what the PCA holds study committee reports to be: advice
 to the courts, not constitutional. That stance interacts with verification check 3, which requires
-a doctrinal claim to rest on `binding` or `governing`. Reporting that the denomination permitted
-multiple views is a claim *about* the denomination's action, not a doctrinal claim resting on the
-report's authority — the same distinction that lets an `excluded` citation carry "your denomination
-repudiated this". Check 3's predicate is still undefined, and until it is, an implementer who
-treats every claim as doctrinal will reject the one citation UC-4 depends on.
+an `Argument` to rest on `binding` or `governing`. Reporting that the denomination permitted
+multiple views is a claim *about* the denomination's action, so it lives in `Contested` rather than
+in `arguments`, where the advisory tier is no obstacle — the same routing that lets an `excluded`
+citation carry "your denomination repudiated this" from `descriptions` (ADR-0016).
 
 Resolution injects `scripture.translation` into the corpora list as an edition-specific corpus ID
 (`web-2000` for the WEB text in Phase 1). Scripture is not a parallel channel: a verse citation is
@@ -155,9 +154,12 @@ Four checks per citation, all in Go, all ordinary software:
 
 1. **Locator resolves** — the corpus ID and locator identify exactly one chunk.
 2. **Quote matches** — the verbatim quote appears in that chunk's text after NFC normalisation.
-3. **Tier permitted** — the chunk's corpus is in the active profile at a tier the claim allows.
-   Doctrinal claims require `binding` or `governing`. Any `contrary` or `excluded` citation must
-   carry a label, and an `excluded` citation may never support a doctrinal claim affirmatively.
+3. **Tier permitted** — the chunk's corpus is in the active profile at a tier the claim's *slot*
+   allows. Every `Argument` needs at least one `binding` or `governing` citation; `advisory` may
+   corroborate inside an argument but never carry one alone; `contrary` and `excluded` never appear
+   in an argument at all. They appear in `descriptions` and `contrary_positions`, where any tier is
+   permitted and `contrary`/`excluded` must carry a label. Go checks which slot a claim occupies,
+   never what the claim means (ADR-0016).
 4. **License permits serving** — the chunk's `license` allows display.
 
 Answer-level: **any claim without a citation fails.**

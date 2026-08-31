@@ -171,6 +171,8 @@ never touches the network. It reads staged records, enriches, embeds, and loads.
 - [ ] **No reranking, no BM25, no query rewriting** — naive is the requirement
 - [ ] Resolves a sent locus's `ruling` pointer through ordinary retrieval and grounds
       `state_of_debate` in that passage; populates `contested.locus` only from the loci sent
+- [ ] Routes claims into `arguments` or `descriptions` per the slot rules, so a descriptive answer
+      is expressible without an affirmative claim behind it
 - [ ] Generation behind an OpenAI-compatible interface, default Ollama
 - [ ] Structured output conforming to `AnswerObject`
 - [ ] `RetrievalTrace` populated including excluded candidates with reasons
@@ -189,6 +191,10 @@ The phase's reason for existing.
 - [ ] Quote match: exact substring containment after normalisation
 - [ ] Go asserts the same shared normalisation vectors the Python ingestion suite asserts
 - [ ] Tier check against the **resolved profile**, not the tier Python claimed
+- [ ] Every `Argument` carries a `binding` or `governing` citation; advisory-only fails
+- [ ] `contrary` or `excluded` appearing in `arguments[]` fails; both permitted in the descriptive
+      slots with their labels
+- [ ] `descriptions[].citations` non-empty; `position` empty when `arguments` is empty
 - [ ] License check refuses non-permitting chunks
 - [ ] Citation to a corpus not in the sent FilterSpec fails immediately
 - [ ] `contested.locus` not among the loci sent fails immediately, as an unsent corpus does
