@@ -36,6 +36,23 @@ any chunk whose `license` does not permit it, using the same mechanism as tier c
   independent problem: chunking, embedding, and serving excerpts is plausibly a derivative work.
   See ADR-0012
 
+## Unresolved — acquired by Phase 1, not yet classified
+
+Neither of these appears above, and both are gating. Task 3 makes an insert without `license` fail
+at the database level, and the verification layer refuses to serve any chunk whose licence does not
+permit it — so an unclassified corpus cannot be ingested at all, and Task 4 cannot complete until
+these are resolved.
+
+- **PCA *Book of Church Order*** — published by the PCA Administrative Committee. Task 4 already
+  acquires it; the policy has never said on what terms. Resolve before ingestion.
+- **PCA 28th General Assembly (2000) creation study committee report** — same publisher, same
+  question. UC-4 depends on it (ADR-0015), which makes the answer load-bearing rather than
+  academic.
+
+Neither is assumed permissive here. Public availability on a denominational website is not a
+licence, and this document's own reasoning on the 500-verse allowance applies: a permission to read
+or quote is not a permission to ingest.
+
 ## The rule that gets violated first
 
 **No ESV or NIV text anywhere in this repository.** Not in source, not in fixtures, not in test
