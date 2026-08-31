@@ -25,3 +25,4 @@ Use [0000-template.md](0000-template.md).
 | [0012](0012-drop-tyndale-house-gnt.md) | Drop Tyndale House GNT; SBLGNT and OSHB are the base texts | Accepted |
 | [0013](0013-go-cli-in-phase-1.md) | Phase 1 includes a minimal Go CLI, not a Python-only one | Accepted |
 | [0014](0014-no-corpus-text-in-the-repository.md) | No corpus text in the repository, from any source | Accepted |
+| [0015](0015-contested-loci-cross-the-boundary.md) | Contested loci cross the boundary; profile identity does not | Accepted |
