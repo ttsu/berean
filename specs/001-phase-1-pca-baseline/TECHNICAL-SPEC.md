@@ -101,13 +101,28 @@ corpora:
   - id: wcf-1646-original
     stance: contrary
     label: "original Westminster, not PCA's text"
+  - id: pca-ga28-2000-creation-study
+    stance: advisory
+    note: GA study committee reports are advice to the courts, not constitutional
 contested:
   - locus: creation-days
-    ruling: "2000 study committee permitted multiple views"
+    ruling_source:
+      corpus_id: pca-ga28-2000-creation-study
+      locator: "Recommendations 1"
 ```
 
-Go resolves this into the filter spec sent to Python. **The profile itself never crosses the
-boundary.**
+Go resolves this into the filter spec sent to Python, plus the contested loci carried alongside it
+(ADR-0015). **The profile document itself never crosses the boundary** — what crosses is the
+resolved filter and, per locus, a stable ID and the locator of the ruling. No profile name, user
+identity, or session state, and no prose the profile authored.
+
+The report is `advisory` because that is what the PCA holds study committee reports to be: advice
+to the courts, not constitutional. That stance interacts with verification check 3, which requires
+a doctrinal claim to rest on `binding` or `governing`. Reporting that the denomination permitted
+multiple views is a claim *about* the denomination's action, not a doctrinal claim resting on the
+report's authority — the same distinction that lets an `excluded` citation carry "your denomination
+repudiated this". Check 3's predicate is still undefined, and until it is, an implementer who
+treats every claim as doctrinal will reject the one citation UC-4 depends on.
 
 Resolution injects `scripture.translation` into the corpora list as an edition-specific corpus ID
 (`web-2000` for the WEB text in Phase 1). Scripture is not a parallel channel: a verse citation is
