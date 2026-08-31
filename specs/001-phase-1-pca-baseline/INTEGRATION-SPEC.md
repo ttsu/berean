@@ -132,13 +132,33 @@ corpora:
     note: string                 # optional, internal
     label: string                # required when stance is `contrary` or `excluded`; shown to the user
 contested:
-  - locus: string
-    ruling: string
+  - locus: string                # stable ID, e.g. creation-days
+    ruling_source:               # required; the corpus document that establishes the ruling
+      corpus_id: string
+      locator: string
 ```
 
 Validation: unknown `stance` is an error, not a default. `contrary` or `excluded` without `label`
 is an error — an unlabelled citation at either tier is exactly the failure mode the tier system
-exists to prevent.
+exists to prevent. A `contested` entry whose `ruling_source.corpus_id` is absent from `corpora` is
+a load error: a locus the profile cannot cite is a locus it cannot defend.
+
+A `contested` entry asserts a **status** — this locus is open within this tradition — and points at
+the document that establishes it. It carries no prose of its own. Every word shown to a user comes
+from the corpus and is verified verbatim like any other quote, so `state_of_debate` is a citation,
+not an assertion the profile makes on the corpus's behalf.
+
+The status is the part that cannot be derived from text, which is why it is declared rather than
+inferred. Three things block inference. Sparse retrieval is three-way ambiguous — "genuinely
+contested", "never addressed", and "our corpus is thin" all look identical, yet UC-2 and UC-4
+require different behaviour from that same signal. A document's standing within a tradition is a
+polity fact that no document self-declares, exactly as the BCO does not call itself `governing`
+and Trent does not call itself `contrary`; declaring stance is what the profile is *for*. And every
+verification check in this system catches fabrication — an unsent corpus, a quote that does not
+match, a locator that resolves twice — while none catches **omission**. A model that quietly fails
+to notice a locus is contested has fabricated nothing, so nothing fires. SHARED §8 calls false
+confidence on intramural disagreement worse than having no profile, which makes it the one failure
+mode with no verification story. The declared list is what supplies one.
 
 `excluded` is the tier the product is built around, so its handling is specified rather than left
 to fall out of the others. An `excluded` corpus is retrievable and citable; its citations MUST

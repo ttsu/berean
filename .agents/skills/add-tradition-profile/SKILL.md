@@ -44,8 +44,19 @@ Where the tradition genuinely disputes something internally, say so.
 ```yaml
 contested:
   - locus: creation-days
-    ruling: "2000 study committee permitted multiple views"
+    ruling_source:
+      corpus_id: pca-ga28-2000-creation-study
+      locator: "Recommendations 1"
 ```
+
+Point at the document, do not paraphrase it. The entry declares only that the locus is open and
+where the ruling lives; the wording the user sees is quoted from the corpus and verified verbatim.
+A hand-typed ruling is corpus text copied into a profile — it goes stale silently and can be
+checked against nothing.
+
+This means a contested locus requires its establishing document to be ingested. If it is not, the
+entry cannot be added; the tradition's `contested` list is bounded by its corpus, and saying "the
+establishing document is not ingested yet" is an honest answer where inventing a ruling is not.
 
 For the PCA: creation days, women in diaconal service, subscription boundaries.
 
@@ -78,7 +89,7 @@ PCA profile, and the equivalent for every pair.
 - [ ] Every `contrary` and `excluded` entry has a `label`
 - [ ] Scripture stance set deliberately, or knowingly left at the `binding` default
 - [ ] `excluded` is populated where the tradition has actually repudiated something
-- [ ] Contested loci modelled with their rulings
+- [ ] Contested loci modelled, each pointing at an ingested `ruling_source`
 - [ ] Corpus depth honestly represented
 - [ ] Golden set added with cross-contamination tests
 - [ ] FilterSpec resolution carries no profile name or user identity
