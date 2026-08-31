@@ -16,10 +16,11 @@ update the spec in the same change.**
 Decide whether Phase 1 includes the Go CLI or is Python-only. See the open decision at the top of
 TECHNICAL-SPEC.md. Every task below assumes the Go CLI.
 
-- [ ] Decision recorded as an ADR
-- [ ] TECHNICAL-SPEC.md open-decision section replaced with the outcome
-- [ ] If Python-only: tasks 6, 7, 8, 10 rewritten before starting — 6, 8 and 10 are Go, and 7 loses
-      its gRPC server
+**Resolved: Phase 1 includes the Go CLI** (ADR-0013).
+
+- [x] Decision recorded as an ADR — ADR-0013
+- [x] TECHNICAL-SPEC.md open-decision section replaced with the outcome
+- [x] Not Python-only, so tasks 6, 7, 8 and 10 stand as written
 
 ---
 
@@ -50,8 +51,9 @@ anything yet; the acceptance test passes.
 - [ ] `Answer` RPC, `FilterSpec`, `AnswerObject`, `Citation`, `RetrievalTrace` defined
 - [ ] Deferred fields present: `conversation_context`, `tier_weights`, `rewritten_query`
 - [ ] `buf generate` produces Go and Python stubs
-- [ ] Generated code is gitignored and regenerated in CI, or committed — decide and document
-- [ ] `buf breaking` runs in CI against main
+- [ ] Generated code gitignored and regenerated locally; the commit-or-generate decision is
+      **deferred to Phase 2** (ADR-0013) — it is CI policy, not contract design
+- [ ] `buf breaking` in CI **deferred to Phase 2**; the proto is pre-consumer in Phase 1
 
 ---
 

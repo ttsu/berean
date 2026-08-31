@@ -4,21 +4,21 @@ Architecture and quality requirements for Phase 1. Project-wide NFRs are in
 [../SHARED-TECHNICAL-SPEC.md](../SHARED-TECHNICAL-SPEC.md) and are not repeated here; this
 document only adds or tightens.
 
-## Open decision — resolve before Task 1
+## Resolved — Phase 1 includes the Go CLI
 
-**Does Phase 1 include the Go gateway, or is it a Python-only CLI?**
+**Phase 1 is a minimal Go CLI binary, not a Python-only CLI** (ADR-0013). It resolves the profile,
+makes one gRPC call, verifies, persists a trace, and prints. No auth, no sessions, no SSE, no HTTP.
 
-The roadmap says "naive RAG, CLI," which reads as Python-only. But the phase's stated goal is to
-prove citations verify, and verification lives in Go by ADR-0001. A Python-only Phase 1 either
-proves the wrong thing or builds verification twice.
+The roadmap's "naive RAG, CLI" reads as Python-only, but the phase exists to prove citations verify,
+and UC-5 — a fabricated citation caught, regenerated, and degraded — is the acceptance case for the
+whole phase. In a single-process Python CLI the code that produced the fabrication is the code that
+catches it: that demonstrates the four checks are correct without demonstrating there is a trust
+boundary, and the boundary is the product claim. It would also leave the cross-language
+normalisation contract untested until it is ported onto an already-ingested corpus.
 
-**Recommendation: a minimal Go CLI binary**, not an HTTP server. It resolves the profile, makes
-one gRPC call, verifies, and prints. No auth, no sessions, no SSE, no HTTP. That is a few hundred
-lines beyond a Python CLI and it exercises the seam, the proto contract, and the trust boundary —
-the three things most expensive to retrofit.
-
-The rest of this spec assumes that recommendation. **If it is rejected, revise this document
-before implementation rather than diverging from it.**
+Scope discipline is what keeps this affordable: no CLI framework, one command, hand-rolled flags,
+and the buf CI machinery deferred to Phase 2. Roughly 600 lines of Go, none of it algorithmically
+hard — verification is string matching and indexed lookups.
 
 ## Components in scope
 

@@ -23,3 +23,4 @@ Use [0000-template.md](0000-template.md).
 | [0010](0010-regeneration-retry-exception.md) | A verification failure permits one regeneration call | Accepted |
 | [0011](0011-scripture-tier-is-profile-configurable.md) | Scripture's tier is profile-configurable, defaulting to binding | Accepted |
 | [0012](0012-drop-tyndale-house-gnt.md) | Drop Tyndale House GNT; SBLGNT and OSHB are the base texts | Accepted |
+| [0013](0013-go-cli-in-phase-1.md) | Phase 1 includes a minimal Go CLI, not a Python-only one | Accepted |
