@@ -238,12 +238,13 @@ Tables come from Task 3; this task is the persistence path that writes them.
 
 **Depends on:** all
 
-- [ ] Ten questions covering UC-1 to UC-5 run end to end
+- [ ] Ten questions covering UC-1 to UC-6 run end to end
 - [ ] **Zero unverified citations in output** — the phase's hard gate
 - [ ] UC-2 (silent corpus) produces an honest non-answer
 - [ ] UC-3 (civil magistrate) returns 1788 American text
 - [ ] UC-4 (creation days) flags contested, cites the 2000 report's ruling, does not resolve
 - [ ] UC-5 (fabricated citation) caught, regenerated, degraded, and logged
+- [ ] UC-6 (descriptive question) answers from `advisory` sources with citations, does not refuse
 - [ ] Clean clone → documented provisioning (models + `catena acquire`) → `docker compose up`
       reproduces all of the above, with acquisition verifying against committed fingerprints
 - [ ] README documents the full path from clone to first answer

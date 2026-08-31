@@ -78,6 +78,14 @@ side. **Confident resolution here is the worst possible outcome.**
 The model cites "WCF 33.4" (does not exist) or misquotes WCF 7.2. Verification fails, the system
 regenerates once, then degrades. The trace records the failed check.
 
+**UC-6 — A descriptive question.**
+"What did Calvin teach about the Lord's Supper?" The answer reports what the source says, cited to
+the *Institutes* at `advisory` tier, without asserting it as the PCA's position. Descriptive
+answers are a first-class capability, not a degraded affirmative one: refusing this question
+because Calvin is non-binding would be a wrong answer to a question that was never doctrinal.
+The distinction is structural — the claim occupies the descriptive slot, so the tier floor that
+governs affirmative claims does not apply (ADR-0016).
+
 UC-5 is the acceptance case for the entire phase.
 
 ## Non-goals
@@ -91,10 +99,11 @@ UC-5 is the acceptance case for the entire phase.
 ## Definition of done
 
 - Westminster Standards and BCO ingested with complete, edition-specific metadata.
-- Ten hand-written questions covering UC-1 through UC-5 run end to end from the CLI.
+- Ten hand-written questions covering UC-1 through UC-6 run end to end from the CLI.
 - Every displayed citation verifies. **Zero unverified citations reach output** — this is the
   phase's single hard gate.
 - UC-2 and UC-4 produce honest non-answers rather than confident ones.
+- UC-6 answers descriptively with citations rather than refusing for want of a binding source.
 - A trace is persisted for every response, in a shape the Phase 2 eval harness can consume.
 - `docker compose up` brings up Postgres, Langfuse, the gateway, and Catena with no external
   accounts.
