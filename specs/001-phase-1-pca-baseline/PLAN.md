@@ -32,8 +32,10 @@ Compose stack with Postgres + pgvector, Langfuse, and empty service containers. 
 anything yet; the acceptance test passes.
 
 - [ ] `docker compose up` succeeds with no external accounts
-- [ ] Documented provisioning step pulls images, the Ollama model, and BGE-M3 into `/models/`,
-      and runs corpus acquisition (Task 4) into `/data/` — neither ships in the repo
+- [ ] Documented provisioning step pulls images, the Ollama model, and BGE-M3 into `/models/`, and
+      invokes corpus acquisition into `/data/` — neither ships in the repo. Task 1 asserts the step
+      exists and is documented; Task 11 is where it is run clean-clone end to end, which is why this
+      does not make Task 1 wait on Task 4
 - [ ] After provisioning, the stack comes up and serves with egress blocked
 - [ ] Postgres reachable with pgvector extension available
 - [ ] Langfuse reachable
