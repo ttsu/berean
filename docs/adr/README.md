@@ -18,7 +18,7 @@ Use [0000-template.md](0000-template.md).
 | --- | --- | --- |
 | [0001](0001-go-is-the-trust-boundary.md) | Go is the trust boundary, Python is the model layer | Accepted |
 | [0002](0002-one-grpc-call-per-turn.md) | Exactly one gRPC call per user turn | Accepted (amended by 0010) |
-| [0003](0003-trace-streaming-not-token-streaming.md) | Stream trace events, not tokens | Accepted (stage list corrected) |
+| [0003](0003-trace-streaming-not-token-streaming.md) | Stream trace events, not tokens | Accepted |
 | [0004](0004-split-retrieval-from-display.md) | Split Bible retrieval from Bible display | Accepted |
 | [0005](0005-postgres-pgvector-single-datastore.md) | Postgres + pgvector as the single datastore | Accepted |
 | [0006](0006-bge-m3-as-a-tested-default.md) | BGE-M3 as a tested default, re-decided at Phase 2 | Accepted (provisional) |
