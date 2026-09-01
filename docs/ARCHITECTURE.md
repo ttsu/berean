@@ -40,7 +40,7 @@ session and trace tables. Neither writes the other's.
 
 ## Transport
 
-gRPC with protobuf, one unary call per turn. The answer object is defined once in `proto/` and
+gRPC with protobuf, one unary call per generation attempt (ADR-0002, amended by ADR-0010). The answer object is defined once in `proto/` and
 generated for both sides. This is the entire contract between the languages; hand-maintaining
 it in two places is the classic polyglot drift bug.
 
