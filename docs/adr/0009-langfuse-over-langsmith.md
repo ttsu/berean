@@ -1,6 +1,6 @@
 # ADR-0009: Langfuse (self-hosted) for tracing and evals
 
-- **Status:** Accepted
+- **Status:** Accepted (the Consequences section understates the cost — self-hosted Langfuse is a five-container stack: web, worker, ClickHouse, Redis, and S3-compatible storage, not "one more container". The decision is unaffected. The real footprint, and the headless bootstrap that keeps the no-external-accounts guarantee, are documented in the README and PLAN Task 1)
 - **Date:** 2026-08-29
 - **Phase:** 1 — instrument from day one, not retrofitted
 

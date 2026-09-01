@@ -1,6 +1,6 @@
 # ADR-0015: Contested loci cross the boundary; profile identity does not
 
-- **Status:** Accepted
+- **Status:** Accepted (amended by ADR-0019 — a contested locus additionally requires `arguments` to be empty. The omission check decided here is unchanged; ADR-0019 closes the opposite direction, which this ADR did not consider)
 - **Date:** 2026-08-31
 - **Phase:** 1 — cheap while the proto is pre-consumer (ADR-0013), a breaking change after
 
