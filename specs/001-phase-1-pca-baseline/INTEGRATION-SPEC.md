@@ -20,6 +20,8 @@ one regeneration on verification failure (ADR-0002, ADR-0010).
 | `filter_spec` | The **resolved** filter — see below |
 | `contested_loci` | `[ { locus, ruling: { corpus_id, locator } } ]` — see below |
 | `request_id` | Correlates trace, response, and Langfuse span |
+| `previous_failures` | `[ VerificationResult ]` — empty on the first attempt; on a regeneration, exactly what failed and why |
+| `attempt` | `1` on the first call, `2` on the regeneration. Nothing else is valid |
 
 **`filter_spec`** carries corpus IDs grouped by tier plus tier weights. It does **not** carry the
 profile, profile name, user identity, or session state. Python must be able to serve the request
@@ -35,6 +37,23 @@ filter_spec:
 
 Tier weights are carried in Phase 1 but unused, since there is no reranker yet. Present in the
 contract so Phase 3 is not a proto break.
+
+**`top_k`** is gateway configuration, not a profile field. It is a retrieval tuning knob with no
+per-tradition meaning, so it does not belong in a document that records doctrinal commitments — the
+mirror image of why the corpus ID *does* belong there. Phase 1 default is 20, overridable with
+`--top-k`, and it MUST be recorded in the trace: with Scripture at roughly 90% of the Phase 1 index
+and no tier weighting, `top_k` is the only thing determining whether a confessional chunk reaches
+the generator at all, and Phase 2 cannot attribute a retrieval change to a constant nobody logged.
+
+**`previous_failures` and `attempt`** exist because ADR-0010 decided the retry carries "the failure
+reasons back" and no field carried them. `previous_failures` reuses `VerificationResult` — the same
+message Go already produces and persists — so nothing new is defined and Go emits only what it
+actually found. It is verification metadata, never instructions: Go MUST NOT compose prose telling
+Python how to fix the answer. `confidence.reason` is the only Go-authored string in the system, and
+the first exception to that is the one that ends the guarantee.
+
+`attempt` is required for metrics, not for generation. ADR-0010 states that first-attempt and
+post-retry verification must be distinguishable, or a regeneration hides a rising fabrication rate.
 
 **`contested_loci`** is a sibling of `filter_spec`, not part of it. `filter_spec` is retrieval
 policy; contested loci are generation context, and mixing them would make the filter mean two
@@ -63,7 +82,8 @@ AnswerObject:
   descriptions: [ Description ]  # descriptive — no floor, labels required
   contrary_positions: [ ContraryPosition ]
   contested: Contested
-  confidence: { level: enum, reason: string }   # reason is Go-derived, never model-authored
+  no_answer_reason: string       # model-authored; only when every content slot is empty; <= 200 chars
+  confidence: { level: enum, reason: string }   # BOTH Go-derived, never model-authored
 
 Argument:
   claim: string
@@ -87,7 +107,7 @@ ContraryPosition:
   citations: [ Citation ]        # tier will be `contrary`
 
 Contested:
-  is_contested: bool
+  is_contested: bool             # when true, `arguments` MUST be empty (ADR-0019)
   locus: string                  # MUST be one of the loci sent, when is_contested
   citations: [ Citation ]        # MUST include the locus's ruling, when is_contested
   state_of_debate: string        # MUST quote the ruling verbatim
@@ -100,6 +120,9 @@ Constraints Go enforces on receipt — Python's output is untrusted:
   fabrication and fails immediately.
 - `quote` appears verbatim in the source chunk text after NFC normalisation — exact substring
   containment, never fuzzy or partial matching.
+- `quote` is at least **40 characters** after normalisation. A shorter quote fails. This blocks the
+  degenerate citation — "Baptism is a sacrament" cited at `binding` behind a claim the Confession
+  denies — without asking what any claim means (ADR-0020).
 - `{corpus_id, locator}` resolves to exactly one chunk. A locator alone is not unique — `WCF 7.2`
   exists in both the 1788 and 1646 editions.
 - `tier` matches the stance the resolved profile assigns that corpus, never the tier Python claims.
@@ -119,6 +142,17 @@ Constraints Go enforces on receipt — Python's output is untrusted:
 - When a verified citation resolves to a locus's ruling and `is_contested` is false, the answer
   fails. This is the one omission check in the system, and it exists because every other check
   catches fabrication instead.
+- When `is_contested` is true, `arguments` MUST be empty. A contested answer is a descriptive
+  answer: the ruling quoted verbatim, plus what the sources say, attributed to them. `position`
+  empties for free under the rule above. Flagging a locus contested and resolving it in the same
+  answer otherwise passes every other check, and it is the outcome PRODUCT-SPEC calls the worst
+  possible one (ADR-0019).
+- `no_answer_reason` is non-empty **only** when `arguments`, `descriptions` and `contrary_positions`
+  are all empty and `is_contested` is false, and is at most 200 characters. An answer with every
+  slot empty and no `no_answer_reason` FAILS and regenerates — a truncated generation must not
+  render as considered silence.
+- `confidence.level` and `confidence.reason` are both derived by Go. Python MUST NOT populate
+  either, and Go MUST overwrite whatever arrives.
 
 Contested failures take the ordinary path: regenerate once with reasons fed back, degrade on the
 second failure (ADR-0010). **Go does not rewrite the answer.** Substituting the ruling for a
@@ -148,11 +182,43 @@ state affirmatively there what the routing rules would have rejected in `argumen
 descriptive rule bounds it, and nothing checks it semantically. Phase 2's eval harness is where that
 rate gets measured.
 
-`confidence.reason` is **derived by Go from the verification result** — citation counts by tier,
-contested flags, degraded checks — and states what was found, never how the model felt about it.
-Python MUST NOT populate it, and Go MUST overwrite anything Python puts there. A model-authored
-`reason` would be introspection wearing a structured field's clothes, and it is the likeliest way
-for §4 to be violated without anyone noticing.
+### What the four checks do not catch
+
+Stated together, because the guarantee is narrower than the README's phrasing suggests and an
+unstated limit reads as an absent one. There are four, and Phase 2's harness measures all four.
+
+1. **Provenance is not entailment.** The checks establish that a citation is *real* — the locator
+   resolves, the quote is genuinely in that chunk, the tier is permitted, the licence allows
+   serving. None establishes that the quote *supports the claim*. An argument claiming "the PCA
+   holds that baptism regenerates the infant", cited to a real `binding` quote from WCF 28, passes
+   every check while asserting what the Confession denies. The 40-character floor blocks only the
+   degenerate version. Answer faithfulness is a Phase 2 measurement, separate from recall@k
+   (SHARED §7).
+2. **The omission check needs a citation to fire.** An answer resolving a contested locus while
+   citing neither the ruling nor anything reaching it fabricates nothing, so nothing fires.
+3. **`position` is uncited prose**, bounded only by the empty-when-descriptive rule.
+4. **`no_answer_reason` is uncited prose**, bounded only by the 200-character cap and the
+   all-slots-empty precondition. It is the only one of the four deliberately added rather than
+   inherited, and it renders with no citation beside it (ADR-0020).
+
+**Both halves of `confidence` are derived by Go from the verification result** — citation counts by
+tier, contested flags, degraded checks — and state what was found, never how the model felt about
+it. Python MUST NOT populate `level` or `reason`, and Go MUST overwrite whatever arrives in either.
+A model-authored `reason` would be introspection wearing a structured field's clothes, and it is the
+likeliest way for §4 to be violated without anyone noticing; a model-authored `level` is the same
+thing compressed into an enum, and it can contradict the `reason` computed beside it (ADR-0020).
+
+The derivation is fixed here rather than left to the implementer, so the enum means the same thing
+across runs and Phase 2 can read it:
+
+| `level` | Condition |
+| --- | --- |
+| `high` | Two or more `binding` or `governing` citations, first attempt, not contested |
+| `medium` | One `binding` or `governing` citation, or a regeneration occurred |
+| `low` | Descriptive only, or contested, or `no_answer_reason` set |
+
+`reason` states the same finding in words — the tier counts, the attempt number, and whether the
+locus was contested. It is verification metadata, not answer content.
 
 **There is no field for the model's reasoning about its own process, and there must never be
 one.** `warrant` is the theological justification for a claim — the argumentative link from
@@ -167,8 +233,13 @@ RetrievalTrace:
   candidates: [ { corpus_id, locator, score, included: bool, exclusion_reason } ]
   embedding_model: string
   dim: int
+  generation_model: string       # pinned tag, e.g. qwen3:8b-<tag> (ADR-0018)
+  top_k: int                     # the value actually used for this request
   timings: { embed_ms, search_ms, generate_ms }
 ```
+
+`generation_model` and `top_k` are recorded because they are the two settings most likely to move
+the Phase 2 baseline silently. A number nobody logged cannot be held constant across a comparison.
 
 Returned inside the response for storage, not as a live feed. Go persists it.
 
@@ -189,6 +260,12 @@ OverallResult: VERIFIED | REGENERATED | DEGRADED
 
 `DEGRADED` means the user saw "I can't source this adequately." It is a **successful** outcome of
 the verification system, not an error, and metrics must not treat it as a failure rate.
+
+An honest non-answer is **not** `DEGRADED`. A response carrying `no_answer_reason` is `VERIFIED`,
+rendered with its own text rather than the degraded string, and counted as its own outcome. UC-2 and
+UC-5 are the two most important non-answers in Phase 1 and they mean opposite things: one is the
+corpus being silent, the other is verification refusing to ship. Collapsing them makes the
+degradation rate unreadable, which is the metric ADR-0010 already needs kept clean.
 
 ## Profile document schema
 
@@ -215,6 +292,17 @@ Validation: unknown `stance` is an error, not a default. `contrary` or `excluded
 is an error — an unlabelled citation at either tier is exactly the failure mode the tier system
 exists to prevent. A `contested` entry whose `ruling_source.corpus_id` is absent from `corpora` is
 a load error: a locus the profile cannot cite is a locus it cannot defend.
+
+Validation also reaches the database. The loader takes a **corpus registry** — an interface with a
+single `Exists(corpus_id)` method, backed by a query over distinct `corpus_id` in `chunks` — and a
+profile naming a corpus that is not ingested fails at load. So does a `contested` entry whose
+`ruling_source` is not ingested, which is what actually delivers ADR-0015's promise of an honest
+"the establishing document is not ingested yet" rather than an invented ruling. Checking only that
+the ID appears in the profile's own `corpora` list proves internal consistency and nothing else.
+
+The registry is an interface so the profile unit tests, including the no-identity-leak test, need no
+database; the coupling is at wiring time. It does mean profile loading depends on ingestion having
+run, which is why Task 6 depends on Tasks 2 **and** 5.
 
 A `contested` entry asserts a **status** — this locus is open within this tradition — and points at
 the document that establishes it. It carries no prose of its own. Every word shown to a user comes
@@ -275,7 +363,8 @@ source_url: string              # where the text was obtained
 archive_url: string             # snapshot fallback, for when upstream moves
 retrieved: YYYY-MM-DD
 upstream_sha256: string         # detects upstream drift on re-acquisition
-license: string                 # confirmed, never assumed
+license: string                 # enum value; confirmed, never assumed
+license_terms: string           # the terms verbatim as found, with the URL they were found at
 attribution: string
 normalisation_version: int      # fingerprints are over normalised text; see below
 chunk_count: int
@@ -308,20 +397,42 @@ Ingestion runs in Python and verification runs in Go, so a single shared functio
 and the specs must not ask for one. What is shared is the **contract** — the same ordered steps,
 pinned by test vectors both sides assert against:
 
+0. Remove format characters that are invisible and are whitespace in neither language's standard
+   library: U+FEFF (BOM), U+200B (zero-width space), U+200C, U+200D, U+00AD (soft hyphen). These
+   survive every later step intact and produce a quote mismatch on text that is visually identical —
+   the symptom this contract exists to prevent, arriving from ordinary PDF and HTML extraction.
 1. Unicode NFC.
-2. Collapse runs of whitespace, including newlines, to a single space.
+2. Collapse runs of whitespace to a single space. **Whitespace means exactly the Unicode
+   `White_Space` property**: U+0009–U+000D, U+0020, U+0085, U+00A0, U+1680, U+2000–U+200A, U+2028,
+   U+2029, U+202F, U+205F, U+3000. Naming the set is load-bearing — Python's `\s` also matches
+   U+001C–U+001F, which Go's `unicode.IsSpace` does not, so "collapse whitespace" alone is two
+   different functions.
 3. Trim leading and trailing whitespace.
 4. Nothing else. No case folding, no quote or dash folding, no punctuation stripping — a quote that
    differs from source by a curly apostrophe is a genuine mismatch and must fail.
+
+The current contract is `normalisation_version: 1`.
 
 The vectors live in one committed fixture file, and both the Python ingestion suite and the Go
 verification suite read that same file. Drift between the two implementations is the failure this
 prevents, and it surfaces as quote-match failures on visually identical text, which is miserable to
 diagnose from the symptom.
 
+**The fixture is committed in Task 2 and asserted by both suites before any corpus is blessed.**
+Fingerprints are hashes of post-normalisation text, so an ambiguity discovered when Go first
+implements the contract would invalidate every fingerprint file and force a re-bless of every
+corpus — including the by-hand 1788 edition verification that Task 4 calls the thing which silently
+poisons everything downstream if it is wrong. Blessing a corpus against an implementation only one
+language has ever run is the sequencing that makes that expensive.
+
+The vectors MUST cover, at minimum: every `White_Space` code point named above, each stripped format
+character from step 0, an NFC-unstable sequence, a curly apostrophe and a straight one, and an
+em dash. All of it is invented text, never corpus text (ADR-0014).
+
 ## Chunk metadata contract
 
-Every chunk in `chunks`. Ingestion rejects a chunk missing any of these.
+Every chunk in `chunks`. Ingestion rejects a chunk missing any of these. **Fourteen fields**;
+`author` is the only nullable one.
 
 | Field | Notes |
 | --- | --- |
@@ -331,18 +442,37 @@ Every chunk in `chunks`. Ingestion rejects a chunk missing any of these.
 | `era` | For filtering and display |
 | `tradition` | Originating tradition, not the querying one |
 | `locator` | Canonical, resolvable, stable — see GLOSSARY |
-| `language` | Required now; used from Phase 3 |
-| `text_form` | Required now; TR vs critical is a denominational commitment |
+| `language` | The language of the chunk text **as ingested** — `en` for a translation |
+| `source_language` | The language of the work itself — `la` for the *Institutes*. Equal to `language` for an untranslated work |
+| `text_form` | Enum: `tr`, `critical`, `majority`, `not-applicable` |
 | `edition` | What makes 1788 distinguishable from 1646 |
-| `license` | Verification refuses to serve without a permitting value |
+| `license` | Enum: `public-domain`, `cc-by`, `cc-by-sa`, `local-only`, `refused` |
 | `attribution` | Drives mechanical generation of the attribution page |
 | `embedding_model` | Makes a model swap a re-index job |
 | `dim` | As above |
 
+`text_form` is a closed enum because the TR-versus-critical distinction exists only for biblical
+text, and most of the Phase 1 corpus is not Scripture. `not-applicable` says that honestly; a free
+text column would have collected five different improvised spellings of it. WEB is `majority` — its
+New Testament follows the Majority Text.
+
+`language` and `source_language` are split because the *Institutes* is an English translation of a
+Latin work, and one column cannot carry both without meaning different things per row. ADR-0008
+requires these fields from day one precisely because backfilling means re-ingesting, and that
+argument applies to the distinction as much as to the field.
+
+`license` is an enum for the same reason it is checked at all: a free-text value reduces check 4 to
+"the string is non-empty", which is a check that reports success while evaluating nothing (ADR-0017).
+`local-only` is servable only under an explicit deployer opt-in; `refused` is never servable.
+
 ## CLI surface
 
 `berean ask --profile pca "question"` — the Phase 1 entry point. Prints the verified answer, then
-the trace on `--show-work`.
+the trace on `--show-work`. `--top-k` overrides the configured default.
+
+Serving `local-only` corpora requires the deployer opt-in (ADR-0017). Without it the BCO and the
+2000 creation report are ingested but refused at check 4, so UC-4 degrades — Task 11 runs with the
+opt-in set, and the README says so.
 
 `catena ingest --corpus <id> --source <path>` — batch ingestion. Idempotent.
 

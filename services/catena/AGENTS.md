@@ -26,6 +26,17 @@ Auth, sessions, profile resolution, verification, trace persistence, translation
 - Citations are **first-class structured fields**. Never emit citations as inline prose — prose
   citations cannot be validated, which is the entire reason the answer object exists.
 - Every argument must carry at least one citation. An empty list fails the whole answer.
+- When you set `is_contested`, emit **no** `arguments`. A contested answer is descriptive: quote the
+  ruling, describe the debate, take no side (ADR-0019).
+- **Never populate `confidence`** — neither `level` nor `reason`. Go derives both from the
+  verification result and overwrites anything you send. A self-assessed confidence is introspection
+  wearing a structured field's clothes (ADR-0020).
+- When the corpus is silent, say so in `no_answer_reason` — at most 200 characters, and only with
+  every content slot empty. It is the one thing you write that renders with no citation beside it,
+  so it states *that* the sources are silent and never what you think the answer would be. An empty
+  answer with no reason is treated as a malformed generation and regenerated.
+- Quotes must be at least 40 characters. A short quote that technically appears in the source
+  supports nothing, and it fails.
 - `corpus_id` must be edition-specific.
 - Quotes must be verbatim and NFC-normalised by following the normalisation steps in
   INTEGRATION-SPEC and asserting the shared test vectors. There is no shared normalisation
@@ -39,7 +50,9 @@ Auth, sessions, profile resolution, verification, trace persistence, translation
 
 ## Conventions
 
-- Embedder behind an interface. `embedding_model` and `dim` written on every chunk.
+- Embedder behind an interface. `embedding_model` and `dim` written on every chunk, and all fourteen
+  metadata fields populated — `text_form` and `license` are closed enums, and `source_language` is
+  the work's own language rather than the chunk's.
 - Generation behind an OpenAI-compatible interface so Ollama, vLLM, llama.cpp, and hosted APIs are
   interchangeable. Default to local so the acceptance test holds with no accounts.
 - Langfuse instrumentation on every model call, from the first commit that makes one.

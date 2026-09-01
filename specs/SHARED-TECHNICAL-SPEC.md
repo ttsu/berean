@@ -39,6 +39,13 @@ MUST / SHOULD / MAY are used in the RFC 2119 sense.
   point, and are fetched at render time only.
 - Every chunk MUST carry `license` and `attribution`. A corpus addition without them is a blocking
   review failure.
+- `license` MUST be a closed enum — `public-domain`, `cc-by`, `cc-by-sa`, `local-only`, `refused` —
+  never free text. A free-text licence reduces the serving check to "the string is non-empty", which
+  is a check that reports success while evaluating nothing (ADR-0017).
+- **Ingestion and serving are separate acts.** A corpus whose terms are unstated rather than
+  restrictive MAY be acquired and ingested as `local-only`, which the verification layer serves ONLY
+  under an explicit deployer opt-in, defaulting to deny. `refused` is never servable. This does not
+  relax the bar above: ESV and NIV MUST NOT be ingested at all, whatever the deployer sets.
 - The verification layer MUST refuse to serve any chunk whose license does not permit it, using
   the same mechanism as tier checking.
 - Third-party API keys MUST be deployer-supplied. The project MUST NOT ship a key or automate
@@ -51,6 +58,10 @@ MUST / SHOULD / MAY are used in the RFC 2119 sense.
 - Every citation MUST pass four checks: locator resolves, quote matches source text, tier matches
   the active profile, license permits serving.
 - Any claim without a citation MUST fail verification.
+- A quote MUST be at least 40 characters after normalisation. The four checks establish that a
+  citation is real, never that its quote supports the claim; the floor blocks the degenerate case
+  without introducing a semantic judgement (ADR-0020).
+- When an answer flags a locus contested, it MUST carry no affirmative arguments (ADR-0019).
 - On verification failure the system MUST regenerate once, then degrade. It MUST NOT ship
   unverified content with a warning attached.
 - Verification MUST run in the Go gateway. It MUST NOT be delegated to the model layer.
@@ -73,6 +84,9 @@ MUST / SHOULD / MAY are used in the RFC 2119 sense.
 - **Model introspection** — the model's narrative about its own reasoning — MUST NOT be shipped in
   any form. It is post-hoc rationalisation: plausible, unfalsifiable, and corrosive to the
   product's central claim.
+- Confidence MUST be derived from the verification result, both its level and its stated reason, and
+  MUST NOT be authored by the model. A self-assessed confidence is introspection compressed into an
+  enum, and it renders beside citations that were actually checked (ADR-0020).
 - The "show the work" panel MUST be a log, not a narrative.
 - A trace MUST be persisted for every response. Traces are the eval dataset and the audit log.
 
@@ -95,6 +109,12 @@ MUST / SHOULD / MAY are used in the RFC 2119 sense.
 
 - Langfuse (self-hosted) for LLM tracing and evals, instrumented from Phase 1. OTel + Phoenix is
   an acceptable substitute. LangSmith is not.
+- Self-hosted Langfuse is a five-container stack — web, worker, ClickHouse, Redis, and S3-compatible
+  storage. It MUST provision its organisation, project and API keys headlessly from environment, so
+  "no external accounts" covers first boot and not merely billing. Reuse the MinIO §1 already
+  requires rather than adding a second object store.
+- The generation model and `top_k` MUST be recorded per response. They are the settings most likely
+  to move a baseline silently.
 - OpenTelemetry traces for the non-LLM path.
 - Token count and cost per request, retrieval latency, and cache hit rate MUST be recorded.
 - Trace persistence in Postgres is independent of the observability vendor.

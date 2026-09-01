@@ -1,8 +1,8 @@
 # Berean
 
 Tradition-aware theology and ecclesiology Q&A. You select a denomination; that selection
-determines which documents are treated as authoritative, and **every claim resolves to a real,
-licensed source before it renders** — or the system says it can't source the answer.
+determines which documents are treated as authoritative, and **every citation resolves to real,
+licensed source text before it renders** — or the system says it can't source the answer.
 
 Internal codename for the retrieval and citation service: **Catena**.
 
@@ -57,6 +57,17 @@ docker compose up
 Provisioning is not optional. Neither model weights nor corpus text ships in the repository
 (ADR-0014), so `docker compose up` on its own brings up a stack with no models and an empty
 corpus.
+
+**What it costs.** The stack runs Postgres, Ollama holding Qwen3-8B (~5 GB resident), BGE-M3
+(~2.3 GB), and a five-container Langfuse install — plan for **16 GB of RAM**. `make provision`
+acquires seven corpora and embeds roughly 35,000 chunks, dominated by the ~31,100 verses of the WEB
+Bible; on CPU that is a multi-hour one-time job, and it is resumable per corpus. Nothing in the
+request path is affected — ingestion is always a batch job.
+
+**Serving PCA-published documents is opt-in.** The *Book of Church Order* and the 2000 creation
+study committee report are ingested as `local-only`, and verification refuses to serve them unless
+you set the opt-in. That is a decision about your deployment, not ours (ADR-0017,
+[docs/CORPUS-POLICY.md](docs/CORPUS-POLICY.md)).
 
 That must give a working system with no external accounts. It is the project's acceptance test —
 if a change breaks it, the change is wrong.

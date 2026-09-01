@@ -43,17 +43,26 @@ Structural chunking only:
 - **WLC / WSC** — one chunk per question and answer pair (`WSC Q&A 1`). Never split a Q from its A.
 - **BCO** — one chunk per numbered paragraph (`BCO 21-4`).
 - **WEB Scripture** — one chunk per verse. Proof texts in the Standards resolve to these.
+- **Institutes** — one chunk per numbered section (`Inst. 4.17.10`), book and chapter as metadata.
 
 Required metadata on every chunk, with one exception — `author` may be null for corporate
 documents, which is most of the Phase 1 corpus. Nothing else may be:
 
 ```
-corpus_id, work, author, era, tradition, locator, language,
+corpus_id, work, author, era, tradition, locator, language, source_language,
 text_form, edition, license, attribution, embedding_model, dim
 ```
 
-`language` and `text_form` are required now even though original-language support is Phase 3–4
-(ADR-0008). `edition` is what makes `wcf-1788-american` distinguishable from `wcf-1646-original`.
+`language`, `source_language` and `text_form` are required now even though original-language support
+is Phase 3–4 (ADR-0008). `edition` is what makes `wcf-1788-american` distinguishable from
+`wcf-1646-original`.
+
+`text_form` and `license` are closed enums, not free text — `tr | critical | majority |
+not-applicable` and `public-domain | cc-by | cc-by-sa | local-only | refused`. Most of the Phase 1
+corpus is not Scripture, so `text_form` is `not-applicable` for it, and saying so explicitly is
+better than five improvised spellings of the same idea. `license` is an enum because check 4 is only
+a check if its domain is closed (ADR-0017). `language` is the chunk text as ingested and
+`source_language` is the work's own — `en` and `la` respectively for Beveridge's *Institutes*.
 
 Structural chunking happens during **acquisition**, not ingestion (ADR-0014). Acquisition fetches,
 extracts, segments on the boundaries above, normalises, and verifies against committed
@@ -75,6 +84,15 @@ Dense-only vector search over BGE-M3 embeddings, top-k, with a metadata filter o
 corpus IDs. **No reranking, no BM25, no query rewriting, no multi-hop.**
 
 This is the Phase 2 baseline. Making it good now destroys the measurement that justifies Phase 3.
+
+`top_k` is gateway configuration (default 20, `--top-k` to override), not a profile field, and it is
+recorded in the trace. Scripture is roughly 90% of the Phase 1 index by chunk count and tier weights
+are unused, so nothing balances corpus proportions: it is possible for a confessional question to
+retrieve only verses, and since Scripture is `binding` under the PCA profile such an answer passes
+check 3 while never citing the Confession the question asked about. **This is left naive and
+measured, not pre-empted.** The trace records every candidate with its corpus and score, so UC-1
+produces the evidence directly. If WCF 18 does not surface, the fix lands as an ADR with numbers
+behind it — most likely a per-corpus retrieval quota, which is policy rather than reranking.
 
 The embedder sits behind an interface from day one (ADR-0006). Swapping is a config change plus a
 re-index job.
@@ -104,6 +122,9 @@ corpora:
   - id: pca-ga28-2000-creation-study
     stance: advisory
     note: GA study committee reports are advice to the courts, not constitutional
+  - id: calvin-institutes-1559-beveridge
+    stance: advisory
+    note: 1559 edition, Beveridge 1845 translation; respected, not constitutional
 contested:
   - locus: creation-days
     ruling_source:
@@ -154,19 +175,36 @@ repudiation answer.
 Four checks per citation, all in Go, all ordinary software:
 
 1. **Locator resolves** — the corpus ID and locator identify exactly one chunk.
-2. **Quote matches** — the verbatim quote appears in that chunk's text after NFC normalisation.
+2. **Quote matches** — the verbatim quote appears in that chunk's text after NFC normalisation, and
+   is at least 40 characters long. The floor blocks the degenerate citation that satisfies every
+   check while supporting nothing (ADR-0020).
 3. **Tier permitted** — the chunk's corpus is in the active profile at a tier the claim's *slot*
    allows. Every `Argument` needs at least one `binding` or `governing` citation; `advisory` may
    corroborate inside an argument but never carry one alone; `contrary` and `excluded` never appear
    in an argument at all. They appear in `descriptions` and `contrary_positions`, where any tier is
    permitted and `contrary`/`excluded` must carry a label. Go checks which slot a claim occupies,
    never what the claim means (ADR-0016).
-4. **License permits serving** — the chunk's `license` allows display.
+4. **License permits serving** — the chunk's `license` enum permits display. `local-only` requires
+   the deployer opt-in; `refused` never passes (ADR-0017).
 
-Answer-level: **any claim without a citation fails.**
+Answer-level: **any claim without a citation fails.** And when `is_contested` is true, `arguments`
+MUST be empty — a contested answer is descriptive, or it is flagging a debate while settling it
+(ADR-0019).
 
-On failure: regenerate once with the failure reasons fed back. On second failure, degrade to "I
-can't source this adequately." Never render with a warning.
+**The checks prove a citation is real, never that its quote supports the claim.** That limit, and
+the three other uncited surfaces, are enumerated in INTEGRATION-SPEC and measured by Phase 2.
+
+On failure: regenerate once with the failure reasons fed back — carried as `previous_failures`, a
+list of `VerificationResult`, alongside `attempt`. On second failure, degrade to "I can't source
+this adequately." Never render with a warning.
+
+`confidence.level` and `confidence.reason` are both derived by Go from the verification result;
+Python populates neither. A model-authored confidence is introspection in a structured field, which
+SHARED §4 forbids in any form (ADR-0020).
+
+An honest non-answer is not a degraded one. When the corpus is silent the model sets
+`no_answer_reason` with every content slot empty, and the result is `VERIFIED` with its own rendered
+text — tracked separately from `DEGRADED`, because UC-2 and UC-5 mean opposite things.
 
 Target ≤ 200 ms p95. It is indexed lookups and string matching; if it is slower, something is
 structurally wrong.
@@ -177,7 +215,17 @@ Structured output. Citations are first-class fields, never inline prose — pros
 be validated, which is the whole reason for the answer object.
 
 The provider sits behind an OpenAI-compatible interface. Default local via Ollama so the
-acceptance test holds with no accounts.
+acceptance test holds with no accounts. **The default model is Qwen3-8B** (Apache-2.0), with
+`AnswerObject` validity enforced by JSON-schema-constrained decoding rather than by asking the model
+for JSON. The exact tag is pinned in provisioning and written into every trace: the generator is the
+largest single variable in the Phase 2 baseline, and a silent change to it would move that number
+invisibly. Provisional on the same terms as the embedder — re-decided at Phase 2 against the golden
+set (ADR-0018, ADR-0006).
+
+The live risk is verbatim quoting. Check 2 is exact substring containment with no case, quote or
+dash folding, and Westminster is dense with archaic spelling and curly apostrophes. A model that
+paraphrases by one character fails every citation it emits. That rate is measured in Phase 1 for
+free, and the response is a better generator or better prompting — **never a looser check 2.**
 
 The prompt injects the profile summary and citation rules. Prompting is layer 2 of 3 and is not
 trusted on its own; layer 3 is what makes it real.
