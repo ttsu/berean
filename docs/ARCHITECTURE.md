@@ -74,12 +74,18 @@ almost nobody builds.
 The LLM emits structured output; the app renders it. Citations are first-class fields, never
 inline prose — prose citations cannot be validated.
 
-- `position`
-- `argument[]` — each with `claim`, `citations[]` (corpus ID, locator, tier, verbatim quote),
-  `warrant`
+- `position` — empty when there are no arguments
+- `arguments[]` — each with `claim`, `citations[]` (corpus ID, locator, tier, verbatim quote),
+  `warrant`. **Affirmative**: needs a `binding` or `governing` citation, and never carries
+  `contrary` or `excluded` (ADR-0016)
+- `descriptions[]` — what a source says rather than what the tradition holds. **Descriptive**:
+  any tier, labels required for `contrary` and `excluded`
 - `contrary_positions[]` — with the traditions that hold them
-- `contested` — flag plus state of intramural debate
+- `contested` — flag, locus, citations, and state of intramural debate
 - `confidence` — with reason
+
+The affirmative/descriptive split is the whole of check 3. Go asks which slot a claim occupies,
+never what it means.
 
 ## Verification pipeline
 
