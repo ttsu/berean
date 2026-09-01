@@ -1,7 +1,21 @@
 # Architecture Decision Records
 
-One file per decision, numbered, immutable once accepted. To change a decision, write a new ADR
-that supersedes the old one and update the old one's status — do not edit history.
+One file per decision, numbered, **immutable once merged to `main`**. To change a decision after
+that, write a new ADR that supersedes the old one and update the old one's status — do not edit
+history.
+
+Merge is the line because it is a fact anyone can check, and "accepted" is not: it is a word the
+author types, so it cannot distinguish a decision the project has lived with from a draft finished
+ten minutes ago. Before merge, an ADR is a proposal and ordinary editing applies — fix the typo,
+reword the decision, renumber if you must. After merge it is the record, and the only way to change
+it is another ADR.
+
+The distinction that matters is between a **superseded decision** and an **error**. A decision that
+genuinely changed keeps both documents: ADR-0010 says in as many words that everything ADR-0002
+rejects still stands, and it cannot be read without the ADR it amends. An error — a wrong list, a
+stale reference, a sentence contradicted elsewhere in the same file — is not history and is not
+worth preserving. Before merge, correct it. After merge, annotate it, and accept that the cost of
+the bright line is the occasional wrong sentence carrying a note.
 
 Every ADR MUST list the documents it changes, under **Documents updated**. The most common defect
 in this repository is a decision that lands in the specs and leaves a stale copy of the old rule in
