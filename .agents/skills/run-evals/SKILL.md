@@ -49,6 +49,19 @@ Include questions the corpus cannot answer. Confident answers to them are failur
 For a contested locus, the correct behaviour is flagging the debate, not resolving it. Score
 resolution as a failure even when the resolution is the majority view.
 
+Two things the citation checks cannot catch, so the golden set has to. An answer that resolves a
+contested locus while citing neither the ruling nor anything reaching it fabricates nothing, so no
+check fires — measure that rate directly. And `position` is prose with no citations of its own, so
+score it against the claims beneath it: an affirmative statement there that no `Argument` supports
+is the documented gap in ADR-0016, not a scoring edge case.
+
+## Descriptive questions
+
+A question answerable only from `advisory` sources has a correct answer, and it is not "I can't
+source this adequately" (UC-6). Score a refusal as a failure, and score an answer that asserts a
+descriptive claim as the tradition's own position as a failure too — the first is the system being
+uselessly strict, the second is the failure the tier system exists to prevent.
+
 ## Comparing embedding models
 
 Per ADR-0006, the embedding choice is re-decided against the golden set before Phase 3. BGE-M3 vs

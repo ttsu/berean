@@ -41,7 +41,16 @@ the same four checks as a confessional one.
 
 **`contested`** is not a tier — it is a flag on a *locus*, marking genuine intramural
 disagreement (creation days, women in diaconal service, subscription boundaries in the PCA).
-False confidence here is worse than no profile at all.
+False confidence here is worse than no profile at all. A tradition's contested list is declared
+in its profile and bounded by its corpus: each locus points at the ingested document that
+establishes the ruling (ADR-0015).
+
+**Affirmative and descriptive claims** are the split that tier checking rests on. An *affirmative*
+claim says what the tradition holds and lives in `arguments`, so it needs a `binding` or
+`governing` citation; `advisory` may corroborate one but never carry it alone. A *descriptive*
+claim says what a source teaches — "Calvin held X", "the denomination repudiated Y in 2007" — and
+lives in `descriptions`, where any tier is permitted because the claim rests on no authority. The
+distinction is structural, never a judgement about what a claim means (ADR-0016).
 
 ## Corpus IDs
 
