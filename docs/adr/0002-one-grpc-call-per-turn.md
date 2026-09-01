@@ -1,6 +1,6 @@
 # ADR-0002: Exactly one gRPC call per user turn
 
-- **Status:** Accepted
+- **Status:** Accepted (amended by ADR-0010 — the rule is one call per *generation attempt*, not per user turn; the title and Decision below predate that)
 - **Date:** 2026-08-29
 - **Phase:** 1
 

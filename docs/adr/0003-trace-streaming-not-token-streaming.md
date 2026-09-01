@@ -1,6 +1,6 @@
 # ADR-0003: Stream trace events, not tokens
 
-- **Status:** Accepted
+- **Status:** Accepted (the SSE stage list in the Decision is wrong — `retrieving` and `reranking` are Python-internal and Go cannot observe them, as this ADR's own next paragraph says. The correct list is in `docs/ARCHITECTURE.md`: dispatched, received, verifying, verified. The decision itself is unaffected)
 - **Date:** 2026-08-29
 - **Phase:** 1 (constrains Phase 4 UI)
 
