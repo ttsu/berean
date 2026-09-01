@@ -17,10 +17,15 @@ stale reference, a sentence contradicted elsewhere in the same file — is not h
 worth preserving. Before merge, correct it. After merge, annotate it, and accept that the cost of
 the bright line is the occasional wrong sentence carrying a note.
 
-Every ADR MUST list the documents it changes, under **Documents updated**. The most common defect
-in this repository is a decision that lands in the specs and leaves a stale copy of the old rule in
-the file an implementer reads first. That is a review problem, not a discipline problem, and the
-list is what makes it reviewable.
+**From ADR-0015 onward**, every ADR MUST list the documents it changes, under **Documents
+updated**. The most common defect in this repository is a decision that lands in the specs and
+leaves a stale copy of the old rule in the file an implementer reads first. That is a review
+problem, not a discipline problem, and the list is what makes it reviewable.
+
+ADRs 0001–0014 predate the requirement and are exempt. Reconstructing their propagation lists after
+the fact would mean inferring, from a diff, what each decision was meant to touch — and a plausible
+list nobody verified is worse in the record than an honest cutoff, because it reads as evidence.
+Anyone tracing what an early ADR changed should search for its number instead.
 
 The **Alternatives rejected** section is the point of the document. A decision without its
 rejected alternatives is just a note, and six months later nobody remembers why the obvious
