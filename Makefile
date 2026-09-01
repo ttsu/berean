@@ -41,14 +41,21 @@ corpus-verify: env ## Re-acquire every corpus and diff against committed fingerp
 
 .PHONY: dev
 dev: env ## Bring up the stack (Postgres, Langfuse, Ollama)
+	@# Down first so a switch from `dev-offline` recreates the network. Compose
+	@# reconnects containers to an existing network rather than rebuilding it,
+	@# and a network that changed `internal` since it was created comes back
+	@# with a resolver that SERVFAILs every name, including a container's own.
+	@# Volumes survive; only `make reset` destroys those.
+	$(COMPOSE) down --remove-orphans
 	$(COMPOSE) up -d --wait
 	@echo
-	@echo "  Postgres  localhost:$${POSTGRES_PORT:-5432}"
-	@echo "  Langfuse  http://localhost:$${LANGFUSE_PORT:-3000}"
-	@echo "  Ollama    localhost:$${OLLAMA_PORT:-11434}"
+	@echo "  Postgres  $$($(COMPOSE) port postgres 5432)"
+	@echo "  Langfuse  http://$$($(COMPOSE) port langfuse-web 3000)"
+	@echo "  Ollama    $$($(COMPOSE) port ollama 11434)"
 
 .PHONY: dev-offline
 dev-offline: env ## Bring up the stack with egress blocked (SHARED §1)
+	$(COMPOSE) down --remove-orphans
 	$(OFFLINE) up -d --wait
 	@echo
 	@echo "  Ports are not published on an internal network. Run the CLI inside the stack:"
