@@ -133,7 +133,7 @@ never touches the network. It reads staged records, enriches, embeds, and loads.
 - [ ] Reads staged records from gitignored `/data/staged/<corpus-id>/`; no network in this path
 - [ ] Records re-verified against committed fingerprints before insert — ingestion refuses text
       that does not match what was blessed
-- [ ] WEB ingested under the corpus ID the profile resolves to
+- [ ] WEB ingested as `web-2000`, the corpus ID the PCA profile names
 - [ ] `wcf-1646-original` ingested, so the profile's `contrary` entry resolves and UC-3 has a
       counterpart to contrast against
 - [ ] All thirteen metadata fields populated on every chunk
@@ -152,7 +152,7 @@ never touches the network. It reads staged records, enriches, embeds, and loads.
 - [ ] PCA profile YAML per INTEGRATION-SPEC
 - [ ] Loader validates: unknown stance is an error; `contrary` or `excluded` without `label` is an error
 - [ ] `scripture.stance` defaults to `binding` when absent; `contrary`/`excluded` rejected (ADR-0011)
-- [ ] `scripture.translation` resolved into the corpora list carrying that stance as its tier
+- [ ] `scripture.corpus_id` appended to the corpora list carrying that stance as its tier
 - [ ] `contested` entries validated: `ruling_source.corpus_id` absent from `corpora` is a load error
 - [ ] Resolves to a `FilterSpec` carrying corpus IDs, tiers, weights — **and nothing else**
 - [ ] Unit test asserts no profile name, user identity, or session state appears in the FilterSpec
