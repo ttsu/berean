@@ -81,16 +81,25 @@ inline prose — prose citations cannot be validated.
 - `descriptions[]` — what a source says rather than what the tradition holds. **Descriptive**:
   any tier, labels required for `contrary` and `excluded`
 - `contrary_positions[]` — with the traditions that hold them
-- `contested` — flag, locus, citations, and state of intramural debate
-- `confidence` — with reason
+- `contested` — flag, locus, citations, and state of intramural debate. When set, `arguments` is
+  empty (ADR-0019)
+- `no_answer_reason` — model-authored, ≤ 200 chars, only when every content slot is empty. The one
+  uncited surface deliberately added rather than inherited (ADR-0020)
+- `confidence` — level and reason, **both derived by Go** from the verification result. Python
+  populates neither
 
 The affirmative/descriptive split is the whole of check 3. Go asks which slot a claim occupies,
 never what it means.
 
 ## Verification pipeline
 
-For every citation: the locator must resolve, the quote must match source text, the tier must
-match the active profile, the license must permit serving. Any claim without a citation fails.
+For every citation: the locator must resolve, the quote must match source text (at least 40
+characters), the tier must match the active profile, the license must permit serving. Any claim
+without a citation fails, and a contested answer carries no arguments.
+
+**The checks prove a citation is real, never that its quote supports the claim.** That limit and the
+three other uncited surfaces are enumerated in the Phase 1 INTEGRATION-SPEC; Phase 2's faithfulness
+scoring is what measures them.
 
 On failure: regenerate once, then degrade to "I can't source this adequately" rather than
 shipping unverified.
@@ -118,9 +127,10 @@ Chunk on structural boundaries: verse, article, question/objection/reply for Aqu
 naive 512-token splits.**
 
 **Metadata is the product.** Every chunk carries its edition-specific corpus ID, work, author, era,
-tradition, canonical locator, language, text-form, edition, license, attribution, and
-`embedding_model` + `dim`. The last two
-make a model swap a re-index job rather than a schema migration.
+tradition, canonical locator, language, source language, text-form, edition, license, attribution,
+and `embedding_model` + `dim`. The last two make a model swap a re-index job rather than a schema
+migration. `text_form` and `license` are closed enums; a free-text licence would reduce the serving
+check to a non-empty test.
 
 Retrieval is hybrid BM25 + dense, then a cross-encoder reranker. Theological vocabulary is
 precise — "hypostatic", "perichoresis" — so the lexical side matters. Generation uses structured

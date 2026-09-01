@@ -37,22 +37,51 @@ any chunk whose `license` does not permit it, using the same mechanism as tier c
   independent problem: chunking, embedding, and serving excerpts is plausibly a derivative work.
   See ADR-0012
 
-## Unresolved — acquired by Phase 1, not yet classified
+## Local-only — acquired and ingested, served only on the deployer's say-so
 
-Neither of these appears above, and both are gating. Task 3 makes an insert without `license` fail
-at the database level, and the verification layer refuses to serve any chunk whose licence does not
-permit it — so an unclassified corpus cannot be ingested at all, and Task 4 cannot complete until
-these are resolved.
+- **PCA *Book of Church Order*** — published by the PCA Administrative Committee.
+- **PCA 28th General Assembly (2000) creation study committee report** — same publisher.
 
-- **PCA *Book of Church Order*** — published by the PCA Administrative Committee. Task 4 already
-  acquires it; the policy has never said on what terms. Resolve before ingestion.
-- **PCA 28th General Assembly (2000) creation study committee report** — same publisher, same
-  question. UC-4 depends on it (ADR-0015), which makes the answer load-bearing rather than
-  academic.
+Neither is assumed permissive, and nothing below retracts the reasoning above: public availability
+on a denominational website is not a licence, and a permission to read or quote is not a permission
+to ingest. What changed is which act that reasoning governs (ADR-0017).
 
-Neither is assumed permissive here. Public availability on a denominational website is not a
-licence, and this document's own reasoning on the 500-verse allowance applies: a permission to read
-or quote is not a permission to ingest.
+**Ingestion and serving are separate acts, and serving is the licensed one.** The repository
+distributes no text at all (ADR-0014), so the question of redistribution does not arise for this
+project. What remains is whether a deployer may serve these documents from their own machine, and
+that is the deployer's call to make — exactly as it already is for the ESV, where each deployer
+accepts Crossway's terms themselves rather than having this project accept them on their behalf.
+
+So both carry `license: local-only`. They are acquired, ingested, and **refused at verification
+check 4 unless the deployer sets an explicit opt-in**, which defaults to off. A clean clone ingests
+them and serves nothing from them. The manifest records the terms verbatim as found, with the URL,
+in `license_terms` — a licence is evidence, not a label.
+
+The alternative was to block acquisition until the PCA replied, which would have stopped the BCO
+(the profile's only `governing` corpus), the 2000 report (its only `advisory` corpus and the
+document establishing `creation-days`), and — because a `contested` entry whose `ruling_source` is
+absent is a load error — the PCA profile itself. That is most of Phase 1 waiting on correspondence.
+
+If the PCA answers, the enum value changes to whatever the answer supports and the opt-in disappears
+for these corpora. **This is not a general licence to ingest first and ask later.** It applies to a
+corpus whose terms are *unstated*, never to one whose terms are *restrictive* — ESV and NIV remain
+barred from ingestion outright, and no deployer setting changes that.
+
+## Licence values
+
+`license` is a closed enum, not free text. A free-text licence reduces check 4 to "the string is
+non-empty", which is a check that reports success while evaluating nothing.
+
+| Value | Meaning | Servable |
+| --- | --- | --- |
+| `public-domain` | Out of copyright, or dedicated to the public domain | Always |
+| `cc-by` | Attribution required; carried in `attribution` | Always |
+| `cc-by-sa` | Attribution and share-alike | Always |
+| `local-only` | Terms unstated; the deployer decides | Only under the opt-in |
+| `refused` | Examined and rejected | Never |
+
+`refused` exists so a corpus can be recorded as considered-and-rejected rather than merely absent.
+An unrecognised value fails at insert.
 
 ## The rule that gets violated first
 
@@ -122,8 +151,8 @@ locators, fetch text — and applies it to every corpus rather than only the one
 
 ## Per-chunk license metadata
 
-Every chunk carries `license` and `attribution`. This makes the attribution page generate
-mechanically and lets verification refuse unlicensed content programmatically.
+Every chunk carries `license` (from the enum above) and `attribution`. This makes the attribution
+page generate mechanically and lets verification refuse unlicensed content programmatically.
 
 Adding a corpus without these fields populated is a blocking review failure.
 

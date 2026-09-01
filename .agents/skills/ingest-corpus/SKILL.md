@@ -64,15 +64,28 @@ over public-domain material. Record which edition you took from.
 
 Record the provenance URL, an archive fallback URL, and the retrieval date.
 
-## 2. Confirm the license permits ingestion
+## 2. Classify the licence
 
 Check [docs/CORPUS-POLICY.md](../../../docs/CORPUS-POLICY.md).
 
-**Ingestion is not quotation.** A quoting allowance does not authorise embedding — that reproduces
-the whole work regardless of how little is displayed. If the text is under copyright, it does not
-go in the database. Full stop.
+`license` is a **closed enum**: `public-domain`, `cc-by`, `cc-by-sa`, `local-only`, `refused`. Pick
+one, and record the terms verbatim as found — with the URL — in the manifest's `license_terms`. A
+licence is evidence, not a label.
 
-Determine the `license` and `attribution` values now. They are required fields.
+**Ingestion is not quotation, and serving is not ingestion.** A quoting allowance does not authorise
+embedding, which reproduces the whole work regardless of how little is displayed. But the act the
+licence most directly governs is *serving*, and the repository distributes nothing (ADR-0014). So:
+
+- Terms that clearly permit it → `public-domain`, `cc-by`, or `cc-by-sa`. Servable.
+- Terms **unstated** — a denomination publishing its own documents, say — → `local-only`. Ingested,
+  and served only if the deployer opts in. Default is deny (ADR-0017).
+- Terms that **forbid** it → `refused`, and do not acquire. ESV and NIV are never ingested at all,
+  whatever a deployer sets.
+
+`local-only` is for genuine uncertainty, not for skipping the licence work. If it starts
+accumulating corpora, that is the signal something is wrong.
+
+Determine `license` and `attribution` now. They are required fields.
 
 ## 3. Assign an edition-specific corpus ID
 
@@ -93,19 +106,27 @@ denomination-specific (`pca-bco-2024`), omit it where it is not (`wcf-1788-ameri
 | Church order | Numbered paragraph | `BCO 21-4` |
 | Scripture | Verse | `Gen 1:1` |
 | Aquinas | Question / objection / reply | `ST I-II q.94 a.2` |
+| Calvin's *Institutes* | Numbered section | `Inst. 4.17.10` |
 
 If a document's structure does not fit these, work out the right unit and document it here before
 writing the parser.
 
-## 5. Populate all thirteen metadata fields
+## 5. Populate all fourteen metadata fields
 
 ```
-corpus_id, work, author, era, tradition, locator, language,
+corpus_id, work, author, era, tradition, locator, language, source_language,
 text_form, edition, license, attribution, embedding_model, dim
 ```
 
-`language` and `text_form` are required even for English-only corpora and even though
-original-language support is Phase 3–4. Backfilling means re-ingesting (ADR-0008).
+`language`, `source_language` and `text_form` are required even for English-only corpora and even
+though original-language support is Phase 3–4. Backfilling means re-ingesting (ADR-0008).
+
+`language` is the language of the text you are ingesting; `source_language` is the work's own. They
+differ for a translation — `en` and `la` for Beveridge's *Institutes* — and are equal otherwise.
+
+`text_form` is `tr | critical | majority | not-applicable`. The distinction exists only for biblical
+text, so a confession, a church order or a treatise is `not-applicable`; say so rather than inventing
+a value. WEB is `majority`.
 
 `author` may be null for corporate documents. Nothing else may be.
 
@@ -121,6 +142,16 @@ Follow the normalisation contract in INTEGRATION-SPEC and assert the shared test
 is Python and verification is Go, so there is no single shared function — the vectors are what keep
 the two implementations honest. A mismatch produces quote-match failures on visually identical text,
 and that is genuinely miserable to diagnose from the symptom.
+
+The contract has five steps, and step 0 is the one that catches real-world extraction: strip U+FEFF,
+U+200B, U+200C, U+200D and U+00AD. They are invisible, they are whitespace to neither language's
+standard library, and they survive every later step intact. Step 2's whitespace set is the Unicode
+`White_Space` property, enumerated in the spec — Python's `\s` matches more than Go's
+`unicode.IsSpace` does, so "collapse whitespace" alone is two different functions.
+
+**Both suites must already assert the fixture before you bless anything.** Fingerprints are hashes
+of post-normalisation text, so an ambiguity found later invalidates every fingerprint file and forces
+a re-bless — including the edition verification you did by hand.
 
 For Hebrew, store both pointed and unpointed forms.
 
@@ -144,11 +175,11 @@ Then check by hand:
 - [ ] **No corpus text staged for commit** — manifest, fingerprints, and script only
 - [ ] Edition verified by hand at a known point of divergence, recorded as quoted text
 - [ ] Bare text taken; no modern edition's apparatus or proof-text selection
-- [ ] Licence permits ingestion, not merely quotation, and is recorded rather than assumed
+- [ ] Licence classified to an enum value, with the terms recorded verbatim rather than assumed
 - [ ] Archive fallback URL recorded alongside the source URL
 - [ ] Corpus ID is edition-specific
 - [ ] Segmented on structural boundaries
-- [ ] All thirteen metadata fields populated
+- [ ] All fourteen metadata fields populated
 - [ ] Normalised per the contract, at the recorded `normalisation_version`
 - [ ] Fingerprints written on `--bless`, and a plain re-run verifies clean
 - [ ] Idempotent on re-run

@@ -36,7 +36,20 @@ logic here, stop — it belongs in Catena.
   Tier is a per-tradition stance, not a property of the corpus — the same corpus is `contrary` under
   one profile and `binding` under another, so there is no single tier to record against it.
 - A citation to a corpus that was not in the FilterSpec is a fabrication. Fail immediately.
-- On verification failure: regenerate once, then degrade. **Never render with a warning attached.**
+- A contested answer carries **no** `arguments`. Flagging a locus contested and resolving it in the
+  same answer passes every other check, and it is the worst outcome the product can produce
+  (ADR-0019).
+- Quotes are checked with a 40-character floor. The four checks prove a citation is real, never that
+  its quote supports the claim — that limit is stated in INTEGRATION-SPEC and measured in Phase 2.
+- **Go derives both `confidence.level` and `confidence.reason`**, overwriting whatever Python sent.
+  A model-authored confidence is introspection in a structured field (SHARED §4, ADR-0020).
+- `no_answer_reason` is the one model-authored string that renders uncited. Enforce its bounds
+  structurally — non-empty only when every content slot is empty, and at most 200 characters — and
+  never relax them. Every slot empty with no reason is a malformed generation: regenerate.
+- On verification failure: regenerate once carrying `previous_failures` and `attempt`, then degrade.
+  **Never render with a warning attached.** Go sends verification results, never composed prose.
+- An honest non-answer is `VERIFIED`, not `DEGRADED`, and renders differently. UC-2 and UC-5 mean
+  opposite things and must not share a metric.
 - Write scope: session and trace tables only. The `gateway` DB role is read-only on corpus tables
   and that is deliberate — do not work around it.
 

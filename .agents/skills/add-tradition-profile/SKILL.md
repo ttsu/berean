@@ -57,6 +57,12 @@ checked against nothing.
 This means a contested locus requires its establishing document to be ingested. If it is not, the
 entry cannot be added; the tradition's `contested` list is bounded by its corpus, and saying "the
 establishing document is not ingested yet" is an honest answer where inventing a ruling is not.
+The loader enforces this against the database, not just against the profile's own `corpora` list, so
+a locus pointing at an un-ingested document fails at load rather than at answer time.
+
+An answer that flags a locus contested carries **no `arguments`** (ADR-0019). Worth knowing when you
+write the golden-set question: the expected output is the ruling quoted, the debate described, and
+no position at all — not a hedged position.
 
 For the PCA: creation days, women in diaconal service, subscription boundaries.
 
@@ -85,7 +91,8 @@ PCA profile, and the equivalent for every pair.
 
 ## 6. Validate
 
-- [ ] Every corpus ID is edition-specific and exists in the database
+- [ ] Every corpus ID is edition-specific and exists in the database — the loader checks this, and a
+      profile naming an un-ingested corpus is a load error
 - [ ] Every `contrary` and `excluded` entry has a `label`
 - [ ] Scripture stance set deliberately, or knowingly left at the `binding` default
 - [ ] `excluded` is populated where the tradition has actually repudiated something

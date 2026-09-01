@@ -43,7 +43,9 @@ the same four checks as a confessional one.
 disagreement (creation days, women in diaconal service, subscription boundaries in the PCA).
 False confidence here is worse than no profile at all. A tradition's contested list is declared
 in its profile and bounded by its corpus: each locus points at the ingested document that
-establishes the ruling (ADR-0015).
+establishes the ruling (ADR-0015). **A contested answer carries no `arguments`** — it quotes the
+ruling and describes the debate, and cannot assert the tradition's position while flagging that the
+tradition has none (ADR-0019).
 
 **Affirmative and descriptive claims** are the split that tier checking rests on. An *affirmative*
 claim says what the tradition holds and lives in `arguments`, so it needs a `binding` or
@@ -61,6 +63,8 @@ prefix is used where the work is denomination-specific, as a church order is.
 - `wcf` — **wrong**, and a bug
 - `wcf-1646-original` — a different corpus, `contrary` under a PCA profile
 - `pca-bco-2024`
+- `calvin-institutes-1559-beveridge` — the 1559 edition in Beveridge's 1845 translation. Both halves
+  matter: Battles (1960) is a different text and is in copyright
 
 The PCA holds the 1788 American revision, which differs from the 1646 original on the civil
 magistrate. OPC and PCA both hold the WCF but permit different exceptions. Retrofitting edition
@@ -74,19 +78,30 @@ Canonical, per-work, resolvable, stable.
 - Confessional: `WCF 7.2`, `WSC Q&A 1`
 - Aquinas: `ST I-II q.94 a.2`
 - Church order: `BCO 21-4`
+- Calvin's *Institutes*: `Inst. 4.17.10` — book.chapter.section
 
 A locator that does not resolve is a verification failure, not a formatting nit.
 
 ## Chunk metadata
 
-Every chunk carries: `corpus_id`, `work`, `author`, `era`, `tradition`, `locator`, `language`,
-`text_form`, `edition`, `license`, `attribution`, `embedding_model`, `dim`.
+Fourteen fields on every chunk: `corpus_id`, `work`, `author`, `era`, `tradition`, `locator`,
+`language`, `source_language`, `text_form`, `edition`, `license`, `attribution`, `embedding_model`,
+`dim`. `author` is the only nullable one.
 
 `corpus_id` is the edition-specific join key — `work` is a display name and resolves nothing.
 
-`language` and `text_form` are required **from day one** even though original-language support is
-Phase 3–4 — otherwise the corpus needs re-ingesting (ADR-0008). `embedding_model` and `dim` make a
-model swap a re-index job rather than a schema migration (ADR-0006).
+`language`, `source_language` and `text_form` are required **from day one** even though
+original-language support is Phase 3–4 — otherwise the corpus needs re-ingesting (ADR-0008).
+`language` is the chunk text as ingested and `source_language` is the work's own: `en` and `la` for
+Beveridge's *Institutes*, equal for an untranslated work.
+
+`text_form` and `license` are closed enums. `text_form` is `tr | critical | majority |
+not-applicable` — the TR-versus-critical distinction exists only for biblical text, so most of the
+Phase 1 corpus is `not-applicable`, and WEB is `majority`. `license` is `public-domain | cc-by |
+cc-by-sa | local-only | refused`; see CORPUS-POLICY.
+
+`embedding_model` and `dim` make a model swap a re-index job rather than a schema migration
+(ADR-0006).
 
 ## Theological terms worth not guessing at
 
