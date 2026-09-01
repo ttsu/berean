@@ -1,19 +1,21 @@
-# The model layer. Dependencies are installed from the lockfile only — a build
-# that resolves versions at image-build time makes "the same commit" mean two
+# The model layer. Dependencies come from the lockfile only — a build that
+# resolves versions at image-build time makes "the same commit" mean two
 # different stacks (SHARED §1).
 FROM python:3.12-slim AS build
-COPY --from=ghcr.io/astral-sh/uv:0.5.11 /uv /usr/local/bin/uv
+COPY --from=ghcr.io/astral-sh/uv:0.11.6 /uv /usr/local/bin/uv
 
 WORKDIR /app
 ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy
 
-# Manifest first so the dependency layer caches independently of source.
-COPY services/catena/pyproject.toml services/catena/uv.lock* ./
-RUN uv sync --frozen --no-install-project --no-dev 2>/dev/null \
-    || uv venv && uv pip install --no-deps .
+# Manifest and lock first, so the dependency layer caches independently of
+# source. `--no-install-project` is what keeps that separation real.
+COPY services/catena/pyproject.toml services/catena/uv.lock ./
+RUN uv sync --frozen --no-dev --no-install-project
 
+# `--no-editable` so the package lands in site-packages rather than as a link
+# back to /app/src, which the runtime stage does not carry.
 COPY services/catena/src ./src
-RUN uv pip install --no-deps .
+RUN uv sync --frozen --no-dev --no-editable
 
 FROM python:3.12-slim
 WORKDIR /app

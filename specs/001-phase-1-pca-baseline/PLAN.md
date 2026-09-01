@@ -31,19 +31,27 @@ TECHNICAL-SPEC.md. Every task below assumes the Go CLI.
 Compose stack with Postgres + pgvector, Langfuse, and empty service containers. Nothing does
 anything yet; the acceptance test passes.
 
-**Status:** the stack, provisioning, guards, and both service skeletons have landed. The boxes below
-are checked only where a command was actually run — everything needing a live Docker daemon is
-written and unverified, and is verified by the first person to run `make dev`.
+**Status:** landed and verified on a live Docker daemon, clean-slate. The one box left open is
+`make provision`, whose model half needs ~7.5 GB of free disk that the verifying machine did not
+have; the target exists, is documented, and fails loudly rather than silently.
 
-- [ ] `docker compose up` succeeds with no external accounts
+- [x] `docker compose up` succeeds with no external accounts — verified from destroyed volumes:
+      Postgres re-ran both init scripts, Langfuse re-applied its ClickHouse migrations, and every
+      container reached `healthy` in 23 s with no human touching a signup form
 - [ ] `make provision` pulls images, the **pinned** Qwen3-8B tag and BGE-M3 into `/models/`, and
       invokes corpus acquisition into `/data/` — neither ships in the repo. Task 1 asserts the target
       exists and is documented; Task 11 is where it is run clean-clone end to end, which is why this
       does not make Task 1 wait on Task 4
-- [ ] After provisioning, the stack comes up and serves with egress blocked
-- [ ] Postgres reachable with pgvector extension available
-- [ ] Langfuse reachable, with its organisation, project and API keys provisioned **headlessly from
-      environment**. It is a five-container stack — web, worker, ClickHouse, Redis, and the MinIO
+- [x] After provisioning, the stack comes up with egress blocked — `make dev-offline`, network
+      `internal=true`, every container healthy. Proven both ways: HTTPS out and external DNS both
+      fail from inside, while service discovery and inter-container traffic work. *Serves* awaits a
+      generator and a CLI (Tasks 7 and 10); Task 11 is where the full claim is exercised
+- [x] Postgres reachable with pgvector extension available — `vector` 0.8.6
+- [x] Langfuse reachable, with its organisation, project and API keys provisioned **headlessly from
+      environment** — verified by authenticating to `/api/public/projects` with the provisioned
+      keys, which returns the `berean` org and `berean-phase-1` project, and by the user row in
+      Postgres. No signup form was ever presented.
+ It is a five-container stack — web, worker, ClickHouse, Redis, and the MinIO
       SHARED §1 already requires — and a first boot that asks a human to sign up fails the
       no-external-accounts test as surely as a hosted service would (ADR-0009 status note)
 - [x] README states the RAM and disk floor and the expected provisioning duration. The
@@ -51,8 +59,11 @@ written and unverified, and is verified by the first person to run `make dev`.
       well-specified machine is not one
 - [x] The `local-only` serving opt-in is documented as an environment setting, default off —
       `BEREAN_SERVE_LOCAL_ONLY`, default `false` (ADR-0017)
-- [ ] Two DB roles created, with schema-level grants and `ALTER DEFAULT PRIVILEGES` per
-      INTEGRATION-SPEC — no tables exist yet, so table grants are re-asserted by the DDL task
+- [x] Two DB roles created, with schema-level grants and `ALTER DEFAULT PRIVILEGES` per
+      INTEGRATION-SPEC — no tables exist yet, so table grants are re-asserted by the DDL task.
+      Proven behaviourally on probe tables rather than by reading the ACLs: `catena` writes
+      `corpus` and is refused `trace` **at the schema level**, `gateway` writes `trace` and is
+      refused INSERT on `corpus`
 - [x] Makefile defines every target the documentation names — `provision` and `dev` here,
       `corpus-verify` from Task 4 — and README documents `make provision` and `make dev`
 - [x] Check that fails when a `make <target>` named in any Markdown file has no Makefile rule.
@@ -75,6 +86,8 @@ INTEGRATION-SPEC in the same change:
 - **The generation pin is `qwen3:8b-q4_K_M`**, recorded in `tools/provision/models.lock.yaml` with
   the sha256 of its upstream registry manifest. Ollama has no pull-by-digest, so the tag is what is
   pulled and the manifest hash is what proves the tag still points where it pointed (ADR-0018).
+- **Every container image is pinned to an exact version**, and `services/catena/uv.lock` is
+  committed so the image resolves nothing at build time.
 - **`catena acquire` grew `--all` and `--verify-only`**, so `make provision` and `make corpus-verify`
   are expressible without two entry points.
 - **Egress-blocked mode is `compose.offline.yaml`**, which marks the default network `internal`.
@@ -91,9 +104,28 @@ INTEGRATION-SPEC in the same change:
   rule both service AGENTS.md files carry, on the fixture size ceiling, and on review. Task 8's
   "invented text only" checkbox is not made redundant by this guard.
 
-Not yet verified, because no Docker daemon was available in the session that wrote them: the
-compose stack booting, Langfuse's headless bootstrap, the Postgres init scripts' grants, and the
-egress-blocked overlay. All four are the first thing `make dev` exercises.
+**Four defects the first live run found**, each fixed and re-verified:
+
+- **`langfuse:3` was a floating tag** and had moved to a build whose ClickHouse migration needs a
+  text-index syntax 24.8 rejects (`Only literals can be skip index arguments`). Every image is now
+  pinned exactly, and Langfuse 4.27.0 is paired with ClickHouse 25.12 — the pairing upstream
+  actually tests. The lesson is ADR-0018's, arriving from the direction nobody was watching: the
+  argument for pinning the generator applies to every image in the stack.
+- **`ollama/ollama:0.6.5` predates Qwen3 support entirely**, so `make provision` could never have
+  worked against ADR-0018's default. Now 0.33.2.
+- **Switching between `make dev` and `make dev-offline` left a stale network.** Compose reconnects
+  containers to an existing network rather than rebuilding it, and a network whose `internal` flag
+  changed since creation comes back with an embedded resolver that SERVFAILs every name — including
+  a container resolving itself. Healthchecks hid it, because they use localhost. Both targets now
+  tear down first.
+- **Langfuse 4's Next server binds the container's own IP, not `0.0.0.0`**, so a `localhost`
+  healthcheck inside the container is refused while the app is perfectly healthy. The probe uses
+  `$(hostname)`. Also `LANGFUSE_INIT_USER_EMAIL` must carry a TLD — `dev@localhost` fails validation
+  and takes the whole web container down with it.
+
+Still unverified: `make provision` itself. Its corpus half fails by design until Task 4, and its
+model half needs ~7.5 GB of free disk the verifying machine did not have. The upstream-drift check
+on the pinned generation tag *was* verified independently against the live registry.
 
 ---
 

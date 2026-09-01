@@ -14,7 +14,7 @@ x-langfuse-env: &langfuse-env
   ENCRYPTION_KEY: ${LANGFUSE_ENCRYPTION_KEY}
   CLICKHOUSE_MIGRATION_URL: clickhouse://clickhouse:9000
   CLICKHOUSE_URL: http://clickhouse:8123
-  CLICKHOUSE_USER: default
+  CLICKHOUSE_USER: clickhouse
   CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
   CLICKHOUSE_CLUSTER_ENABLED: "false"
   REDIS_HOST: redis
@@ -28,19 +28,24 @@ x-langfuse-env: &langfuse-env
   LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID: ${MINIO_ROOT_USER}
   LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD}
   LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE: "true"
+  LANGFUSE_S3_EVENT_UPLOAD_PREFIX: events/
   LANGFUSE_S3_MEDIA_UPLOAD_BUCKET: langfuse
   LANGFUSE_S3_MEDIA_UPLOAD_REGION: us-east-1
   LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT: http://minio:9000
   LANGFUSE_S3_MEDIA_UPLOAD_ACCESS_KEY_ID: ${MINIO_ROOT_USER}
   LANGFUSE_S3_MEDIA_UPLOAD_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD}
   LANGFUSE_S3_MEDIA_UPLOAD_FORCE_PATH_STYLE: "true"
+  LANGFUSE_S3_MEDIA_UPLOAD_PREFIX: media/
+  # Presigned media URLs are opened by the browser, which cannot resolve
+  # `minio`. The internal endpoint is what the server itself uses.
+  LANGFUSE_S3_MEDIA_UPLOAD_INTERNAL_ENDPOINT: http://minio:9000
   # No phoning home. Steady-state operation requires no egress (SHARED §1).
   TELEMETRY_ENABLED: "false"
   LANGFUSE_UPDATE_CHECK_ENABLED: "false"
 
 services:
   postgres:
-    image: pgvector/pgvector:pg17
+    image: pgvector/pgvector:0.8.6-pg17
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -62,9 +67,10 @@ services:
       retries: 20
 
   clickhouse:
-    image: clickhouse/clickhouse-server:24.8
+    image: clickhouse/clickhouse-server:25.12
+    user: "101:101"
     environment:
-      CLICKHOUSE_USER: default
+      CLICKHOUSE_USER: clickhouse
       CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
       CLICKHOUSE_DB: default
     volumes:
@@ -73,13 +79,13 @@ services:
     ulimits:
       nofile: { soft: 262144, hard: 262144 }
     healthcheck:
-      test: ["CMD-SHELL", "clickhouse-client --password $${CLICKHOUSE_PASSWORD} --query 'SELECT 1'"]
+      test: ["CMD-SHELL", "clickhouse-client --user clickhouse --password $${CLICKHOUSE_PASSWORD} --query 'SELECT 1'"]
       interval: 5s
       timeout: 5s
       retries: 20
 
   redis:
-    image: redis:7-alpine
+    image: redis:7.4.11-alpine3.21
     command: ["redis-server", "--requirepass", "${REDIS_PASSWORD}", "--maxmemory-policy", "noeviction"]
     volumes:
       - redis-data:/data
@@ -126,7 +132,7 @@ services:
     restart: "no"
 
   langfuse-worker:
-    image: langfuse/langfuse-worker:3
+    image: langfuse/langfuse-worker:4.27.0
     depends_on:
       postgres: { condition: service_healthy }
       clickhouse: { condition: service_healthy }
@@ -136,7 +142,7 @@ services:
     environment: *langfuse-env
 
   langfuse-web:
-    image: langfuse/langfuse:3
+    image: langfuse/langfuse:4.27.0
     depends_on:
       langfuse-worker: { condition: service_started }
       postgres: { condition: service_healthy }
@@ -162,14 +168,17 @@ services:
     ports:
       - "${LANGFUSE_PORT}:3000"
     healthcheck:
-      test: ["CMD-SHELL", "wget -q -O- http://localhost:3000/api/public/health || exit 1"]
+      # Langfuse 4's Next server binds the container's own IP rather than
+      # 0.0.0.0, so `localhost` inside the container is refused. Probe the
+      # address it actually listens on.
+      test: ["CMD-SHELL", "wget -q -O- http://$$(hostname):3000/api/public/health || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 30
       start_period: 60s
 
   ollama:
-    image: ollama/ollama:0.6.5
+    image: ollama/ollama:0.33.2
     volumes:
       # `make provision` pulls the pinned tag here. Weights are never baked into
       # an image and never fetched on first query (SHARED §1).
