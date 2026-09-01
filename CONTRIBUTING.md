@@ -27,7 +27,7 @@ These are correctness or legal failures, not style preferences:
 4. No token streaming.
 5. No model introspection, in any form, anywhere.
 6. `docker compose up` must work with no external accounts.
-7. No CC-BY-NC models or datasets.
+7. No CC-BY-NC or CC-BY-ND models, datasets, or corpora.
 
 ## Decisions
 

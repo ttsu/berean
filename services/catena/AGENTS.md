@@ -27,7 +27,10 @@ Auth, sessions, profile resolution, verification, trace persistence, translation
   citations cannot be validated, which is the entire reason the answer object exists.
 - Every argument must carry at least one citation. An empty list fails the whole answer.
 - `corpus_id` must be edition-specific.
-- Quotes must be verbatim and NFC-normalised using the shared normalisation function.
+- Quotes must be verbatim and NFC-normalised by following the normalisation steps in
+  INTEGRATION-SPEC and asserting the shared test vectors. There is no shared normalisation
+  function and the specs must not ask for one — ingestion is Python and verification is Go, so
+  the contract is the steps and the vectors, not a call.
 - **Never emit anything describing your own reasoning process.** `warrant` is the theological link
   from citation to claim, not introspection. If a proposed field would describe how the model
   arrived at something, it does not belong in the contract.
