@@ -20,3 +20,16 @@ document — a decision without its rejected alternatives is just a note.
 ## Consequences
 
 What this makes easy, what it makes hard, and what would cause us to revisit it.
+
+## Documents updated
+
+Every document this decision changes, listed by path and by what changed in it — including the
+status line of any ADR this one amends or supersedes.
+
+**Required, and the point of the section.** A decision restated in six places is wrong in five of
+them the moment it changes, and the file left behind is usually the one someone reads first: an
+`AGENTS.md` beside the code, a normative `README`, an ADR read on its own. Listing the call sites
+turns propagation into something a reviewer can check instead of something a reader discovers.
+
+Write it while making the change, not afterwards. If a rule stated elsewhere is not on this list,
+the decision is not finished.

@@ -90,3 +90,18 @@ empty-when-descriptive rule bounds it; nothing checks it semantically, because d
 require the classification this ADR just removed. Phase 2's eval harness is where that rate gets
 measured, and a persistent rate is what would cause us to revisit — most likely by requiring
 `position` to be assembled from cited claims rather than authored.
+
+## Documents updated
+
+- `specs/001-phase-1-pca-baseline/INTEGRATION-SPEC.md` — `descriptions` slot and `Description` type,
+  the slot constraints, the `excluded` paragraph, and the recorded `position` gap
+- `specs/001-phase-1-pca-baseline/TECHNICAL-SPEC.md` — check 3 restated structurally
+- `specs/SHARED-TECHNICAL-SPEC.md` — §6, the affirmative-claim floor and the structural rule
+- `specs/001-phase-1-pca-baseline/PRODUCT-SPEC.md` — UC-6 and the definition of done
+- `specs/001-phase-1-pca-baseline/PLAN.md` — Tasks 7, 8 and 11
+- `docs/ARCHITECTURE.md` — steering layers 2 and 3, and the answer object field list
+- `docs/GLOSSARY.md` — the affirmative/descriptive entry
+- `services/gateway/AGENTS.md` — the slot rule beside the resolved-profile rule
+- `.agents/skills/run-evals/SKILL.md` — descriptive answers scored as a pass, and the two gaps the
+  citation checks cannot catch
+- `docs/adr/0011-scripture-tier-is-profile-configurable.md` — status marked restated

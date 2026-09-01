@@ -3,6 +3,11 @@
 One file per decision, numbered, immutable once accepted. To change a decision, write a new ADR
 that supersedes the old one and update the old one's status — do not edit history.
 
+Every ADR MUST list the documents it changes, under **Documents updated**. The most common defect
+in this repository is a decision that lands in the specs and leaves a stale copy of the old rule in
+the file an implementer reads first. That is a review problem, not a discipline problem, and the
+list is what makes it reviewable.
+
 The **Alternatives rejected** section is the point of the document. A decision without its
 rejected alternatives is just a note, and six months later nobody remembers why the obvious
 option was not taken.

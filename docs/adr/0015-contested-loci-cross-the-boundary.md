@@ -102,3 +102,16 @@ it, the detection side needs more than a citation intersection. And if a later t
 contested list grows large enough that sending it inflates every request, the loci would need
 narrowing by retrieval before dispatch, which reopens the ordering between filtering and
 generation context.
+
+## Documents updated
+
+- `specs/001-phase-1-pca-baseline/INTEGRATION-SPEC.md` — `contested_loci` request field, `Contested`
+  answer type, the four contested verification constraints, and `ruling_source` in the profile schema
+- `specs/001-phase-1-pca-baseline/TECHNICAL-SPEC.md` — the worked PCA profile, and the narrowed
+  claim about what crosses the boundary
+- `specs/001-phase-1-pca-baseline/PLAN.md` — Task 4 acquires the 2000 report and segments its
+  recommendations; Tasks 6, 7, 8 and 11
+- `.agents/skills/add-tradition-profile/SKILL.md` — `ruling_source`, and the rule that a locus needs
+  its establishing document ingested
+- `docs/CORPUS-POLICY.md` — BCO and the 2000 report recorded as unclassified and gating
+- `docs/GLOSSARY.md` — `contested` bound to the profile and the corpus
