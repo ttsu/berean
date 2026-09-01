@@ -236,9 +236,9 @@ mode with no verification story. The declared list is what supplies one.
 `excluded` is the tier the product is built around, so its handling is specified rather than left
 to fall out of the others. An `excluded` corpus is retrievable and citable; its citations MUST
 carry their label at render time, exactly as `contrary` does; and they appear in `descriptions` or
-`contrary_positions`, never in `arguments`. "Your denomination examined this view and repudiated it in 2007" is the
-answer it exists to produce — that is a claim *about* the source, not one resting on its
-authority.
+`contrary_positions`, never in `arguments`. "Your denomination examined this view and repudiated
+it in 2007" is the answer it exists to produce — that is a claim *about* the source, not one
+resting on its authority.
 
 `scripture.corpus_id` is appended to the corpora list at the resolved stance before the filter spec
 is built. It is not a separate channel — Scripture chunks are retrieved, cited, and verified exactly
