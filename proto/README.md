@@ -20,4 +20,5 @@ Fields that are present-but-unused in Phase 1 — `conversation_context`, `tier_
 remove them because they are unused.
 
 Adding a field is cheap. Renaming or removing one is breaking and needs a new package version.
-`buf breaking` runs in CI against main.
+`buf lint` runs in CI. `buf breaking` is **deferred to Phase 2** (PLAN Task 2, ADR-0013) — the
+proto is pre-consumer in Phase 1, and the answer object is still gaining fields.
