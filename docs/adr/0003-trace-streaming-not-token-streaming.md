@@ -1,6 +1,6 @@
 # ADR-0003: Stream trace events, not tokens
 
-- **Status:** Accepted (the SSE stage list in the Decision is wrong — `retrieving` and `reranking` are Python-internal and Go cannot observe them, as this ADR's own next paragraph says. The correct list is in `docs/ARCHITECTURE.md`: dispatched, received, verifying, verified. The decision itself is unaffected)
+- **Status:** Accepted
 - **Date:** 2026-08-29
 - **Phase:** 1 (constrains Phase 4 UI)
 
@@ -11,8 +11,8 @@ answer is trustworthy, and verification runs on the complete answer object.
 
 ## Decision
 
-**No token streaming.** Stream trace events over SSE — dispatched, retrieving, reranking,
-verifying, verified — then deliver the verified answer in one piece.
+**No token streaming.** Stream trace events over SSE — dispatched, received, verifying, verified —
+then deliver the verified answer in one piece.
 
 Because the Python call is unary and verification happens after it returns, the live feed is Go
 narrating its own stages. Python's trace comes back inside the response, for storage rather than
