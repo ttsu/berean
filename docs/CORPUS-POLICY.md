@@ -21,7 +21,8 @@ any chunk whose `license` does not permit it, using the same mechanism as tier c
   patent — check before shipping to UK deployers)
 - OSHB (CC-BY — **requires attribution**)
 - SBLGNT (own terms — check before ingestion)
-- NET Bible — unusually permissive terms, plus roughly 60,000 translators' notes covering
+- NET Bible — unusually permissive terms, but the free-use allowance is verse-limited (check
+  before ingestion), plus roughly 60,000 translators' notes covering
   text-critical and lexical decisions. For a system that must defend its answers, that note
   apparatus is arguably more valuable than the translation itself, and it is a source the
   verification layer can actually resolve against.
@@ -103,7 +104,9 @@ The rule is deliberately unconditional. A per-corpus rule would be more permissi
 public-domain text committed for reproducibility, but it requires a licensing judgement on every
 corpus addition, forever — and those judgements get made in a hurry by whoever is adding a corpus.
 An unconditional rule needs no judgement, holds for corpora nobody has considered yet, and can be
-enforced mechanically by a single `.gitignore` entry.
+enforced by the staged-file guard in PLAN Task 1. The `.gitignore` entry on `/data/` is the first
+line of defence, not the enforcement: the rule also covers fixtures, test data and golden sets,
+which live outside `/data/`, and the golden set is the likeliest place a licensed text gets in.
 
 It also means the repository never becomes a distribution channel. Everything in this document about
 what may be redistributed applies to publication; with nothing published, the question does not

@@ -50,8 +50,13 @@ Phase 2 (eval harness) comes before Phase 3 (hybrid retrieval), deliberately.
 ```
 git clone https://github.com/ttsu/berean.git
 cd berean
+make provision      # pulls model weights, acquires the corpus into /data/
 docker compose up
 ```
+
+Provisioning is not optional. Neither model weights nor corpus text ships in the repository
+(ADR-0014), so `docker compose up` on its own brings up a stack with no models and an empty
+corpus.
 
 That must give a working system with no external accounts. It is the project's acceptance test —
 if a change breaks it, the change is wrong.
