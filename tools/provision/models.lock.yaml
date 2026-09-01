@@ -1,0 +1,36 @@
+# Pinned model weights. `make provision` fetches exactly these and nothing else.
+#
+# The generator is the largest single variable in the Phase 2 baseline, and a
+# silent change to it would move that number invisibly (ADR-0018). The embedder
+# is provisional on the same terms and re-decided at Phase 2 against the golden
+# set (ADR-0006). Both are pinned here so "the same commit" means the same
+# stack, and both identifiers are written into every trace.
+#
+# Bumping either is an ADR, not an edit.
+
+normalisation_version: 1  # unrelated to the weights; recorded so a re-bless is visible
+
+generation:
+  runtime: ollama
+  reference: qwen3:8b-q4_K_M
+  registry: registry.ollama.ai/library/qwen3
+  # sha256 of the registry manifest document for the tag above. Ollama has no
+  # pull-by-digest, so the tag is what is pulled and this is what proves the tag
+  # still points where it pointed. A mismatch fails provisioning loudly.
+  manifest_sha256: 500a1f067a9f782620b40bee6f7b0c89e17ae61f686b92c24933e4ca4b2b8b41
+  config_digest: sha256:05a61d37b08453e59290add468e3bb2f688e23a01e967fecb0e2fa41218cea76
+  approx_bytes: 5225387677   # ~5.2 GB
+  license: Apache-2.0
+  adr: ADR-0018
+
+embedding:
+  # In-process rather than served by Ollama. Ollama's bge-m3 is dense-only, and
+  # the learned sparse vectors are the one advantage ADR-0006 actually cites for
+  # this model — serving it over HTTP now would foreclose Phase 3 quietly.
+  runtime: in-process
+  repo: BAAI/bge-m3
+  revision: 5617a9f61b028005a4858fdac845db406aefb181
+  dim: 1024
+  approx_bytes: 2270000000   # ~2.3 GB
+  license: MIT
+  adr: ADR-0006

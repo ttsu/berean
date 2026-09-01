@@ -1,0 +1,8 @@
+#!/bin/sh
+# Installed by `make hooks`.
+#
+# No corpus text enters this repository, from any source, whatever its licence
+# (ADR-0014). A bright line that nothing checks will erode, and it erodes
+# fastest in fixtures and golden sets, which naturally contain expected
+# passages. This is the mechanical form of the line.
+exec python3 "$(git rev-parse --show-toplevel)/tools/guards/corpus_guard.py"

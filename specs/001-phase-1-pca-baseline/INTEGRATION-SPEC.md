@@ -476,12 +476,31 @@ opt-in set, and the README says so.
 
 `catena ingest --corpus <id> --source <path>` — batch ingestion. Idempotent.
 
+`catena acquire --corpus <id> [--bless] [--from-file <path>]` — acquisition, per
+**Corpus acquisition contract** above. Two flags exist for operating on the whole set: `--all`
+replaces `--corpus`, and `--verify-only` runs fetch → segment → normalise → verify and stops
+without staging. `make provision` runs `--all`; `make corpus-verify` runs `--all --verify-only`,
+which is how upstream drift gets noticed without disturbing staged records.
+
 ## Database roles
 
-Two Postgres roles with disjoint write grants, enforced by grants rather than convention:
+Two service roles with disjoint write grants, enforced by grants rather than convention:
 
 - `catena` — write on corpus tables, no access to trace tables.
 - `gateway` — write on session and trace tables, read-only on corpus tables.
+
+Two **schemas** carry the split — `corpus` (`works`, `chunks`, `chunk_embeddings`) and `trace`
+(`responses`, `traces`, `verification_results`). Grants are schema-level, with
+`ALTER DEFAULT PRIVILEGES` so a table added by a later migration arrives with the right grants
+rather than depending on whichever migration created it remembering a matching `GRANT`. `catena` is
+never granted `USAGE` on `trace`, so those tables are unreachable to it regardless of any table
+grant a later migration gets wrong.
+
+A third role, **`berean_owner`**, owns both schemas and runs migrations. Neither service
+authenticates as it. It exists because two roles with disjoint write scope cannot also own their own
+tables: an owner can re-grant itself anything, which turns the grant boundary back into the
+convention SHARED §5 says it must not be. Task 3 still re-asserts table grants explicitly, because a
+default privilege that silently did not apply is indistinguishable from one that did.
 
 ## Versioning
 

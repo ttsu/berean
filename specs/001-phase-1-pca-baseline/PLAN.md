@@ -31,6 +31,10 @@ TECHNICAL-SPEC.md. Every task below assumes the Go CLI.
 Compose stack with Postgres + pgvector, Langfuse, and empty service containers. Nothing does
 anything yet; the acceptance test passes.
 
+**Status:** the stack, provisioning, guards, and both service skeletons have landed. The boxes below
+are checked only where a command was actually run — everything needing a live Docker daemon is
+written and unverified, and is verified by the first person to run `make dev`.
+
 - [ ] `docker compose up` succeeds with no external accounts
 - [ ] `make provision` pulls images, the **pinned** Qwen3-8B tag and BGE-M3 into `/models/`, and
       invokes corpus acquisition into `/data/` — neither ships in the repo. Task 1 asserts the target
@@ -42,19 +46,54 @@ anything yet; the acceptance test passes.
       environment**. It is a five-container stack — web, worker, ClickHouse, Redis, and the MinIO
       SHARED §1 already requires — and a first boot that asks a human to sign up fails the
       no-external-accounts test as surely as a hosted service would (ADR-0009 status note)
-- [ ] README states the RAM and disk floor and the expected provisioning duration. The
+- [x] README states the RAM and disk floor and the expected provisioning duration. The
       clone-to-first-answer path is the acceptance test, and an acceptance test that silently needs a
       well-specified machine is not one
-- [ ] The `local-only` serving opt-in is documented as an environment setting, default off (ADR-0017)
+- [x] The `local-only` serving opt-in is documented as an environment setting, default off —
+      `BEREAN_SERVE_LOCAL_ONLY`, default `false` (ADR-0017)
 - [ ] Two DB roles created, with schema-level grants and `ALTER DEFAULT PRIVILEGES` per
       INTEGRATION-SPEC — no tables exist yet, so table grants are re-asserted by the DDL task
-- [ ] Makefile defines every target the documentation names — `provision` and `dev` here,
+- [x] Makefile defines every target the documentation names — `provision` and `dev` here,
       `corpus-verify` from Task 4 — and README documents `make provision` and `make dev`
-- [ ] Check that fails when a `make <target>` named in any Markdown file has no Makefile rule.
+- [x] Check that fails when a `make <target>` named in any Markdown file has no Makefile rule.
+      `make guard-make-targets`; only invocations inside code markup count, because prose says
+      "make sure".
+
       The README's clone-to-first-answer path is the project's acceptance test, so a target that is
       renamed or never written breaks it silently and only for new contributors
-- [ ] Guard that fails on any staged file containing corpus text — a bright line that nothing
-      checks will erode (ADR-0014)
+- [x] Guard that fails on any staged file containing corpus text — a bright line that nothing
+      checks will erode (ADR-0014). `make guard-corpus`, and `.githooks/pre-commit` via `make hooks`
+
+**Decisions Task 1 made that the spec did not anticipate**, recorded in TECHNICAL-SPEC and
+INTEGRATION-SPEC in the same change:
+
+- **Three database roles and two schemas.** `berean_owner` owns `corpus` and `trace` and runs
+  migrations; neither service authenticates as it. Two roles with disjoint write scope cannot also
+  own their own tables, because an owner re-grants itself anything.
+- **BGE-M3 runs in-process from `/models/`, not served by Ollama.** Ollama's `bge-m3` is dense-only,
+  and the learned sparse vectors are the one advantage ADR-0006 cites for this model.
+- **The generation pin is `qwen3:8b-q4_K_M`**, recorded in `tools/provision/models.lock.yaml` with
+  the sha256 of its upstream registry manifest. Ollama has no pull-by-digest, so the tag is what is
+  pulled and the manifest hash is what proves the tag still points where it pointed (ADR-0018).
+- **`catena acquire` grew `--all` and `--verify-only`**, so `make provision` and `make corpus-verify`
+  are expressible without two entry points.
+- **Egress-blocked mode is `compose.offline.yaml`**, which marks the default network `internal`.
+  Published ports do not survive that, so the CLI runs inside the stack —
+  `docker compose … run --rm gateway`. Task 11 runs acceptance this way.
+- **`catena` and `gateway` sit behind a compose `services` profile** and are excluded from the
+  default `up`. Neither does anything yet, and a container that exits with "not implemented" on
+  every start makes a green acceptance test look red. `make build` still builds both, so they
+  cannot rot. Task 7 drops catena's profile; gateway keeps its own, being a CLI rather than a
+  server.
+- **The corpus guard is structural, and its limit is worth stating.** It denies by path and shape
+  and never judges what a file means, which is what ADR-0014 asks for. It therefore does **not**
+  catch a passage pasted into a `.go` or `.py` test fixture — that case rests on the invented-text
+  rule both service AGENTS.md files carry, on the fixture size ceiling, and on review. Task 8's
+  "invented text only" checkbox is not made redundant by this guard.
+
+Not yet verified, because no Docker daemon was available in the session that wrote them: the
+compose stack booting, Langfuse's headless bootstrap, the Postgres init scripts' grants, and the
+egress-blocked overlay. All four are the first thing `make dev` exercises.
 
 ---
 

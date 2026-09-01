@@ -50,27 +50,62 @@ Phase 2 (eval harness) comes before Phase 3 (hybrid retrieval), deliberately.
 ```
 git clone https://github.com/ttsu/berean.git
 cd berean
-make provision      # pulls model weights, acquires the corpus into /data/
-docker compose up
+cp .env.example .env
+make provision      # pulls the pinned model weights, acquires the corpus into ./data/
+make dev            # docker compose up, and wait for health
 ```
 
 Provisioning is not optional. Neither model weights nor corpus text ships in the repository
 (ADR-0014), so `docker compose up` on its own brings up a stack with no models and an empty
 corpus.
 
-**What it costs.** The stack runs Postgres, Ollama holding Qwen3-8B (~5 GB resident), BGE-M3
-(~2.3 GB), and a five-container Langfuse install — plan for **16 GB of RAM**. `make provision`
-acquires seven corpora and embeds roughly 35,000 chunks, dominated by the ~31,100 verses of the WEB
-Bible; on CPU that is a multi-hour one-time job, and it is resumable per corpus. Nothing in the
-request path is affected — ingestion is always a batch job.
+**What it costs.**
+
+| | |
+| --- | --- |
+| RAM | **16 GB** floor. Ollama holding Qwen3-8B (~5.2 GB resident), BGE-M3 (~2.3 GB), Postgres, and a five-container Langfuse install |
+| Disk | **30 GB** free. ~7.5 GB of weights, ~8 GB of container images, and the rest for acquired text, staged records, and the vector index |
+| Time | **2–4 hours** on CPU for a clean provision, almost all of it embedding. Estimated, not yet measured — Task 11 records the wall-clock figure on the reference machine |
+
+`make provision` acquires seven corpora and embeds roughly 35,000 chunks, dominated by the ~31,100
+verses of the WEB Bible. It is resumable per corpus, so an interrupted run continues rather than
+restarts. Nothing in the request path is affected — ingestion is always a batch job.
+
+Model weights are pinned in [tools/provision/models.lock.yaml](tools/provision/models.lock.yaml)
+and provisioning fails loudly if an upstream tag has been republished. The generator is the largest
+single variable in the Phase 2 baseline, so a silent change to it would move that number invisibly
+(ADR-0018).
 
 **Serving PCA-published documents is opt-in.** The *Book of Church Order* and the 2000 creation
 study committee report are ingested as `local-only`, and verification refuses to serve them unless
-you set the opt-in. That is a decision about your deployment, not ours (ADR-0017,
+you set `BEREAN_SERVE_LOCAL_ONLY=true` in `.env`. It defaults to **false**, so the opt-in is a
+recorded act rather than an omission — and so a fresh clone degrades on questions those documents
+answer until you set it. That is a decision about your deployment, not ours (ADR-0017,
 [docs/CORPUS-POLICY.md](docs/CORPUS-POLICY.md)).
 
 That must give a working system with no external accounts. It is the project's acceptance test —
-if a change breaks it, the change is wrong.
+if a change breaks it, the change is wrong. `make dev-offline` brings the same stack up on an
+internal network with egress blocked, which is how the claim gets tested rather than asserted.
+
+## Development
+
+```
+make help           # every target, with a one-line description
+make hooks          # install the pre-commit hook that enforces ADR-0014
+make check          # guards, guard tests, and compose validation
+make build          # build the gateway and catena images
+make reset          # destroy the volumes, so Postgres re-runs its init scripts
+```
+
+Two guards run in `make check` and are not optional:
+
+- **`make guard-corpus`** rejects any tracked file that could carry corpus text. It denies by path
+  and shape — nothing under `./data/` or `./models/`, only `manifest.yaml` and `fingerprints.txt`
+  under `corpora/<corpus-id>/`, no text-bearing formats in the source tree, and a size ceiling on
+  test fixtures. It never judges what a file means, because a rule needing per-corpus licensing
+  judgement is the rule ADR-0014 exists to replace.
+- **`make guard-make-targets`** rejects any `make <target>` named in documentation that has no rule
+  in the Makefile.
 
 ## Bible translations
 
