@@ -86,7 +86,7 @@ A YAML document, loaded and resolved by Go:
 ```yaml
 profile: pca
 scripture:
-  translation: WEB
+  corpus_id: web-2000
   stance: binding              # optional; defaults to binding
 corpora:
   - id: wcf-1788-american
@@ -123,8 +123,9 @@ multiple views is a claim *about* the denomination's action, so it lives in `Con
 in `arguments`, where the advisory tier is no obstacle — the same routing that lets an `excluded`
 citation carry "your denomination repudiated this" from `descriptions` (ADR-0016).
 
-Resolution injects `scripture.translation` into the corpora list as an edition-specific corpus ID
-(`web-2000` for the WEB text in Phase 1). Scripture is not a parallel channel: a verse citation is
+Resolution appends `scripture.corpus_id` to the corpora list at the resolved stance. The profile
+names the edition directly, so there is no abbreviation to translate and no engine-side table to
+keep in step. Scripture is not a parallel channel: a verse citation is
 verified by the same four checks as a confessional one, and a `corpus_id` absent from the filter
 spec is treated as a fabrication. Leaving Scripture outside `corpora` makes every proof text in the
 Standards unverifiable.

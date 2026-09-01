@@ -197,7 +197,7 @@ YAML, loaded by Go, never sent to Python.
 ```yaml
 profile: string                  # e.g. pca
 scripture:
-  translation: string            # WEB in Phase 1
+  corpus_id: string              # edition-specific, e.g. web-2000
   stance: string                 # optional; binding | governing | advisory, default binding
 corpora:
   - id: string                   # edition-specific, required
@@ -240,10 +240,17 @@ carry their label at render time, exactly as `contrary` does; and they appear in
 answer it exists to produce — that is a claim *about* the source, not one resting on its
 authority.
 
-`scripture.translation` is resolved into the corpora list as an edition-specific corpus ID before
-the filter spec is built. It is not a separate channel — Scripture chunks are retrieved, cited, and
-verified exactly like any other corpus, and a translation left out of `corpora` makes every verse
-citation fail as a fabrication.
+`scripture.corpus_id` is appended to the corpora list at the resolved stance before the filter spec
+is built. It is not a separate channel — Scripture chunks are retrieved, cited, and verified exactly
+like any other corpus, and a translation left out of `corpora` makes every verse citation fail as a
+fabrication.
+
+The profile carries the **corpus ID**, not a translation abbreviation. An earlier draft carried
+`translation: WEB`, which left the WEB → `web-2000` mapping with no specified home: the engine would
+have had to hold an abbreviation table, making every added translation an engine change and putting
+a per-tradition corpus commitment outside the profile, which is the thing ADR-0011 exists to
+prevent. A corpus ID needs no resolution step and fails loudly when wrong, because an ID absent from
+the database is caught at load rather than guessed at.
 
 `scripture.stance` defaults to `binding` when absent and accepts `binding`, `governing`, or
 `advisory` only. `contrary` and `excluded` are load errors: no tradition in scope repudiates
