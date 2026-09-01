@@ -1,0 +1,20 @@
+# Egress-blocked overlay. `make dev-offline`.
+#
+# SHARED §1: first run may fetch images and weights; steady-state operation must
+# require no network egress, and any code path reaching the public internet to
+# answer a question is a defect. Marking the network internal is how that claim
+# gets tested rather than asserted — a stray fetch fails loudly here and is
+# invisible in the ordinary stack.
+#
+# An internal network drops published ports too, so the CLI runs inside the
+# stack rather than from the host:
+#
+#     make dev-offline
+#     docker compose -f compose.yaml -f compose.offline.yaml \
+#         run --rm gateway berean ask --profile pca "..."
+#
+# Task 11 runs Phase 1 acceptance this way.
+
+networks:
+  default:
+    internal: true

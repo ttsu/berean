@@ -97,6 +97,15 @@ behind it — most likely a per-corpus retrieval quota, which is policy rather t
 The embedder sits behind an interface from day one (ADR-0006). Swapping is a config change plus a
 re-index job.
 
+BGE-M3 runs **in-process in Catena from weights in `/models/`**, not served by Ollama. Ollama's
+`bge-m3` exposes dense vectors only, and the learned sparse representation is the one advantage
+ADR-0006 actually cites for this model — serving it over HTTP now would foreclose Phase 3's hybrid
+path quietly, which is the kind of decision that is cheap to make correctly and expensive to
+discover. Both weights are pinned in `tools/provision/models.lock.yaml` and fetched by
+`make provision`; the generator's pin is verified against the upstream registry manifest on every
+provision, so a republished tag fails loudly rather than moving the Phase 2 baseline invisibly
+(ADR-0018).
+
 ## Profile
 
 A YAML document, loaded and resolved by Go:
