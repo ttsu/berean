@@ -116,6 +116,11 @@ Pipeline:
 
 Provenance and licensing:
 
+- [ ] **Open, and blocking:** BCO and `pca-ga28-2000-creation-study` are not classified in
+      CORPUS-POLICY — neither on the usable list nor the off-limits one. Settle their terms before
+      either is ingested. Task 3 makes an insert without `license` fail at the database level, so
+      this blocks Task 4 rather than merely preceding it, and public availability on a
+      denominational website is not a licence
 - [ ] Manifest per corpus: source URL, archive fallback URL, retrieval date, licence, attribution,
       edition diagnostic with its expected text, normalisation contract version, chunk count
 - [ ] Fingerprints file: one `<locator>  <sha256-of-normalised-text>` per line, sorted
