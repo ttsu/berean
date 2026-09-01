@@ -30,6 +30,9 @@ logic here, stop — it belongs in Catena.
 - Send a **resolved FilterSpec**, never the profile. No profile name, user identity, or session
   state crosses the boundary. There is a unit test asserting this; keep it passing.
 - Verification checks tier against the **resolved profile Go holds**, never the tier Python claimed.
+- Tier is checked against the claim's **slot**, not its meaning: an `Argument` needs a `binding` or
+  `governing` citation and never holds `contrary` or `excluded`; `descriptions` and
+  `contrary_positions` take any tier with labels. Never classify what a claim means (ADR-0016).
   Tier is a per-tradition stance, not a property of the corpus — the same corpus is `contrary` under
   one profile and `binding` under another, so there is no single tier to record against it.
 - A citation to a corpus that was not in the FilterSpec is a fabrication. Fail immediately.
