@@ -32,16 +32,20 @@ Compose stack with Postgres + pgvector, Langfuse, and empty service containers. 
 anything yet; the acceptance test passes.
 
 - [ ] `docker compose up` succeeds with no external accounts
-- [ ] Documented provisioning step pulls images, the Ollama model, and BGE-M3 into `/models/`, and
-      invokes corpus acquisition into `/data/` — neither ships in the repo. Task 1 asserts the step
-      exists and is documented; Task 11 is where it is run clean-clone end to end, which is why this
-      does not make Task 1 wait on Task 4
+- [ ] `make provision` pulls images, the Ollama model, and BGE-M3 into `/models/`, and invokes
+      corpus acquisition into `/data/` — neither ships in the repo. Task 1 asserts the target exists
+      and is documented; Task 11 is where it is run clean-clone end to end, which is why this does
+      not make Task 1 wait on Task 4
 - [ ] After provisioning, the stack comes up and serves with egress blocked
 - [ ] Postgres reachable with pgvector extension available
 - [ ] Langfuse reachable
 - [ ] Two DB roles created, with schema-level grants and `ALTER DEFAULT PRIVILEGES` per
       INTEGRATION-SPEC — no tables exist yet, so table grants are re-asserted by the DDL task
-- [ ] `make dev` documented in README
+- [ ] Makefile defines every target the documentation names — `provision` and `dev` here,
+      `corpus-verify` from Task 4 — and README documents `make provision` and `make dev`
+- [ ] Check that fails when a `make <target>` named in any Markdown file has no Makefile rule.
+      The README's clone-to-first-answer path is the project's acceptance test, so a target that is
+      renamed or never written breaks it silently and only for new contributors
 - [ ] Guard that fails on any staged file containing corpus text — a bright line that nothing
       checks will erode (ADR-0014)
 
@@ -247,7 +251,7 @@ Tables come from Task 3; this task is the persistence path that writes them.
 - [ ] UC-4 (creation days) flags contested, cites the 2000 report's ruling, does not resolve
 - [ ] UC-5 (fabricated citation) caught, regenerated, degraded, and logged
 - [ ] UC-6 (descriptive question) answers from `advisory` sources with citations, does not refuse
-- [ ] Clean clone → documented provisioning (models + `catena acquire`) → `docker compose up`
+- [ ] Clean clone → `make provision` (models + `catena acquire`) → `docker compose up`
       reproduces all of the above, with acquisition verifying against committed fingerprints
 - [ ] README documents the full path from clone to first answer
 
