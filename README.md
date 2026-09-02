@@ -47,6 +47,10 @@ Phase 2 (eval harness) comes before Phase 3 (hybrid retrieval), deliberately.
 
 ## Getting started
 
+**On the host**, beyond Docker itself: `git`, `make`, `curl`, `python3` (the guards), and
+[`uv`](https://docs.astral.sh/uv/) (the embedding-model fetch). Everything else runs in a
+container. Docker Compose v2 — `docker compose`, not `docker-compose`.
+
 ```
 git clone https://github.com/ttsu/berean.git
 cd berean
@@ -116,9 +120,9 @@ Two guards run in `make check` and are not optional:
 
 - **`make guard-corpus`** rejects any tracked file that could carry corpus text. It denies by path
   and shape — nothing under `./data/` or `./models/`, only `manifest.yaml` and `fingerprints.txt`
-  under `corpora/<corpus-id>/`, no text-bearing formats in the source tree, and a size ceiling on
-  test fixtures. It never judges what a file means, because a rule needing per-corpus licensing
-  judgement is the rule ADR-0014 exists to replace.
+  under `corpora/<corpus-id>/`, no text-bearing or dump formats in the source tree, and a size
+  ceiling on test fixtures. It never judges what a file means, because a rule needing per-corpus
+  licensing judgement is the rule ADR-0014 exists to replace.
 - **`make guard-make-targets`** rejects any `make <target>` named in documentation that has no rule
   in the Makefile.
 

@@ -20,19 +20,27 @@ help: ## Show this help
 # Provisioning — neither weights nor corpus text ship in this repository
 # ---------------------------------------------------------------------------
 
+# Not in `make help` — plumbing, not something anyone runs directly. Docker
+# creates a missing bind-mount source as root, so on Linux the first container
+# to touch ./models or ./data leaves a tree the host user cannot write. Every
+# target that starts a container depends on this.
+.PHONY: dirs
+dirs:
+	@mkdir -p models/ollama models/bge-m3 data
+
 .PHONY: provision
 provision: provision-models provision-corpus ## Fetch pinned weights and acquire the corpus
 
 .PHONY: provision-models
-provision-models: env ## Fetch the pinned Qwen3-8B and BGE-M3 weights into ./models/
+provision-models: env dirs ## Fetch the pinned Qwen3-8B and BGE-M3 weights into ./models/
 	./tools/provision/pull-models.sh
 
 .PHONY: provision-corpus
-provision-corpus: env ## Acquire every corpus into ./data/ (ADR-0014)
+provision-corpus: env dirs ## Acquire every corpus into ./data/ (ADR-0014)
 	$(COMPOSE) run --rm catena acquire --all
 
 .PHONY: corpus-verify
-corpus-verify: env ## Re-acquire every corpus and diff against committed fingerprints
+corpus-verify: env dirs ## Re-acquire every corpus and diff against committed fingerprints
 	$(COMPOSE) run --rm catena acquire --all --verify-only
 
 # ---------------------------------------------------------------------------
@@ -40,7 +48,7 @@ corpus-verify: env ## Re-acquire every corpus and diff against committed fingerp
 # ---------------------------------------------------------------------------
 
 .PHONY: dev
-dev: env ## Bring up the stack (Postgres, Langfuse, Ollama)
+dev: env dirs ## Bring up the stack (Postgres, Langfuse, Ollama)
 	@# Down first so a switch from `dev-offline` recreates the network. Compose
 	@# reconnects containers to an existing network rather than rebuilding it,
 	@# and a network that changed `internal` since it was created comes back
@@ -54,7 +62,7 @@ dev: env ## Bring up the stack (Postgres, Langfuse, Ollama)
 	@echo "  Ollama    $$($(COMPOSE) port ollama 11434)"
 
 .PHONY: dev-offline
-dev-offline: env ## Bring up the stack with egress blocked (SHARED §1)
+dev-offline: env dirs ## Bring up the stack with egress blocked (SHARED §1)
 	$(COMPOSE) down --remove-orphans
 	$(OFFLINE) up -d --wait
 	@echo

@@ -7,9 +7,9 @@ the rule ADR-0014 exists to replace. The repository carries acquisition manifest
 fingerprints, and scripts; text is acquired to gitignored local storage.
 
 What this catches: text staged under the acquired-data trees, text smuggled into
-the `corpora/` tree beside its manifest, and text-bearing file formats anywhere in
-the source tree. What it does not catch: a passage pasted into a `.go` or `.py`
-test fixture. That case is covered by the invented-text-only rule the two service
+the `corpora/` tree beside its manifest, and text-bearing or dump file formats
+anywhere in the source tree. What it does not catch: a passage pasted into a
+`.go` or `.py` test fixture. That case is covered by the invented-text-only rule the two service
 AGENTS.md files carry, and by review.
 
 Usage:
@@ -41,6 +41,13 @@ TEXT_BEARING_SUFFIXES = frozenset(
     }
 )
 
+#: Formats a corpus dump arrives in that are also ordinary structured data. Denied
+#: like the rest, except inside a fixture directory, where the size ceiling is
+#: already the governing rule — a dump of staged records is large, and invented
+#: fixture text is not. Config that legitimately needs one of these suffixes goes
+#: in the allowlist below by name, so admitting it is a recorded act.
+DUMP_SUFFIXES = frozenset({".json", ".jsonl", ".ndjson"})
+
 #: Files whose suffix is text-bearing but whose role in the repository is not.
 TEXT_SUFFIX_ALLOWLIST = frozenset(
     {"requirements.txt", "requirements-dev.txt", "constraints.txt", "fingerprints.txt"}
@@ -51,13 +58,29 @@ FIXTURE_DIR_NAMES = frozenset({"testdata", "fixtures", "golden"})
 FIXTURE_SIZE_CEILING = 64 * 1024
 
 
+#: tools/guards/corpus_guard.py -> the repository root, so an absolute path and a
+#: repo-relative one name the same file without the guard needing git to run.
+_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+
 class Violation(NamedTuple):
     path: str
     reason: str
 
 
 def _segments(path: str) -> list[str]:
-    return [s for s in path.replace(os.sep, "/").split("/") if s]
+    """Repo-relative components, however the path was written.
+
+    Paths arrive from three places — git's index, `git ls-files`, and argv — and
+    only the first two are already clean. A `./` prefix or an absolute path, which
+    is what a CI script or an editor integration naturally passes, used to leave
+    `parts[0]` as `.` or as a filesystem root, matching no denied tree: the
+    hardest rule in the repository failed open on an ordinary way of calling it.
+    """
+    norm = os.path.normpath(path).replace(os.sep, "/")
+    if os.path.isabs(path):
+        norm = os.path.relpath(norm, _REPO_ROOT).replace(os.sep, "/")
+    return [s for s in norm.split("/") if s and s != "."]
 
 
 def _violation(path: str, size_of: Callable[[str], int]) -> Violation | None:
@@ -65,6 +88,13 @@ def _violation(path: str, size_of: Callable[[str], int]) -> Violation | None:
     if not parts:
         return None
     name = parts[-1]
+
+    if parts[0] == "..":
+        return Violation(
+            path,
+            "resolves outside the repository root, so no denied-tree rule can be "
+            "applied to it — pass a repo-relative path (ADR-0014)",
+        )
 
     if parts[0] in DENIED_TREES:
         return Violation(
@@ -83,14 +113,24 @@ def _violation(path: str, size_of: Callable[[str], int]) -> Violation | None:
         )
 
     suffix = os.path.splitext(name)[1].lower()
-    if suffix in TEXT_BEARING_SUFFIXES and name not in TEXT_SUFFIX_ALLOWLIST:
+    allowlisted = name in TEXT_SUFFIX_ALLOWLIST
+    in_fixture_dir = bool(FIXTURE_DIR_NAMES.intersection(parts[:-1]))
+
+    if suffix in TEXT_BEARING_SUFFIXES and not allowlisted:
         return Violation(
             path,
             f"'{suffix}' is a format corpus text arrives in; it is not committable "
             "outside corpora/ (ADR-0014)",
         )
 
-    if FIXTURE_DIR_NAMES.intersection(parts[:-1]):
+    if suffix in DUMP_SUFFIXES and not allowlisted and not in_fixture_dir:
+        return Violation(
+            path,
+            f"'{suffix}' is a format corpus dumps arrive in; outside a fixture "
+            "directory it is not committable (ADR-0014)",
+        )
+
+    if in_fixture_dir:
         size = size_of(path)
         if size > FIXTURE_SIZE_CEILING:
             return Violation(

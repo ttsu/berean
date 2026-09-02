@@ -11,7 +11,7 @@
 #
 #     make dev-offline
 #     docker compose -f compose.yaml -f compose.offline.yaml \
-#         run --rm gateway berean ask --profile pca "..."
+#         run --rm gateway ask --profile pca "..."
 #
 # Task 11 runs Phase 1 acceptance this way.
 
