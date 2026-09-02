@@ -32,7 +32,10 @@ fi
 # missing bind-mount source as root on Linux, and the fetch below then runs as
 # the host user and cannot write into ./models. macOS remaps ownership and
 # hides this, so it is a clean-clone Linux failure that never reproduces here.
-mkdir -p "$repo_root/models/ollama" "$repo_root/models/bge-m3" "$repo_root/data"
+# Kept in step with `make dirs`, which does the same for the targets that start
+# a container without coming through here.
+mkdir -p "$repo_root/models/ollama" "$repo_root/models/bge-m3" \
+         "$repo_root/data" "$repo_root/corpora"
 
 # Minimal reader, avoiding a YAML dependency in a script that runs before any
 # environment exists. It must be section-aware: `approx_bytes`, `runtime`,
@@ -49,6 +52,7 @@ pin() {  # pin <section> <key>
 }
 
 gen_ref="$(pin generation reference)"
+gen_registry="$(pin generation registry)"
 gen_manifest_sha="$(pin generation manifest_sha256)"
 emb_repo="$(pin embedding repo)"
 emb_revision="$(pin embedding revision)"
@@ -56,9 +60,38 @@ emb_bytes="$(pin embedding approx_bytes)"
 
 echo "==> Verifying the pinned generation tag still points where it pointed"
 tag="${gen_ref#*:}"
+
+# The manifest URL is built from the lock's `registry`, never from a literal
+# here. A hardcoded repository goes on hashing the old one after the pin moves
+# and prints ✓ for a tag it never fetched — a silent pass in the one script
+# whose whole purpose is that drift is loud. The two fields are cross-checked
+# rather than assumed to agree, because a `registry` naming a different model
+# is the same silent pass by another route.
+case "$gen_registry" in
+    */*) ;;
+    *)  echo "provision: FAIL — generation.registry must be <host>/<repository>," \
+             "and models.lock.yaml has '${gen_registry}'" >&2
+        exit 1 ;;
+esac
+registry_host="${gen_registry%%/*}"
+registry_repo="${gen_registry#*/}"
+ref_name="${gen_ref%%:*}"
+if [ "${registry_repo##*/}" != "${ref_name##*/}" ]; then
+    cat >&2 <<EOF
+provision: FAIL — models.lock.yaml disagrees with itself
+
+  reference  ${gen_ref}
+  registry   ${gen_registry}
+
+These name different models, so the manifest hash below would prove nothing
+about what \`ollama pull\` fetches.
+EOF
+    exit 1
+fi
+
 actual="$(curl -fsSL \
     -H 'Accept: application/vnd.docker.distribution.manifest.v2+json' \
-    "https://registry.ollama.ai/v2/library/qwen3/manifests/${tag}" \
+    "https://${registry_host}/v2/${registry_repo}/manifests/${tag}" \
     | sha256 | cut -d' ' -f1)"
 if [ "$actual" != "$gen_manifest_sha" ]; then
     cat >&2 <<EOF

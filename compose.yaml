@@ -204,7 +204,15 @@ services:
     depends_on:
       postgres: { condition: service_healthy }
       ollama: { condition: service_healthy }
+    # Everything this container writes lands in a bind mount, so it runs as the
+    # invoking user rather than as the image's uid — otherwise ./data and
+    # ./corpora come back owned by 1001 and the host user cannot write into
+    # what it just acquired. The Makefile supplies these; the defaults cover a bare
+    # `docker compose run`. HOME travels with the override, because Docker
+    # resolves no home directory for a uid absent from the image's passwd.
+    user: "${BEREAN_UID:-1000}:${BEREAN_GID:-1000}"
     environment:
+      HOME: /tmp
       CATENA_DATABASE_URL: postgresql://catena:${BEREAN_DB_CATENA_PASSWORD}@postgres:5432/${POSTGRES_DB}
       CATENA_OLLAMA_URL: http://ollama:11434
       CATENA_MODELS_DIR: /models
@@ -214,7 +222,11 @@ services:
     volumes:
       - ./models:/models:ro
       - ./data:/data
-      - ./corpora:/corpora:ro
+      # Writable: `catena acquire --bless` writes manifest.yaml and
+      # fingerprints.txt back into corpora/<corpus-id>/ (INTEGRATION-SPEC,
+      # "Corpus acquisition contract"). Read-only here would fail the very
+      # first acquisition of a corpus, which is the only one that blesses.
+      - ./corpora:/corpora
 
   # Go. The trust boundary. A CLI, not a server, so it is never part of `up`
   # even once it works — it is run with `docker compose run --rm gateway`,

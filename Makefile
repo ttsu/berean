@@ -5,7 +5,10 @@
 # clone-to-first-answer path is the project's acceptance test, and a target that
 # is renamed or never written breaks it silently, and only for a new reader.
 
-COMPOSE := docker compose
+# Containers that write into a bind mount run as the invoking user (the `user:`
+# key on catena), so what they acquire is owned by whoever ran make rather than
+# by the image's uid. Same reason the buf container below passes --user.
+COMPOSE := BEREAN_UID=$(shell id -u) BEREAN_GID=$(shell id -g) docker compose
 OFFLINE := $(COMPOSE) -f compose.yaml -f compose.offline.yaml
 PYTHON  := python3
 UV      := uv
@@ -46,11 +49,13 @@ help: ## Show this help
 
 # Not in `make help` — plumbing, not something anyone runs directly. Docker
 # creates a missing bind-mount source as root, so on Linux the first container
-# to touch ./models or ./data leaves a tree the host user cannot write. Every
-# target that starts a container depends on this.
+# to touch ./models, ./data or ./corpora leaves a tree the host user cannot
+# write. Every target that starts a container depends on this. corpora/ holds
+# committed content, but git tracks no empty directory and nothing is blessed
+# yet, so on a clean clone it is as absent as the other two.
 .PHONY: dirs
 dirs:
-	@mkdir -p models/ollama models/bge-m3 data
+	@mkdir -p models/ollama models/bge-m3 data corpora
 
 .PHONY: provision
 provision: provision-models provision-corpus ## Fetch pinned weights and acquire the corpus
@@ -162,7 +167,11 @@ test-gateway: ## The Go suite, in a container -- no local Go toolchain needed
 
 .PHONY: config
 config: env ## Validate the compose files
-	@$(COMPOSE) config --quiet && $(OFFLINE) config --quiet && echo "compose: OK"
+	@# With no profile, compose renders neither service container, so nothing in
+	@# them is checked -- including the interpolation catena's `user:` key needs.
+	@$(COMPOSE) --profile services config --quiet \
+	    && $(OFFLINE) --profile services config --quiet \
+	    && echo "compose: OK"
 
 .PHONY: build
 build: env ## Build the service images
