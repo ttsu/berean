@@ -1,0 +1,23 @@
+# The build context is streamed to the Docker daemon on every `make build`, so
+# what is *not* listed here matters more than what is. After `make provision`
+# the repository root holds ./models (~7.5 GB of weights) and ./data (the
+# acquired corpus). Both are bind-mounted at run time (compose.yaml) and must
+# never be baked into an image — an image carrying ./data would ship corpus
+# text, which is the one thing ADR-0014 exists to prevent.
+#
+# Deny everything, then re-include exactly what a Dockerfile COPYs. An
+# allow-list fails loudly — add a COPY without a line here and the build stops
+# on a missing file — where a deny-list fails silently, letting the next large
+# gitignored tree at the root back into the context unnoticed.
+*
+
+# services/gateway/Dockerfile
+!go.mod
+!go.sum
+!services/gateway
+
+# services/catena/Dockerfile — manifest and lock first, then source, so the
+# dependency layer caches independently of the source layer.
+!services/catena/pyproject.toml
+!services/catena/uv.lock
+!services/catena/src

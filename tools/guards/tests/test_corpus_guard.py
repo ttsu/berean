@@ -28,6 +28,31 @@ class DataAndModelTrees(unittest.TestCase):
         self.assertIn("ADR-0014", reasons(["data/x.txt"])["data/x.txt"])
 
 
+class PathNormalisation(unittest.TestCase):
+    """git hands the guard clean relative paths; argv does not.
+
+    A `./` prefix or an absolute path is what a CI script or an editor
+    integration passes, and both used to match no denied tree at all.
+    """
+
+    def test_a_dot_slash_prefix_still_hits_the_denied_tree(self):
+        self.assertIn("./data/x.bin", reasons(["./data/x.bin"]))
+
+    def test_an_absolute_path_still_hits_the_denied_tree(self):
+        absolute = str(Path(corpus_guard._REPO_ROOT) / "data" / "x.bin")
+        self.assertIn(absolute, reasons([absolute]))
+
+    def test_a_dot_slash_prefix_still_hits_the_corpora_rule(self):
+        self.assertIn("./corpora/wcf-1788-american/x.bin", reasons(["./corpora/wcf-1788-american/x.bin"]))
+
+    def test_a_dot_slash_prefix_does_not_invent_a_violation(self):
+        self.assertEqual(reasons(["./README.md", "./services/gateway/main.go"]), {})
+
+    def test_a_path_outside_the_repository_is_refused_rather_than_passed(self):
+        found = reasons(["../elsewhere/x.bin"])
+        self.assertIn("outside the repository root", found["../elsewhere/x.bin"])
+
+
 class CorporaTree(unittest.TestCase):
     def test_manifest_is_allowed(self):
         self.assertEqual(reasons(["corpora/wcf-1788-american/manifest.yaml"]), {})
@@ -60,6 +85,35 @@ class TextBearingExtensions(unittest.TestCase):
 
     def test_requirements_txt_is_allowed(self):
         self.assertEqual(reasons(["services/catena/requirements.txt"]), {})
+
+
+class DumpFormats(unittest.TestCase):
+    """`.json`/`.jsonl` carry corpus dumps as readily as `.xml` does.
+
+    They are also ordinary structured data, so a fixture directory is judged by
+    the size ceiling it already carries rather than by suffix.
+    """
+
+    def test_a_jsonl_dump_in_the_source_tree_is_denied(self):
+        self.assertIn("tools/acquire/wcf-dump.jsonl", reasons(["tools/acquire/wcf-dump.jsonl"]))
+
+    def test_a_json_dump_in_the_source_tree_is_denied(self):
+        self.assertIn("tools/acquire/wcf.json", reasons(["tools/acquire/wcf.json"]))
+
+    def test_an_ndjson_dump_in_the_source_tree_is_denied(self):
+        self.assertIn("tools/acquire/wcf.ndjson", reasons(["tools/acquire/wcf.ndjson"]))
+
+    def test_a_small_json_fixture_is_judged_by_size_not_suffix(self):
+        self.assertEqual(
+            reasons(["services/catena/tests/testdata/x.json"], size_of=lambda _p: 4096), {}
+        )
+
+    def test_an_oversized_jsonl_fixture_is_denied(self):
+        found = reasons(
+            ["services/catena/tests/testdata/x.jsonl"],
+            size_of=lambda _p: corpus_guard.FIXTURE_SIZE_CEILING + 1,
+        )
+        self.assertIn("ceiling", found["services/catena/tests/testdata/x.jsonl"])
 
 
 class FixtureSizeCeiling(unittest.TestCase):

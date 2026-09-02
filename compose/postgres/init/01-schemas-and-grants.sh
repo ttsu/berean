@@ -9,7 +9,11 @@
 # silently did not apply is indistinguishable from one that did.
 set -euo pipefail
 
-psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-'EOSQL'
+# The heredoc stays quoted, so the database name arrives as a psql variable.
+# `:"name"` expands to a quoted identifier. Hardcoding `berean` here would
+# make POSTGRES_DB a knob that aborts init the first time anyone turns it.
+psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" \
+    -v db="$POSTGRES_DB" <<-'EOSQL'
 	CREATE EXTENSION IF NOT EXISTS vector;
 
 	-- Two schemas rather than two conventions. The disjoint write scope
@@ -44,6 +48,6 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-'
 	-- Without schema USAGE the tables are unreachable regardless of any table
 	-- grant a later migration gets wrong.
 
-	ALTER ROLE catena  IN DATABASE berean SET search_path = corpus;
-	ALTER ROLE gateway IN DATABASE berean SET search_path = trace, corpus;
+	ALTER ROLE catena  IN DATABASE :"db" SET search_path = corpus;
+	ALTER ROLE gateway IN DATABASE :"db" SET search_path = trace, corpus;
 EOSQL

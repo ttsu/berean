@@ -54,7 +54,7 @@ run for real.
       environment** — verified by authenticating to `/api/public/projects` with the provisioned
       keys, which returns the `berean` org and `berean-phase-1` project, and by the user row in
       Postgres. No signup form was ever presented.
- It is a five-container stack — web, worker, ClickHouse, Redis, and the MinIO
+      Langfuse is a five-container stack — web, worker, ClickHouse, Redis, and the MinIO
       SHARED §1 already requires — and a first boot that asks a human to sign up fails the
       no-external-accounts test as surely as a hosted service would (ADR-0009 status note)
 - [x] README states the RAM and disk floor and the expected provisioning duration. The
@@ -71,10 +71,9 @@ run for real.
       `corpus-verify` from Task 4 — and README documents `make provision` and `make dev`
 - [x] Check that fails when a `make <target>` named in any Markdown file has no Makefile rule.
       `make guard-make-targets`; only invocations inside code markup count, because prose says
-      "make sure".
-
-      The README's clone-to-first-answer path is the project's acceptance test, so a target that is
-      renamed or never written breaks it silently and only for new contributors
+      "make sure". The README's clone-to-first-answer path is the project's acceptance
+      test, so a target that is renamed or never written breaks it silently and only for
+      new contributors
 - [x] Guard that fails on any staged file containing corpus text — a bright line that nothing
       checks will erode (ADR-0014). `make guard-corpus`, and `.githooks/pre-commit` via `make hooks`
 

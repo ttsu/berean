@@ -15,6 +15,25 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 lock="$repo_root/tools/provision/models.lock.yaml"
 
+# `shasum` is the BSD name and `sha256sum` the coreutils one; a minimal Linux
+# image reliably has only the second. Resolving it here means a host missing
+# both says so, rather than aborting mid-verification in a way that reads as
+# upstream drift.
+if command -v sha256sum >/dev/null 2>&1; then
+    sha256() { sha256sum; }
+elif command -v shasum >/dev/null 2>&1; then
+    sha256() { shasum -a 256; }
+else
+    echo "provision: FAIL — neither sha256sum nor shasum is on PATH" >&2
+    exit 1
+fi
+
+# Create the bind-mount sources before any container can. Docker creates a
+# missing bind-mount source as root on Linux, and the fetch below then runs as
+# the host user and cannot write into ./models. macOS remaps ownership and
+# hides this, so it is a clean-clone Linux failure that never reproduces here.
+mkdir -p "$repo_root/models/ollama" "$repo_root/models/bge-m3" "$repo_root/data"
+
 # Minimal reader, avoiding a YAML dependency in a script that runs before any
 # environment exists. It must be section-aware: `approx_bytes`, `runtime`,
 # `license` and `adr` all appear under both `generation:` and `embedding:`, and
@@ -40,7 +59,7 @@ tag="${gen_ref#*:}"
 actual="$(curl -fsSL \
     -H 'Accept: application/vnd.docker.distribution.manifest.v2+json' \
     "https://registry.ollama.ai/v2/library/qwen3/manifests/${tag}" \
-    | shasum -a 256 | cut -d' ' -f1)"
+    | sha256 | cut -d' ' -f1)"
 if [ "$actual" != "$gen_manifest_sha" ]; then
     cat >&2 <<EOF
 provision: FAIL — upstream drift on ${gen_ref}
@@ -57,7 +76,7 @@ fi
 echo "    ${gen_ref} ✓"
 
 echo "==> Pulling ${gen_ref} into ./models/ollama (~5.2 GB)"
-docker compose up -d ollama
+docker compose up -d --wait ollama
 docker compose exec -T ollama ollama pull "$gen_ref"
 
 # Ollama names a model by its manifest digest, so its own inventory is a second,
