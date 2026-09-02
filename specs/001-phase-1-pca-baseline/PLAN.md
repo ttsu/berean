@@ -31,17 +31,20 @@ TECHNICAL-SPEC.md. Every task below assumes the Go CLI.
 Compose stack with Postgres + pgvector, Langfuse, and empty service containers. Nothing does
 anything yet; the acceptance test passes.
 
-**Status:** landed and verified on a live Docker daemon, clean-slate. The one box left open is
-`make provision`, whose model half needs ~7.5 GB of free disk that the verifying machine did not
-have; the target exists, is documented, and fails loudly rather than silently.
+**Status:** landed and verified on a live Docker daemon, clean-slate, including `make provision`
+run for real.
 
 - [x] `docker compose up` succeeds with no external accounts — verified from destroyed volumes:
       Postgres re-ran both init scripts, Langfuse re-applied its ClickHouse migrations, and every
       container reached `healthy` in 23 s with no human touching a signup form
-- [ ] `make provision` pulls images, the **pinned** Qwen3-8B tag and BGE-M3 into `/models/`, and
+- [x] `make provision` pulls images, the **pinned** Qwen3-8B tag and BGE-M3 into `/models/`, and
       invokes corpus acquisition into `/data/` — neither ships in the repo. Task 1 asserts the target
       exists and is documented; Task 11 is where it is run clean-clone end to end, which is why this
-      does not make Task 1 wait on Task 4
+      does not make Task 1 wait on Task 4.
+      Run for real: 5m40s cold, **3.1s warm** — idempotent. The generation pin is confirmed twice,
+      once against the upstream manifest before pulling and once in ollama's own inventory after,
+      which names the model by that same digest. The corpus half fails at the Task 4 stub with
+      exit 69, which is the designed outcome and not a defect
 - [x] After provisioning, the stack comes up with egress blocked — `make dev-offline`, network
       `internal=true`, every container healthy. Proven both ways: HTTPS out and external DNS both
       fail from inside, while service discovery and inter-container traffic work. *Serves* awaits a
@@ -123,9 +126,32 @@ INTEGRATION-SPEC in the same change:
   `$(hostname)`. Also `LANGFUSE_INIT_USER_EMAIL` must carry a TLD — `dev@localhost` fails validation
   and takes the whole web container down with it.
 
-Still unverified: `make provision` itself. Its corpus half fails by design until Task 4, and its
-model half needs ~7.5 GB of free disk the verifying machine did not have. The upstream-drift check
-on the pinned generation tag *was* verified independently against the live registry.
+**Three more defects, found by running `make provision` rather than reading it:**
+
+- **The embedding fetch silently downloaded no weights.** `allow_patterns` filtered for
+  `*.safetensors`, which `BAAI/bge-m3` does not publish — it ships `pytorch_model.bin`. The script
+  pulled 42 MB of tokeniser files and printed "Model provisioning complete". It also excluded
+  `colbert_linear.pt` and `sparse_linear.pt`, the ColBERT and learned-sparse heads that are the
+  entire justification for running this model in-process rather than behind Ollama — so the fetch
+  would have quietly foreclosed the Phase 3 path the decision exists to keep open. Every fetch now
+  asserts a post-condition: required files present, and total size within 10% of the pin. A
+  provisioning step that reports success while acquiring nothing is the worst failure this project
+  can have, because it surfaces two tasks later as something else.
+- **The lockfile reader was section-blind.** `approx_bytes`, `runtime`, `license` and `adr` each
+  appear under both `generation:` and `embedding:`, and a reader taking the first match returns the
+  wrong model's value — it compared bge-m3's 2.3 GB against Qwen3's 5.2 GB floor and failed a
+  download that had succeeded. The reader is section-aware now.
+- **Docker Desktop's VM memory, not host RAM, is what bounds the stack.** The README's 16 GB floor
+  is host RAM and is necessary but not sufficient: the VM commonly defaults to ~8 GiB, the stack
+  idles at ~2.5 GiB, and Qwen3-8B needs ~6 GiB on top. The model is OOM-killed with
+  `llama-server process has terminated: signal: killed`, which names neither memory nor Docker and
+  reads as a bad pin. README now states a 12 GiB Docker allocation and the symptom.
+
+Confirmed working once memory was freed: **JSON-schema-constrained decoding**, which ADR-0018
+requires in place of asking the model for JSON. The response parsed and carried exactly the schema's
+keys. It also emitted `westminister_confession` — misspelled and not edition-specific — which is a
+live instance of the fabrication class check 1 catches, arriving unprompted on the first generation
+anyone ran.
 
 ---
 
