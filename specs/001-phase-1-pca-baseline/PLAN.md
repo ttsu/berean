@@ -160,24 +160,60 @@ anyone ran.
 
 `proto/berean/v1/` per INTEGRATION-SPEC, with buf generating both Go and Python.
 
-- [ ] `Answer` RPC, `FilterSpec`, `AnswerObject`, `Citation`, `Description`, `Contested`,
-      `VerificationResult`, `RetrievalTrace` defined
-- [ ] Deferred fields present: `conversation_context`, `tier_weights`, `rewritten_query`
-- [ ] Request carries `previous_failures` (`[VerificationResult]`) and `attempt`. ADR-0010 decided
+**Status:** landed. `make proto` generates both sides, `make check` runs the contract lint and both
+normalisation suites, and the Go suite runs in a pinned container so no local Go toolchain is
+needed.
+
+- [x] `Answer` RPC, `FilterSpec`, `AnswerObject`, `Citation`, `Description`, `Contested`,
+      `VerificationResult`, `RetrievalTrace` defined — across six files, split so `common.proto`
+      owns the two types (`Tier`, `CitationRef`) that belong to neither side
+- [x] Deferred fields present: `conversation_context`, `tier_weights`, `rewritten_query`
+- [x] Request carries `previous_failures` (`[VerificationResult]`) and `attempt`. ADR-0010 decided
       the retry carries failure reasons back and no field carried them — without this, Task 8's
       recovery path is inexpressible. Free now, a break after Task 7
-- [ ] `AnswerObject.no_answer_reason` present; `confidence` documented as wholly Go-derived
-- [ ] `RetrievalTrace` carries `generation_model` and `top_k`
-- [ ] **Shared normalisation fixture committed here and asserted by both the Python and Go suites.**
+- [x] `AnswerObject.no_answer_reason` present; `confidence` documented as wholly Go-derived
+- [x] `RetrievalTrace` carries `generation_model` and `top_k`
+- [x] **Shared normalisation fixture committed here and asserted by both the Python and Go suites.**
       It cannot wait for Task 5 and Task 8: fingerprints are hashes of post-normalisation text, so an
       ambiguity found when Go first implements the contract invalidates every fingerprint file and
       forces a re-bless of every corpus — including Task 4's by-hand edition verification. Vectors
       cover each `White_Space` code point, each format character stripped in step 0, an NFC-unstable
-      sequence, curly and straight apostrophes, and an em dash. Invented text only (ADR-0014)
-- [ ] `buf generate` produces Go and Python stubs
-- [ ] Generated code gitignored and regenerated locally; the commit-or-generate decision is
+      sequence, curly and straight apostrophes, and an em dash. Invented text only (ADR-0014).
+      `testdata/normalisation/vectors.json`, 58 vectors, read by
+      `services/catena/tests/test_normalisation.py` and
+      `services/gateway/internal/normalise`
+- [x] Both implementations written against the fixture: `catena.normalise` and
+      `services/gateway/internal/normalise`. Task 2 rather than Tasks 5 and 8 because a fixture
+      nothing implements asserts nothing, and the whole point of the sequencing is that Go has run
+      the contract before a corpus is blessed
+- [x] `buf generate` produces Go and Python stubs
+- [x] Generated code gitignored and regenerated locally; the commit-or-generate decision is
       **deferred to Phase 2** (ADR-0013) — it is CI policy, not contract design
-- [ ] `buf breaking` in CI **deferred to Phase 2**; the proto is pre-consumer in Phase 1
+- [x] `buf breaking` in CI **deferred to Phase 2**; the proto is pre-consumer in Phase 1. The
+      configuration is written in `buf.yaml` so enabling it is a CI change.
+      `services/catena/tests/test_proto_contract.py` stands in until then: with no break check,
+      nothing else would notice a field being dropped
+
+Three things the task did not anticipate, each resolved and propagated to INTEGRATION-SPEC:
+
+- **`tier_weights` cannot be a map keyed by tier.** proto3 map keys cannot be enums, so it is a
+  repeated `{tier, weight}` pair. A string-keyed map would have reopened the closed tier set for a
+  field nothing reads yet.
+- **`conversation_context` needed a type, and the spec gave none.** A `repeated ConversationTurn`
+  with `ConversationTurn` empty. A bare `string` would have had to be replaced in Phase 4 rather
+  than extended, which is exactly what the field exists to avoid.
+- **The fixture carries the two character sets, not only the vectors.** Vectors alone do not catch
+  an implementation that reaches for `\s` or `unicode.IsSpace`: the two disagree only on
+  U+001C–U+001F, which is the drift the enumerated set was written to prevent. Each suite now
+  asserts its own table against the fixture's.
+
+Two stack changes it forced, both small and both recorded where they live:
+
+- **gRPC is pinned at v1.80.0**, the newest release that still builds under the pinned Go 1.24
+  image. Raising it means raising the toolchain, which is a stack change and belongs in its own
+  commit rather than riding along with the contract.
+- **The gateway image now copies `go.sum`.** Without it the build re-resolves the dependency graph
+  and writes its own, so the image's dependency set would be whatever the registry served that day.
 
 ---
 
@@ -349,6 +385,12 @@ previously said Task 2 while the parallelisation table said Tasks 2 and 5; the t
       and the `top_k` actually used
 - [ ] Langfuse instrumentation on every model call
 - [ ] Never writes to trace tables
+- [ ] **The catena image carries the generated stubs.** Task 2 left it out on purpose: `gen/` is
+      gitignored, so a `COPY services/catena/gen` would break the build on a clean clone, and
+      nothing in the image imports the contract until this task. Whichever way it lands — running
+      `buf` inside the build, or committing the generated code — it is the commit-or-generate
+      question ADR-0013 deferred, and answering it here rather than in passing is the point.
+      `.dockerignore` is an allow-list, so it needs a line too
 
 ---
 

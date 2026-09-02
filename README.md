@@ -111,10 +111,17 @@ internal network with egress blocked, which is how the claim gets tested rather 
 ```
 make help           # every target, with a one-line description
 make hooks          # install the pre-commit hook that enforces ADR-0014
-make check          # guards, guard tests, and compose validation
+make proto          # regenerate the Go and Python stubs from proto/
+make check          # guards, unit suites, contract lint, and compose validation
+make test           # the unit suites on their own
 make build          # build the gateway and catena images
 make reset          # destroy the volumes, so Postgres re-runs its init scripts
 ```
+
+`buf` and the Go toolchain run in pinned containers, so neither is a host prerequisite. The
+generated protobuf stubs are **not committed** (ADR-0013 defers that decision to Phase 2), so run
+`make proto` once after cloning if you are working on either service — until you do, the suite
+that checks the contract skips itself rather than failing.
 
 Two guards run in `make check` and are not optional:
 

@@ -5,7 +5,9 @@ FROM golang:1.24-alpine AS build
 WORKDIR /src
 
 # Module files first so dependency resolution caches independently of source.
-COPY go.mod ./
+# go.sum comes along: without it the build re-resolves and writes its own, which
+# means the image's dependency set is whatever the registry served that day.
+COPY go.mod go.sum ./
 RUN go mod download
 
 COPY services/gateway ./services/gateway

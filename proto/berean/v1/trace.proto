@@ -1,0 +1,55 @@
+// What retrieval did.
+//
+// Returned inside the response for storage, not as a live feed; Go persists it.
+// It is simultaneously the eval dataset and the audit log, which is why it
+// records the settings as well as the results.
+
+syntax = "proto3";
+
+package berean.v1;
+
+option go_package = "github.com/ttsu/berean/gen/berean/v1;bereanv1";
+
+message RetrievalTrace {
+  // Phase 1: identical to the query — there is no query rewriting yet. Present
+  // so Phase 3 adds behaviour rather than breaking the contract.
+  string rewritten_query = 1;
+
+  // Every candidate considered, included or not. This is what makes a
+  // retrieval regression visible: Scripture is roughly 90% of the Phase 1 index
+  // and nothing balances corpus proportions, so a confessional question that
+  // retrieves only verses is a result this list shows directly.
+  repeated Candidate candidates = 2;
+
+  string embedding_model = 3;
+  int32 dim = 4;
+
+  // The pinned generation tag, e.g. `qwen3:8b-q4_K_M` (ADR-0018).
+  string generation_model = 5;
+
+  // The value actually used for this request, not the configured default.
+  int32 top_k = 6;
+
+  Timings timings = 7;
+}
+
+// Candidate is one retrieved chunk and what happened to it.
+message Candidate {
+  string corpus_id = 1;
+  string locator = 2;
+  float score = 3;
+  bool included = 4;
+  // Why it was dropped. Empty when `included`.
+  string exclusion_reason = 5;
+}
+
+// Timings are milliseconds, per stage.
+//
+// `generation_model` and `top_k` above are recorded for the same reason these
+// are: a number nobody logged cannot be held constant across a Phase 2
+// comparison.
+message Timings {
+  int64 embed_ms = 1;
+  int64 search_ms = 2;
+  int64 generate_ms = 3;
+}

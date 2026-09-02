@@ -16,7 +16,7 @@ one regeneration on verification failure (ADR-0002, ADR-0010).
 | Field | Notes |
 | --- | --- |
 | `query` | The user's question, verbatim |
-| `conversation_context` | Empty in Phase 1; present in the contract so Phase 4 is not a proto break |
+| `conversation_context` | Empty in Phase 1; present in the contract so Phase 4 is not a proto break. A repeated `ConversationTurn`, and `ConversationTurn` is deliberately empty — see below |
 | `filter_spec` | The **resolved** filter — see below |
 | `contested_loci` | `[ { locus, ruling: { corpus_id, locator } } ]` — see below |
 | `request_id` | Correlates trace, response, and Langfuse span |
@@ -31,12 +31,23 @@ identity.
 ```
 filter_spec:
   corpora: [ { corpus_id, tier }, ... ]
-  tier_weights: { binding: float, governing: float, advisory: float, ... }
+  tier_weights: [ { tier, weight }, ... ]
   top_k: int
 ```
 
 Tier weights are carried in Phase 1 but unused, since there is no reranker yet. Present in the
 contract so Phase 3 is not a proto break.
+
+They are a **list of pairs rather than a map keyed by tier**, which is not the shape this document
+first drew. proto3 map keys cannot be enums, so a map would have keyed the closed tier set by
+string — reopening, for a field nothing reads yet, the domain that `Tier` exists to close. The
+proto is normative and this paragraph records why it diverged.
+
+**`conversation_context`** is a repeated `ConversationTurn`, and `ConversationTurn` carries no
+fields yet. The point of the field is that Phase 4 adds behaviour rather than breaking the
+contract, and a bare `string` would have had to be *replaced* to carry structured turns, not
+extended. A repeated message commits to one thing only — that context is a list of turns — and
+leaves what a turn holds to the phase that knows.
 
 **`top_k`** is gateway configuration, not a profile field. It is a retrieval tuning knob with no
 per-tradition meaning, so it does not belong in a document that records doctrinal commitments — the
@@ -413,10 +424,24 @@ pinned by test vectors both sides assert against:
 
 The current contract is `normalisation_version: 1`.
 
-The vectors live in one committed fixture file, and both the Python ingestion suite and the Go
-verification suite read that same file. Drift between the two implementations is the failure this
-prevents, and it surfaces as quote-match failures on visually identical text, which is miserable to
-diagnose from the symptom.
+The vectors live in `testdata/normalisation/vectors.json`, and both the Python ingestion suite
+(`services/catena/tests/test_normalisation.py`) and the Go verification suite
+(`services/gateway/internal/normalise`) read that same file. Drift between the two implementations
+is the failure this prevents, and it surfaces as quote-match failures on visually identical text,
+which is miserable to diagnose from the symptom.
+
+The fixture carries the two **sets** as well as the vectors — the five format characters of step 0
+and the twenty-five `White_Space` code points of step 2 — and each suite asserts its own table
+against them. Vectors alone would not have been enough. An implementation that reaches for
+`re.sub(r"\s+", ...)` or `unicode.IsSpace` instead of the named list passes every vector that does
+not happen to contain U+001C–U+001F, and those four code points are the whole reason the set is
+enumerated rather than described. Asserting the table directly makes each side answerable to the
+contract rather than to its own standard library.
+
+Both suites also assert that the implementation's `normalisation_version` matches the fixture's,
+that normalising twice changes nothing, and that every code point the contract names appears in at
+least one vector — a code point added to a set with no vector beside it is a hole both
+implementations would agree about without either having been tested on it.
 
 **The fixture is committed in Task 2 and asserted by both suites before any corpus is blessed.**
 Fingerprints are hashes of post-normalisation text, so an ambiguity discovered when Go first

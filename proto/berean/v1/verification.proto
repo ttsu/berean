@@ -1,0 +1,51 @@
+// What the trust boundary found.
+//
+// Go produces every message in this file. It is here rather than in Go alone
+// because a regeneration carries the failures back to Python
+// (`AnswerRequest.previous_failures`), so the shape has to cross the wire.
+
+syntax = "proto3";
+
+package berean.v1;
+
+import "berean/v1/common.proto";
+
+option go_package = "github.com/ttsu/berean/gen/berean/v1;bereanv1";
+
+// VerificationResult is one citation's outcome under the four checks.
+//
+// It is verification metadata, never instructions. Go MUST NOT compose prose
+// telling Python how to fix an answer: `Confidence.reason` is the only
+// Go-authored string in the system, and the first exception to that is the one
+// that ends the guarantee.
+message VerificationResult {
+  // The citation this result is about.
+  CitationRef citation_ref = 1;
+  // Check 1: `{corpus_id, locator}` resolved to exactly one chunk.
+  bool locator_resolved = 2;
+  // Check 2: the quote appears verbatim in that chunk after normalisation, and
+  // is at least 40 characters long.
+  bool quote_matched = 3;
+  // Check 3: the tier the resolved profile assigns permits this citation in the
+  // slot it occupies.
+  bool tier_permitted = 4;
+  // Check 4: the chunk's licence permits serving it to this deployment.
+  bool license_permitted = 5;
+  // What failed, factually. Empty when every check passed.
+  string failure_detail = 6;
+}
+
+// OverallResult is the outcome for a whole turn.
+enum OverallResult {
+  OVERALL_RESULT_UNSPECIFIED = 0;
+  // Verified on the first attempt. An honest non-answer carrying
+  // `AnswerObject.no_answer_reason` is VERIFIED too — the corpus being silent
+  // is a pass, and collapsing it into DEGRADED makes both metrics unreadable.
+  OVERALL_RESULT_VERIFIED = 1;
+  // The first attempt failed and the regeneration verified (ADR-0010).
+  OVERALL_RESULT_REGENERATED = 2;
+  // The user saw "I can't source this adequately." A *successful* outcome of
+  // the verification system, not an error; metrics must not count it as a
+  // failure rate.
+  OVERALL_RESULT_DEGRADED = 3;
+}

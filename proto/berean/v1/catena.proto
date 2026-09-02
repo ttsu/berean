@@ -1,0 +1,68 @@
+// The one call.
+//
+// Go is the trust boundary; Python is the model layer. There is exactly one
+// gRPC call from Go into Python per generation attempt — once per turn, plus at
+// most one regeneration when verification fails (ADR-0002, ADR-0010). A turn
+// therefore makes at most two calls, and only ever two. Any other call means
+// the seam is in the wrong place.
+
+syntax = "proto3";
+
+package berean.v1;
+
+import "berean/v1/answer.proto";
+import "berean/v1/filter.proto";
+import "berean/v1/trace.proto";
+import "berean/v1/verification.proto";
+
+option go_package = "github.com/ttsu/berean/gen/berean/v1;bereanv1";
+
+// CatenaService is the whole of what Go asks Python to do.
+service CatenaService {
+  // Unary. One invocation per generation attempt.
+  rpc Answer(AnswerRequest) returns (AnswerResponse);
+}
+
+message AnswerRequest {
+  // The user's question, verbatim.
+  string query = 1;
+
+  // Empty in Phase 1. Present so Phase 4's conversation memory is an addition
+  // rather than a break — a bare string would have had to be replaced.
+  repeated ConversationTurn conversation_context = 2;
+
+  // The resolved filter. Never the profile.
+  FilterSpec filter_spec = 3;
+
+  // The loci this tradition holds open, each with a pointer to its ruling.
+  // A sibling of `filter_spec`, not part of it (ADR-0015).
+  repeated ContestedLocus contested_loci = 4;
+
+  // Correlates the trace, the response, and the Langfuse span.
+  string request_id = 5;
+
+  // Empty on the first attempt. On a regeneration, exactly what failed and why.
+  // ADR-0010 decided the retry carries the failure reasons back and nothing
+  // carried them; this reuses the message Go already produces and persists, so
+  // Go emits only what it actually found and composes no prose.
+  repeated VerificationResult previous_failures = 6;
+
+  // 1 on the first call, 2 on the regeneration. Nothing else is valid.
+  //
+  // Required for metrics rather than for generation: first-attempt and
+  // post-retry verification must be distinguishable, or a regeneration hides a
+  // rising fabrication rate (ADR-0010).
+  int32 attempt = 7;
+}
+
+// ConversationTurn is a prior turn of the conversation.
+//
+// Deliberately empty. Phase 4 decides what a turn carries; what is fixed now is
+// only that context is a list of turns, so Phase 4 adds fields rather than
+// changing a field's type.
+message ConversationTurn {}
+
+message AnswerResponse {
+  AnswerObject answer = 1;
+  RetrievalTrace trace = 2;
+}

@@ -1,0 +1,390 @@
+{
+  "normalisation_version": 1,
+  "about": "Test vectors for the normalisation contract. Ingestion runs in Python and verification runs in Go, so the two cannot share a function; what they share is this file. Both suites read it and both must agree, because drift between them surfaces as quote-match failures on visually identical text, which is miserable to diagnose from the symptom. Fingerprints are hashes of post-normalisation text, so changing the contract invalidates every fingerprint file and forces a re-bless of every corpus: bump normalisation_version when that happens, and make it deliberate.",
+  "contract": "specs/001-phase-1-pca-baseline/INTEGRATION-SPEC.md, 'Normalisation contract'",
+  "text_provenance": "Every string here is invented. No corpus text enters this repository, from any source, whatever its licence (ADR-0014).",
+  "format_characters_removed": [
+    "U+FEFF",
+    "U+200B",
+    "U+200C",
+    "U+200D",
+    "U+00AD"
+  ],
+  "whitespace": [
+    "U+0009",
+    "U+000A",
+    "U+000B",
+    "U+000C",
+    "U+000D",
+    "U+0020",
+    "U+0085",
+    "U+00A0",
+    "U+1680",
+    "U+2000",
+    "U+2001",
+    "U+2002",
+    "U+2003",
+    "U+2004",
+    "U+2005",
+    "U+2006",
+    "U+2007",
+    "U+2008",
+    "U+2009",
+    "U+200A",
+    "U+2028",
+    "U+2029",
+    "U+202F",
+    "U+205F",
+    "U+3000"
+  ],
+  "vectors": [
+    {
+      "name": "step0-removes-ufeff",
+      "input": "alpha\ufeffbravo",
+      "expected": "alphabravo",
+      "why": "U+FEFF (byte order mark) is invisible and is whitespace in neither standard library, so it survives every later step and produces a quote mismatch on text that looks identical"
+    },
+    {
+      "name": "step0-removes-u200b",
+      "input": "alpha\u200bbravo",
+      "expected": "alphabravo",
+      "why": "U+200B (zero width space) is invisible and is whitespace in neither standard library, so it survives every later step and produces a quote mismatch on text that looks identical"
+    },
+    {
+      "name": "step0-removes-u200c",
+      "input": "alpha\u200cbravo",
+      "expected": "alphabravo",
+      "why": "U+200C (zero width non-joiner) is invisible and is whitespace in neither standard library, so it survives every later step and produces a quote mismatch on text that looks identical"
+    },
+    {
+      "name": "step0-removes-u200d",
+      "input": "alpha\u200dbravo",
+      "expected": "alphabravo",
+      "why": "U+200D (zero width joiner) is invisible and is whitespace in neither standard library, so it survives every later step and produces a quote mismatch on text that looks identical"
+    },
+    {
+      "name": "step0-removes-u00ad",
+      "input": "alpha\u00adbravo",
+      "expected": "alphabravo",
+      "why": "U+00AD (soft hyphen) is invisible and is whitespace in neither standard library, so it survives every later step and produces a quote mismatch on text that looks identical"
+    },
+    {
+      "name": "step0-removes-rather-than-replaces",
+      "input": "alpha\u200b\u200bbravo",
+      "expected": "alphabravo",
+      "why": "a removed format character leaves nothing behind; treating it as whitespace would insert a space that is not in the source"
+    },
+    {
+      "name": "step0-runs-before-nfc-so-composition-still-happens",
+      "input": "Ma\u200d\u0301laga",
+      "expected": "M\u00e1laga",
+      "why": "the zero width joiner sits between the base letter and its combining acute. Stripping first lets NFC compose; normalising first leaves the sequence decomposed and the strip cannot undo it. This is what fixes the step order"
+    },
+    {
+      "name": "step0-list-is-closed-mongolian-vowel-separator-survives",
+      "input": "alpha\u180ebravo",
+      "expected": "alpha\u180ebravo",
+      "why": "U+180E is a format character and was White_Space before Unicode 6.3, so an implementation reaching for a category test rather than the named list will drop or collapse it. The contract names five characters and this is not one"
+    },
+    {
+      "name": "step1-nfc-composes-combining-acute",
+      "input": "Ma\u0301laga",
+      "expected": "M\u00e1laga",
+      "why": "the same word arrives decomposed from one extractor and composed from another; NFC is what makes the two hash alike"
+    },
+    {
+      "name": "step1-nfc-composes-angstrom-sign",
+      "input": "\u212bngstro\u0308m",
+      "expected": "\u00c5ngstr\u00f6m",
+      "why": "U+212B ANGSTROM SIGN has a canonical decomposition, so NFC maps it onto U+00C5 \u2014 a singleton substitution rather than a composition"
+    },
+    {
+      "name": "step1-nfc-reorders-combining-marks-canonically",
+      "input": "q\u0307\u0323",
+      "expected": "q\u0323\u0307",
+      "why": "neither mark composes with q, so the only thing NFC does here is canonical ordering: combining class 220 sorts before 230. An implementation that composes without reordering passes every other vector in this file"
+    },
+    {
+      "name": "step1-nfc-is-idempotent",
+      "input": "M\u00e1laga",
+      "expected": "M\u00e1laga",
+      "why": "already-composed text is unchanged, so re-normalising a stored chunk cannot invalidate its fingerprint"
+    },
+    {
+      "name": "step1-is-nfc-not-nfkc-ligature-survives",
+      "input": "o\ufb01ce",
+      "expected": "o\ufb01ce",
+      "why": "NFKC would expand the fi ligature to two letters. That is a different text, and a quote taken from the source would then fail to match it"
+    },
+    {
+      "name": "step1-is-nfc-not-nfkc-fullwidth-survives",
+      "input": "\uff21\uff22",
+      "expected": "\uff21\uff22",
+      "why": "NFKC would fold fullwidth forms to ASCII. Same reason: compatibility normalisation rewrites the text rather than canonicalising it"
+    },
+    {
+      "name": "step2-collapses-u0009",
+      "input": "alpha\t\tbravo",
+      "expected": "alpha bravo",
+      "why": "U+0009 (character tabulation) has the White_Space property, so a run of it collapses to one U+0020"
+    },
+    {
+      "name": "step2-collapses-u000a",
+      "input": "alpha\n\nbravo",
+      "expected": "alpha bravo",
+      "why": "U+000A (line feed) has the White_Space property, so a run of it collapses to one U+0020"
+    },
+    {
+      "name": "step2-collapses-u000b",
+      "input": "alpha\u000b\u000bbravo",
+      "expected": "alpha bravo",
+      "why": "U+000B (line tabulation) has the White_Space property, so a run of it collapses to one U+0020"
+    },
+    {
+      "name": "step2-collapses-u000c",
+      "input": "alpha\f\fbravo",
+      "expected": "alpha bravo",
+      "why": "U+000C (form feed) has the White_Space property, so a run of it collapses to one U+0020"
+    },
+    {
+      "name": "step2-collapses-u000d",
+      "input": "alpha\r\rbravo",
+      "expected": "alpha bravo",
+      "why": "U+000D (carriage return) has the White_Space property, so a run of it collapses to one U+0020"
+    },
+    {
+      "name": "step2-collapses-u0020",
+      "input": "alpha  bravo",
+      "expected": "alpha bravo",
+      "why": "U+0020 (space) has the White_Space property, so a run of it collapses to one U+0020"
+    },
+    {
+      "name": "step2-collapses-u0085",
+      "input": "alpha\u0085\u0085bravo",
+      "expected": "alpha bravo",
+      "why": "U+0085 (next line) has the White_Space property, so a run of it collapses to one U+0020"
+    },
+    {
+      "name": "step2-collapses-u00a0",
+      "input": "alpha\u00a0\u00a0bravo",
+      "expected": "alpha bravo",
+      "why": "U+00A0 (no-break space) has the White_Space property, so a run of it collapses to one U+0020"
+    },
+    {
+      "name": "step2-collapses-u1680",
+      "input": "alpha\u1680\u1680bravo",
+      "expected": "alpha bravo",
+      "why": "U+1680 (ogham space mark) has the White_Space property, so a run of it collapses to one U+0020"
+    },
+    {
+      "name": "step2-collapses-u2000",
+      "input": "alpha\u2000\u2000bravo",
+      "expected": "alpha bravo",
+      "why": "U+2000 (en quad) has the White_Space property, so a run of it collapses to one U+0020"
+    },
+    {
+      "name": "step2-collapses-u2001",
+      "input": "alpha\u2001\u2001bravo",
+      "expected": "alpha bravo",
+      "why": "U+2001 (em quad) has the White_Space property, so a run of it collapses to one U+0020"
+    },
+    {
+      "name": "step2-collapses-u2002",
+      "input": "alpha\u2002\u2002bravo",
+      "expected": "alpha bravo",
+      "why": "U+2002 (en space) has the White_Space property, so a run of it collapses to one U+0020"
+    },
+    {
+      "name": "step2-collapses-u2003",
+      "input": "alpha\u2003\u2003bravo",
+      "expected": "alpha bravo",
+      "why": "U+2003 (em space) has the White_Space property, so a run of it collapses to one U+0020"
+    },
+    {
+      "name": "step2-collapses-u2004",
+      "input": "alpha\u2004\u2004bravo",
+      "expected": "alpha bravo",
+      "why": "U+2004 (three-per-em space) has the White_Space property, so a run of it collapses to one U+0020"
+    },
+    {
+      "name": "step2-collapses-u2005",
+      "input": "alpha\u2005\u2005bravo",
+      "expected": "alpha bravo",
+      "why": "U+2005 (four-per-em space) has the White_Space property, so a run of it collapses to one U+0020"
+    },
+    {
+      "name": "step2-collapses-u2006",
+      "input": "alpha\u2006\u2006bravo",
+      "expected": "alpha bravo",
+      "why": "U+2006 (six-per-em space) has the White_Space property, so a run of it collapses to one U+0020"
+    },
+    {
+      "name": "step2-collapses-u2007",
+      "input": "alpha\u2007\u2007bravo",
+      "expected": "alpha bravo",
+      "why": "U+2007 (figure space) has the White_Space property, so a run of it collapses to one U+0020"
+    },
+    {
+      "name": "step2-collapses-u2008",
+      "input": "alpha\u2008\u2008bravo",
+      "expected": "alpha bravo",
+      "why": "U+2008 (punctuation space) has the White_Space property, so a run of it collapses to one U+0020"
+    },
+    {
+      "name": "step2-collapses-u2009",
+      "input": "alpha\u2009\u2009bravo",
+      "expected": "alpha bravo",
+      "why": "U+2009 (thin space) has the White_Space property, so a run of it collapses to one U+0020"
+    },
+    {
+      "name": "step2-collapses-u200a",
+      "input": "alpha\u200a\u200abravo",
+      "expected": "alpha bravo",
+      "why": "U+200A (hair space) has the White_Space property, so a run of it collapses to one U+0020"
+    },
+    {
+      "name": "step2-collapses-u2028",
+      "input": "alpha\u2028\u2028bravo",
+      "expected": "alpha bravo",
+      "why": "U+2028 (line separator) has the White_Space property, so a run of it collapses to one U+0020"
+    },
+    {
+      "name": "step2-collapses-u2029",
+      "input": "alpha\u2029\u2029bravo",
+      "expected": "alpha bravo",
+      "why": "U+2029 (paragraph separator) has the White_Space property, so a run of it collapses to one U+0020"
+    },
+    {
+      "name": "step2-collapses-u202f",
+      "input": "alpha\u202f\u202fbravo",
+      "expected": "alpha bravo",
+      "why": "U+202F (narrow no-break space) has the White_Space property, so a run of it collapses to one U+0020"
+    },
+    {
+      "name": "step2-collapses-u205f",
+      "input": "alpha\u205f\u205fbravo",
+      "expected": "alpha bravo",
+      "why": "U+205F (medium mathematical space) has the White_Space property, so a run of it collapses to one U+0020"
+    },
+    {
+      "name": "step2-collapses-u3000",
+      "input": "alpha\u3000\u3000bravo",
+      "expected": "alpha bravo",
+      "why": "U+3000 (ideographic space) has the White_Space property, so a run of it collapses to one U+0020"
+    },
+    {
+      "name": "step2-collapses-crlf",
+      "input": "alpha\r\nbravo",
+      "expected": "alpha bravo",
+      "why": "a line break is one run, not two: CRLF collapses to a single space, so the same paragraph hashes alike whichever line ending the extractor emitted"
+    },
+    {
+      "name": "step2-collapses-a-mixed-run",
+      "input": "alpha \u00a0\u3000\nbravo",
+      "expected": "alpha bravo",
+      "why": "a run is a run whatever it is made of; the replacement is always one U+0020"
+    },
+    {
+      "name": "step2-leaves-u001c-alone",
+      "input": "alpha\u001cbravo",
+      "expected": "alpha\u001cbravo",
+      "why": "U+001C is matched by Python's \\s and by str.isspace, and is not matched by Go's unicode.IsSpace. It does not have the White_Space property, so the contract preserves it \u2014 this is the exact vector 'collapse whitespace' alone would have left as two different functions"
+    },
+    {
+      "name": "step2-leaves-u001d-alone",
+      "input": "alpha\u001dbravo",
+      "expected": "alpha\u001dbravo",
+      "why": "U+001D is matched by Python's \\s and by str.isspace, and is not matched by Go's unicode.IsSpace. It does not have the White_Space property, so the contract preserves it \u2014 this is the exact vector 'collapse whitespace' alone would have left as two different functions"
+    },
+    {
+      "name": "step2-leaves-u001e-alone",
+      "input": "alpha\u001ebravo",
+      "expected": "alpha\u001ebravo",
+      "why": "U+001E is matched by Python's \\s and by str.isspace, and is not matched by Go's unicode.IsSpace. It does not have the White_Space property, so the contract preserves it \u2014 this is the exact vector 'collapse whitespace' alone would have left as two different functions"
+    },
+    {
+      "name": "step2-leaves-u001f-alone",
+      "input": "alpha\u001fbravo",
+      "expected": "alpha\u001fbravo",
+      "why": "U+001F is matched by Python's \\s and by str.isspace, and is not matched by Go's unicode.IsSpace. It does not have the White_Space property, so the contract preserves it \u2014 this is the exact vector 'collapse whitespace' alone would have left as two different functions"
+    },
+    {
+      "name": "step3-trims-both-ends",
+      "input": "  alpha bravo\t\n",
+      "expected": "alpha bravo",
+      "why": "leading and trailing whitespace is dropped after collapsing, not before"
+    },
+    {
+      "name": "step3-trims-non-ascii-whitespace",
+      "input": "\u3000\u00a0alpha\u2028",
+      "expected": "alpha",
+      "why": "the trim uses the same White_Space set as the collapse; an ASCII-only trim leaves an invisible edge character on the chunk"
+    },
+    {
+      "name": "step3-whitespace-only-becomes-empty",
+      "input": "\t\u00a0\u3000 ",
+      "expected": "",
+      "why": "a chunk of nothing but whitespace normalises to the empty string rather than to a single space"
+    },
+    {
+      "name": "empty-input-stays-empty",
+      "input": "",
+      "expected": "",
+      "why": "normalisation is total; the empty string is a fixed point"
+    },
+    {
+      "name": "step4-no-case-folding",
+      "input": "The WORD and the word",
+      "expected": "The WORD and the word",
+      "why": "case is meaning here, and folding it would let a quote match a passage it does not appear in"
+    },
+    {
+      "name": "step4-curly-apostrophe-survives",
+      "input": "the church\u2019s order",
+      "expected": "the church\u2019s order",
+      "why": "a quote that differs from the source by a curly apostrophe is a genuine mismatch and must fail"
+    },
+    {
+      "name": "step4-straight-apostrophe-survives",
+      "input": "the church's order",
+      "expected": "the church's order",
+      "why": "the straight form is left alone too; the two are different characters before normalisation and after it"
+    },
+    {
+      "name": "step4-quotation-marks-are-not-folded",
+      "input": "\u201calpha\u201d and \"bravo\"",
+      "expected": "\u201calpha\u201d and \"bravo\"",
+      "why": "curly and straight quotation marks coexist in one string and neither moves toward the other"
+    },
+    {
+      "name": "step4-em-dash-survives",
+      "input": "alpha \u2014 bravo",
+      "expected": "alpha \u2014 bravo",
+      "why": "no dash folding. The spaces around it collapse; the dash itself does not become a hyphen"
+    },
+    {
+      "name": "step4-en-dash-and-hyphen-stay-distinct",
+      "input": "pages 1\u201310 and 11-20",
+      "expected": "pages 1\u201310 and 11-20",
+      "why": "an implementation that folds dashes makes these two ranges hash alike"
+    },
+    {
+      "name": "step4-no-punctuation-stripping",
+      "input": "alpha; bravo, charlie.",
+      "expected": "alpha; bravo, charlie.",
+      "why": "punctuation is part of the text being fingerprinted"
+    },
+    {
+      "name": "step4-ellipsis-character-survives",
+      "input": "alpha\u2026",
+      "expected": "alpha\u2026",
+      "why": "NFKC would expand this to three full stops. NFC does not, and neither does any later step"
+    },
+    {
+      "name": "all-steps-together",
+      "input": "\ufeff  The\u00a0\u00a0church\u2019s\u200b order\u2014Ma\u0301laga\u3000 ",
+      "expected": "The church\u2019s order\u2014M\u00e1laga",
+      "why": "a byte order mark, a doubled no-break space, a zero width space, a decomposed vowel, an em dash and a trailing ideographic space in one string \u2014 roughly what an ordinary PDF extraction hands the pipeline"
+    }
+  ]
+}

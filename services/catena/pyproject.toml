@@ -4,11 +4,19 @@ version = "0.1.0"
 description = "Berean retrieval and citation service — the model layer"
 requires-python = ">=3.12"
 license = "Apache-2.0"
-# Deliberately empty. Task 1 builds the skeleton; the embedder (Task 5),
-# the gRPC server (Task 7), and the acquisition pipeline (Task 4) each add
-# what they actually need. A dependency added before its task is a dependency
-# nobody can justify at review.
-dependencies = []
+# Only what the current task needs. The embedder (Task 5) and the acquisition
+# pipeline (Task 4) each add their own; a dependency added before its task is a
+# dependency nobody can justify at review.
+#
+# These two are Task 2's: the generated stubs in `gen/` import `google.protobuf`
+# and `grpc`, so a contract that cannot be imported is not a contract that has
+# been delivered. Exact versions are pinned in uv.lock. The floors below are the
+# runtime versions the pinned codegen plugins in buf.gen.yaml emit against —
+# protobuf's generated code checks its runtime version at import.
+dependencies = [
+    "protobuf>=6.33.1,<7",
+    "grpcio>=1.76.0,<2",
+]
 
 [project.scripts]
 catena = "catena.__main__:main"

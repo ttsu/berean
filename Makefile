@@ -8,6 +8,30 @@
 COMPOSE := docker compose
 OFFLINE := $(COMPOSE) -f compose.yaml -f compose.offline.yaml
 PYTHON  := python3
+UV      := uv
+
+# Codegen and the Go suite run in pinned containers, so neither buf nor a Go
+# toolchain is a host prerequisite -- the README lists git, make, curl, python3,
+# uv and Docker, and this keeps that list honest. Pinned for the same reason the
+# images and the model weights are: "the same commit" has to mean the same
+# stack.
+BUF_IMAGE := bufbuild/buf:1.72.0
+GO_IMAGE  := golang:1.24-alpine
+
+BUF = docker run --rm \
+	  --user "$$(id -u):$$(id -g)" --env HOME=/tmp \
+	  --volume "$(CURDIR):/workspace" --workdir /workspace \
+	  $(BUF_IMAGE)
+
+# The module and build caches live in named volumes, so a second run does not
+# re-download the module graph or rebuild the standard library. Nothing here
+# writes into the working tree: go.sum is committed, so the build is read-only
+# against it.
+GO = docker run --rm \
+	  --volume "$(CURDIR):/src" --workdir /src \
+	  --volume berean-go-mod:/go/pkg/mod \
+	  --volume berean-go-build:/root/.cache/go-build \
+	  $(GO_IMAGE)
 
 .DEFAULT_GOAL := help
 
@@ -42,6 +66,23 @@ provision-corpus: env dirs ## Acquire every corpus into ./data/ (ADR-0014)
 .PHONY: corpus-verify
 corpus-verify: env dirs ## Re-acquire every corpus and diff against committed fingerprints
 	$(COMPOSE) run --rm catena acquire --all --verify-only
+
+# ---------------------------------------------------------------------------
+# The contract -- proto/ is normative, and its output is gitignored
+# ---------------------------------------------------------------------------
+
+.PHONY: proto
+proto: proto-lint ## Regenerate the Go and Python protobuf stubs from proto/
+	@# Generated code is not committed; whether it should be is CI policy rather
+	@# than contract design, and is deferred to Phase 2 (ADR-0013). Regenerate
+	@# after every change to proto/, and run `make test` afterwards -- the
+	@# contract suite skips itself when the stubs are absent.
+	$(BUF) generate
+	@echo "proto: Go stubs in gen/, Python stubs in services/catena/gen/"
+
+.PHONY: proto-lint
+proto-lint: ## Lint the contract without generating anything
+	@$(BUF) lint && echo "proto-lint: OK"
 
 # ---------------------------------------------------------------------------
 # Running
@@ -90,7 +131,7 @@ env: ## Create .env from .env.example if it is missing
 # ---------------------------------------------------------------------------
 
 .PHONY: check
-check: guard-corpus guard-make-targets test config ## Run every check that needs no image build
+check: guard-corpus guard-make-targets proto-lint test config ## Run every check that needs no image build
 
 .PHONY: guard-corpus
 guard-corpus: ## Fail on any tracked file that could carry corpus text (ADR-0014)
@@ -101,9 +142,23 @@ guard-make-targets: ## Fail when documentation names a make target with no rule
 	@$(PYTHON) tools/guards/make_targets_guard.py && echo "make-targets: OK"
 
 .PHONY: test
-test: ## Run the guard test suites
+test: test-guards test-catena test-gateway ## Run every unit suite
+
+.PHONY: test-guards
+test-guards: ## The repository guards. Host python3, no dependencies
 	@$(PYTHON) tools/guards/tests/test_corpus_guard.py -q
 	@$(PYTHON) tools/guards/tests/test_make_targets_guard.py -q
+
+.PHONY: test-catena
+test-catena: ## The Python suite, including its half of the normalisation contract
+	@for suite in services/catena/tests/test_*.py; do \
+	    $(UV) run --quiet --project services/catena python "$$suite" -q || exit 1; \
+	done
+	@echo "catena: OK"
+
+.PHONY: test-gateway
+test-gateway: ## The Go suite, in a container -- no local Go toolchain needed
+	@$(GO) go test ./...
 
 .PHONY: config
 config: env ## Validate the compose files
