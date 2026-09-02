@@ -63,9 +63,24 @@ corpus.
 
 | | |
 | --- | --- |
-| RAM | **16 GB** floor. Ollama holding Qwen3-8B (~5.2 GB resident), BGE-M3 (~2.3 GB), Postgres, and a five-container Langfuse install |
+| RAM | **16 GB** host floor. Ollama holding Qwen3-8B (~5.2 GB resident), BGE-M3 (~2.3 GB), Postgres, and a five-container Langfuse install |
+| Docker memory | **12 GiB allocated to the Docker VM**, and this is the constraint that actually bites on macOS and Windows — see below |
 | Disk | **30 GB** free. ~7.5 GB of weights, ~8 GB of container images, and the rest for acquired text, staged records, and the vector index |
 | Time | **2–4 hours** on CPU for a clean provision, almost all of it embedding. Estimated, not yet measured — Task 11 records the wall-clock figure on the reference machine |
+
+**On macOS and Windows, host RAM is not the binding constraint — the Docker VM's allocation is.**
+Docker Desktop runs a Linux VM with its own memory ceiling, commonly defaulting to around 8 GiB
+regardless of how much the host has. The stack idles at roughly 2.5 GiB (ClickHouse alone takes
+~1.3), and Qwen3-8B needs ~6 GiB resident on top of that. Under an 8 GiB ceiling the model is
+OOM-killed the first time it is asked to generate, and the error names neither memory nor Docker:
+
+```
+llama-server process has terminated: signal: killed
+```
+
+That reads as a broken model or a bad pin, and it is neither. Raise Docker Desktop's memory limit to
+**12 GiB** (Settings → Resources → Memory) before running anything that generates. Linux hosts run
+containers natively and are bounded by host RAM alone, so the 16 GB floor is the whole story there.
 
 `make provision` acquires seven corpora and embeds roughly 35,000 chunks, dominated by the ~31,100
 verses of the WEB Bible. It is resumable per corpus, so an interrupted run continues rather than
