@@ -1,0 +1,18 @@
+# The Go↔Python contract. `proto/` is the single normative source: where it and
+# a prose document disagree, the proto wins and the prose is stale.
+version: v2
+
+modules:
+  - path: proto
+
+lint:
+  use:
+    - STANDARD
+
+# `buf breaking` is deferred to Phase 2 (PLAN Task 2, ADR-0013). The proto is
+# pre-consumer in Phase 1 and the answer object is still gaining fields, so a
+# break check now would only record churn. The configuration is written here so
+# turning it on in CI is a one-line change rather than a design question.
+breaking:
+  use:
+    - FILE

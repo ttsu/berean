@@ -1,0 +1,144 @@
+// The answer object.
+//
+// Everything here is produced by Python and is untrusted. Go checks it before
+// any of it renders, and the checks are structural: Go asks which slot a claim
+// occupies and what tiers its citations carry, never what the claim means
+// (ADR-0016).
+
+syntax = "proto3";
+
+package berean.v1;
+
+import "berean/v1/common.proto";
+
+option go_package = "github.com/ttsu/berean/gen/berean/v1;bereanv1";
+
+// AnswerObject is the whole of what a user is shown.
+//
+// There is no field for the model's account of its own reasoning, and there
+// must never be one. `Argument.warrant` is the theological link from citation
+// to claim; it is not introspection. A proposed field describing *how the model
+// arrived at* something belongs nowhere in this file (ADR-0003).
+message AnswerObject {
+  // The tradition's position, in the model's words. Uncited prose, and MUST be
+  // empty when `arguments` is empty: a purely descriptive answer reports what
+  // sources say and states no position of its own.
+  string position = 1;
+
+  // Affirmative claims — what the tradition holds. Membership in this list *is*
+  // what makes a claim affirmative, which is what lets Go apply the tier floor
+  // without classifying meaning. Each entry needs at least one binding or
+  // governing citation, and `contrary` and `excluded` never appear here.
+  repeated Argument arguments = 2;
+
+  // Descriptive claims — what a source teaches, not whether it is true. Any
+  // tier is permitted, because the claim rests on no authority. This is where
+  // an `excluded` citation lives: "your denomination examined this view and
+  // repudiated it in 2007" is a claim *about* a source.
+  repeated Description descriptions = 3;
+
+  // Another tradition's position, argued from its own sources.
+  repeated ContraryPosition contrary_positions = 4;
+
+  // Whether this question is one the tradition holds open.
+  Contested contested = 5;
+
+  // Why the sources are silent, in the model's own words. Bounded rather than
+  // trusted: non-empty ONLY when `arguments`, `descriptions` and
+  // `contrary_positions` are all empty and `contested.is_contested` is false,
+  // and at most 200 characters. Every slot empty with no reason is a malformed
+  // generation and regenerates, so a truncated answer cannot render as
+  // considered silence (ADR-0020).
+  string no_answer_reason = 6;
+
+  // Derived by Go from the verification result. Python MUST NOT populate either
+  // half, and Go overwrites whatever arrives. A self-assessed confidence is
+  // introspection wearing a structured field's clothes (ADR-0020).
+  Confidence confidence = 7;
+}
+
+// Argument is an affirmative claim and the sources that carry it.
+message Argument {
+  // What the tradition holds.
+  string claim = 1;
+  // The theological link from citation to claim. Not a description of how the
+  // model reached the claim.
+  string warrant = 2;
+  // MUST be non-empty, and MUST include at least one binding or governing
+  // citation. Advisory corroborates; it never establishes.
+  repeated Citation citations = 3;
+}
+
+// Description is a claim about a source rather than one resting on it.
+message Description {
+  // What is described — a person, a document, a tradition.
+  string subject = 1;
+  // What that source says. Not whether it is true.
+  string content = 2;
+  // MUST be non-empty. Any tier; `contrary` and `excluded` carry their profile
+  // label at render time.
+  repeated Citation citations = 3;
+}
+
+// ContraryPosition is another tradition's position, from its own sources.
+message ContraryPosition {
+  string position = 1;
+  // The traditions that hold it.
+  repeated string held_by = 2;
+  // Citations here carry `TIER_CONTRARY`, and their label at render time.
+  repeated Citation citations = 3;
+}
+
+// Contested marks a question the tradition holds open.
+//
+// When `is_contested` is true, `AnswerObject.arguments` MUST be empty — and
+// `position` empties for free under the empty-when-descriptive rule. Flagging a
+// locus contested and resolving it in the same answer otherwise passes every
+// other check, and it is the outcome the product spec calls the worst possible
+// one (ADR-0019).
+message Contested {
+  bool is_contested = 1;
+  // MUST be one of the loci sent in the request. An unsent locus is a
+  // fabrication and fails, exactly as an unsent corpus_id does.
+  string locus = 2;
+  // MUST include the ruling named for that locus when `is_contested`.
+  repeated Citation citations = 3;
+  // MUST quote the ruling verbatim. A contested claim is a cited claim or it is
+  // not shown.
+  string state_of_debate = 4;
+}
+
+// Citation is a claim that a passage exists and says what it is quoted as
+// saying. It is what the four checks act on.
+message Citation {
+  // Edition-specific. With `locator`, the pair `CitationRef` names.
+  string corpus_id = 1;
+  string locator = 2;
+  // What Python claims the tier is. Go checks the resolved profile instead.
+  Tier tier = 3;
+  // Verbatim from the source, NFC-normalised per the normalisation contract,
+  // and at least 40 characters. The floor blocks the degenerate citation — a
+  // four-word fragment cited at `binding` behind a claim the source denies —
+  // without asking what any claim means (ADR-0020).
+  string quote = 4;
+}
+
+// Confidence states what verification found, never how the model felt.
+message Confidence {
+  ConfidenceLevel level = 1;
+  // The tier counts, the attempt number, and whether the locus was contested.
+  // The only Go-authored string in the system.
+  string reason = 2;
+}
+
+// ConfidenceLevel is derived by Go, on a rule fixed in INTEGRATION-SPEC so the
+// enum means the same thing across runs and Phase 2 can read it.
+enum ConfidenceLevel {
+  CONFIDENCE_LEVEL_UNSPECIFIED = 0;
+  // Two or more binding or governing citations, first attempt, not contested.
+  CONFIDENCE_LEVEL_HIGH = 1;
+  // One binding or governing citation, or a regeneration occurred.
+  CONFIDENCE_LEVEL_MEDIUM = 2;
+  // Descriptive only, or contested, or `no_answer_reason` set.
+  CONFIDENCE_LEVEL_LOW = 3;
+}

@@ -41,7 +41,10 @@ Auth, sessions, profile resolution, verification, trace persistence, translation
 - Quotes must be verbatim and NFC-normalised by following the normalisation steps in
   INTEGRATION-SPEC and asserting the shared test vectors. There is no shared normalisation
   function and the specs must not ask for one — ingestion is Python and verification is Go, so
-  the contract is the steps and the vectors, not a call.
+  the contract is the steps and the vectors, not a call. This side is `catena.normalise`; the
+  vectors are `testdata/normalisation/vectors.json` and Go's half reads that same file. Change
+  either implementation only by changing the fixture first, and remember that a change to the
+  contract re-blesses every corpus.
 - **Never emit anything describing your own reasoning process.** `warrant` is the theological link
   from citation to claim, not introspection. If a proposed field would describe how the model
   arrived at something, it does not belong in the contract.

@@ -1,0 +1,69 @@
+// Retrieval policy, and the loci the tradition holds open.
+//
+// What crosses the boundary here is a *search policy*, never an identity.
+// Python must be able to serve the request knowing nothing about who asked or
+// which tradition it is: no profile, no profile name, no user, no session
+// (ADR-0015).
+
+syntax = "proto3";
+
+package berean.v1;
+
+import "berean/v1/common.proto";
+
+option go_package = "github.com/ttsu/berean/gen/berean/v1;bereanv1";
+
+// FilterSpec is the resolved filter — the profile after Go has applied it, not
+// the profile itself.
+message FilterSpec {
+  // Every corpus in scope, with the stance this tradition assigns it. A
+  // citation to a corpus absent from this list is a fabrication and fails.
+  repeated CorpusFilter corpora = 1;
+
+  // Carried from Phase 1, unused until Phase 3 — there is no reranker yet.
+  // Present so adding one is a behaviour change, not a proto break.
+  repeated TierWeight tier_weights = 2;
+
+  // Retrieval depth. Gateway configuration rather than a profile field: it is
+  // a tuning knob with no per-tradition meaning, so it does not belong in a
+  // document that records doctrinal commitments. Recorded in the trace,
+  // because with Scripture at roughly 90% of the Phase 1 index and no tier
+  // weighting this is the only thing deciding whether a confessional chunk
+  // reaches the generator at all.
+  int32 top_k = 3;
+}
+
+// CorpusFilter is one corpus and the stance the resolved profile gives it.
+message CorpusFilter {
+  string corpus_id = 1;
+  Tier tier = 2;
+}
+
+// TierWeight is a per-tier retrieval weight.
+//
+// A map keyed by tier would have been closer to how the spec draws this, but
+// proto3 map keys cannot be enums, so the key would have been a string and the
+// closed set would have been reopened. Repeated pairs keep the enum.
+message TierWeight {
+  Tier tier = 1;
+  float weight = 2;
+}
+
+// ContestedLocus is a question this tradition holds open, plus a pointer to the
+// document that establishes it.
+//
+// A pointer, never prose. Python resolves it through ordinary retrieval, reads
+// the passage, and grounds `Contested.state_of_debate` in it. Go does not
+// resolve the quote before sending: Python owns retrieval, Go owns
+// verification, and fetching chunk text to build a request would invert that
+// (ADR-0015).
+//
+// Sibling of FilterSpec rather than part of it. FilterSpec is retrieval policy;
+// contested loci are generation context, and mixing them would make the filter
+// mean two things.
+message ContestedLocus {
+  // Stable ID from the profile, e.g. `creation-days`.
+  string locus = 1;
+  // The ruling that establishes the locus is open.
+  CitationRef ruling = 2;
+}

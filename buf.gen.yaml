@@ -1,0 +1,38 @@
+# Generated code is gitignored and regenerated with `make proto`. Whether to
+# commit it instead is CI policy rather than contract design, and is deferred to
+# Phase 2 (ADR-0013).
+#
+# Plugin versions are pinned for the same reason the model weights and the
+# container images are: "the same commit" has to mean the same stack.
+version: v2
+
+# Wipe the output trees first, so a renamed or deleted message does not leave a
+# stale stub behind that still compiles.
+clean: true
+
+managed:
+  enabled: false
+
+inputs:
+  - directory: proto
+
+plugins:
+  # Go lands under `gen/`, inside the root module. `paths=source_relative` is
+  # what makes the import path match the `go_package` option in each file.
+  - remote: buf.build/protocolbuffers/go:v1.36.11
+    out: gen
+    opt: paths=source_relative
+  - remote: buf.build/grpc/go:v1.5.1
+    out: gen
+    opt: paths=source_relative
+
+  # Python lands under `services/catena/gen/`, outside the Go module. The `pyi`
+  # plugin is not decoration: without stubs the generated classes are opaque to
+  # every type checker, and the answer object is the one structure in Catena
+  # worth having checked.
+  - remote: buf.build/protocolbuffers/python:v33.1
+    out: services/catena/gen
+  - remote: buf.build/protocolbuffers/pyi:v33.1
+    out: services/catena/gen
+  - remote: buf.build/grpc/python:v1.76.0
+    out: services/catena/gen

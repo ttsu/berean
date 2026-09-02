@@ -1,0 +1,43 @@
+// Types shared by more than one half of the contract.
+//
+// `Tier` and `CitationRef` are both used on the request side and the response
+// side, and neither belongs to either. Everything else lives in the file that
+// owns it.
+
+syntax = "proto3";
+
+package berean.v1;
+
+option go_package = "github.com/ttsu/berean/gen/berean/v1;bereanv1";
+
+// Tier is the stance a tradition assigns a corpus. It is not an
+// include/exclude filter: `TIER_EXCLUDED` means "this tradition examined and
+// repudiated this", which is an answer a filter cannot produce.
+//
+// Tier is a per-tradition stance rather than a property of the corpus — the
+// same corpus is `contrary` under one profile and `binding` under another — so
+// the value Python returns on a Citation is a claim, and the gateway checks it
+// against the profile it resolved rather than believing it.
+enum Tier {
+  TIER_UNSPECIFIED = 0;
+  // Confessional standards. Can carry an argument on their own.
+  TIER_BINDING = 1;
+  // Polity and church order. Can carry an argument on their own.
+  TIER_GOVERNING = 2;
+  // Respected but non-binding. Corroborates an argument; never establishes one.
+  TIER_ADVISORY = 3;
+  // Another tradition's position. Retrievable and citable, labelled at render.
+  TIER_CONTRARY = 4;
+  // Examined and repudiated by this tradition. Labelled at render.
+  TIER_EXCLUDED = 5;
+}
+
+// CitationRef is the pair that resolves to exactly one chunk. A locator alone
+// is not unique — `WCF 7.2` exists in both the 1788 American revision and the
+// 1646 original, and they differ.
+message CitationRef {
+  // Edition-specific, always: `wcf-1788-american`, never `wcf`.
+  string corpus_id = 1;
+  // Canonical for the work: `WCF 7.2`, `WSC Q&A 1`, `BCO 21-4`, `Rom 8:28`.
+  string locator = 2;
+}

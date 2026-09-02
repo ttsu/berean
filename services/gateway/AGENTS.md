@@ -56,6 +56,13 @@ logic here, stop — it belongs in Catena.
 ## Conventions
 
 - Generated protobuf types are the contract. Do not define a parallel struct for the answer object.
+  They are generated rather than committed — run `make proto` (ADR-0013 defers the
+  commit-or-generate decision to Phase 2).
+- Quote comparison normalises through `internal/normalise`, never through `unicode.IsSpace` or a
+  hand-rolled trim. It holds the enumerated `White_Space` set on purpose: Python's `\s` matches
+  four code points Go's does not, so the two standard libraries are not the same function. Both
+  sides assert `testdata/normalisation/vectors.json`, and drift shows up as a quote that will not
+  match a passage it is plainly inside.
 - Errors wrap with context; no bare `err` returns across package boundaries.
 - Verification is ordinary software — string matching and indexed lookups. If a change here starts
   to need a model call, something has gone wrong.
