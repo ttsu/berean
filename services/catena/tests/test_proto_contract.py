@@ -16,7 +16,9 @@ until `make proto` has run.
 
 from __future__ import annotations
 
+import importlib
 import pathlib
+import pkgutil
 import sys
 import unittest
 
@@ -42,6 +44,24 @@ skip_without_stubs = unittest.skipUnless(
 
 def field_names(message) -> set[str]:
     return set(message.DESCRIPTOR.fields_by_name)
+
+
+def message_modules() -> list:
+    """Every generated message module, discovered rather than listed.
+
+    A rule about what may never be added has to hold across the whole
+    contract, and a hand-kept list of modules fails open: the forbidden field
+    lands in the one file nobody remembered to add here, and the suite is
+    green. Enumerating the package means a new .proto is covered because it
+    exists, not because somebody remembered it.
+    """
+    from berean import v1
+
+    return [
+        importlib.import_module(f"berean.v1.{module.name}")
+        for module in pkgutil.iter_modules(v1.__path__)
+        if module.name.endswith("_pb2")
+    ]
 
 
 @skip_without_stubs
@@ -133,6 +153,18 @@ class TheAnswerObject(unittest.TestCase):
             field_names(answer_pb2.Description), {"subject", "content", "citations"}
         )
 
+    def test_argument_carries_the_case_and_not_the_model(self) -> None:
+        """`warrant` is the theological link from citation to claim (ADR-0003).
+
+        This is the field the introspection line runs closest to — a
+        `reasoning` sibling would read identically at the call site, and the
+        distinction between them is the whole value proposition. So the field
+        set is pinned rather than left to the negative check alone.
+        """
+        self.assertEqual(
+            field_names(answer_pb2.Argument), {"claim", "warrant", "citations"}
+        )
+
     def test_contested_fields(self) -> None:
         self.assertEqual(
             field_names(answer_pb2.Contested),
@@ -157,7 +189,9 @@ class TheAnswerObject(unittest.TestCase):
         """
         forbidden = {"reasoning", "thought", "thoughts", "chain_of_thought", "rationale",
                      "self_assessment", "explanation", "introspection"}
-        for module in (answer_pb2, catena_pb2, trace_pb2):
+        modules = message_modules()
+        self.assertGreaterEqual(len(modules), 6, "the whole contract, not part of it")
+        for module in modules:
             for name, message in module.DESCRIPTOR.message_types_by_name.items():
                 with self.subTest(f"{module.DESCRIPTOR.name}:{name}"):
                     self.assertEqual(

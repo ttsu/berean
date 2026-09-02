@@ -527,6 +527,14 @@ tables: an owner can re-grant itself anything, which turns the grant boundary ba
 convention SHARED §5 says it must not be. Task 3 still re-asserts table grants explicitly, because a
 default privilege that silently did not apply is indistinguishable from one that did.
 
+A third **schema**, `extensions`, holds pgvector. The `vector` type and its distance operators are
+resolved through `search_path` like any other name, so an extension installed into `public` is
+invisible to a role whose path does not name `public` — retrieval fails at query time with `type
+"vector" does not exist`, one task after the init script that caused it. Every role's `search_path`
+therefore ends in `extensions`, and none of them names `public`: `berean_owner` gets
+`corpus, trace, extensions` (its DDL declares the column), `catena` gets `corpus, extensions`, and
+`gateway` gets `trace, corpus, extensions`.
+
 ## Versioning
 
 The proto is versioned from the first commit (`berean.v1`). Fields present-but-unused in Phase 1 —

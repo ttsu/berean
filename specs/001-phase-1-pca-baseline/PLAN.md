@@ -49,7 +49,10 @@ run for real.
       `internal=true`, every container healthy. Proven both ways: HTTPS out and external DNS both
       fail from inside, while service discovery and inter-container traffic work. *Serves* awaits a
       generator and a CLI (Tasks 7 and 10); Task 11 is where the full claim is exercised
-- [x] Postgres reachable with pgvector extension available — `vector` 0.8.6
+- [x] Postgres reachable with pgvector extension available — `vector` 0.8.6, in an `extensions`
+      schema that every role's `search_path` ends in. Available to the superuser is not the same
+      claim: the extension first landed in `public`, which no service role's path named, so the
+      type would have resolved for the DDL and not for the query (fixed in Task 2 review)
 - [x] Langfuse reachable, with its organisation, project and API keys provisioned **headlessly from
       environment** — verified by authenticating to `/api/public/projects` with the provisioned
       keys, which returns the `berean` org and `berean-phase-1` project, and by the user row in
@@ -214,6 +217,31 @@ Two stack changes it forced, both small and both recorded where they live:
   commit rather than riding along with the contract.
 - **The gateway image now copies `go.sum`.** Without it the build re-resolves the dependency graph
   and writes its own, so the image's dependency set would be whatever the registry served that day.
+
+Six things review found once the contract had landed, every one of them in the surrounding
+infrastructure rather than in the contract:
+
+- **pgvector was unreachable from both service roles.** The extension was created into `public`,
+  and neither role's `search_path` named `public`. It now lives in an `extensions` schema that
+  every role's path ends in (INTEGRATION-SPEC, "Database roles"). Reproduced against a live
+  container both ways: the old path raises `type "vector" does not exist` on the first distance
+  query, which would have been Task 5, one task after the init script that caused it.
+- **`corpora/` was mounted read-only**, so `catena acquire --bless` could not write the manifest
+  and fingerprints that are the whole output of blessing. Task 4's first acquisition of a corpus
+  would have failed with EROFS.
+- **`make dirs` did not create `corpora/`**, the third bind-mount source. Git tracks no empty
+  directory and nothing is blessed yet, so on a clean clone Docker would have created it as root
+  on Linux — precisely the failure the target exists to prevent, and invisible on macOS.
+- **The catena container ran as uid 1001** while `./data` and `./corpora` are owned by whoever ran
+  `make dirs`. It now runs as the invoking user, which is what the buf container already did.
+  `make config` renders the `services` profile as part of that, having until now validated neither
+  service container.
+- **The drift check hardcoded the repository** that `generation.registry` also records. Moving the
+  pin would have left it hashing the old repository and printing ✓ for a tag it never fetched — a
+  silent pass in the one script whose purpose is that drift is loud.
+- **The introspection guard scanned three of the six generated modules.** It enumerates the package
+  now, so a `rationale` added to `VerificationResult` or `FilterSpec` fails it; and `Argument`'s
+  field set is pinned, `warrant` being the field ADR-0003 draws its line around.
 
 ---
 

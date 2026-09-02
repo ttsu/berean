@@ -14,7 +14,14 @@ set -euo pipefail
 # make POSTGRES_DB a knob that aborts init the first time anyone turns it.
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" \
     -v db="$POSTGRES_DB" <<-'EOSQL'
-	CREATE EXTENSION IF NOT EXISTS vector;
+	-- pgvector's `vector` type and its distance operators are resolved through
+	-- `search_path` like every other name, so where the extension lands decides
+	-- whether `ORDER BY embedding <=> $1` works at all. Its own schema rather
+	-- than public: every role below names it, and nothing else becomes
+	-- reachable by being in a path.
+	CREATE SCHEMA extensions AUTHORIZATION berean_owner;
+	CREATE EXTENSION IF NOT EXISTS vector SCHEMA extensions;
+	GRANT USAGE ON SCHEMA extensions TO catena, gateway;
 
 	-- Two schemas rather than two conventions. The disjoint write scope
 	-- SHARED §5 requires is a property of the schema, so it holds for every
@@ -48,6 +55,11 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" \
 	-- Without schema USAGE the tables are unreachable regardless of any table
 	-- grant a later migration gets wrong.
 
-	ALTER ROLE catena  IN DATABASE :"db" SET search_path = corpus;
-	ALTER ROLE gateway IN DATABASE :"db" SET search_path = trace, corpus;
+	-- `extensions` is last in every path because `vector` is written
+	-- unqualified in the DDL that declares a column and in every query that
+	-- orders by distance. berean_owner needs it for the first of those, so its
+	-- path is set here too rather than left at the default.
+	ALTER ROLE berean_owner IN DATABASE :"db" SET search_path = corpus, trace, extensions;
+	ALTER ROLE catena  IN DATABASE :"db" SET search_path = corpus, extensions;
+	ALTER ROLE gateway IN DATABASE :"db" SET search_path = trace, corpus, extensions;
 EOSQL
