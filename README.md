@@ -125,6 +125,11 @@ golang-migrate container. `make dev` applies them, so `make migrate` is only for
 migration without a restart. `make test-schema` is not part of `make check`: `check` runs with
 nothing started, and a grant is only demonstrated by a statement a live database actually refuses.
 
+If `make dev` fails with **`error: failed to open database: no schema`**, the Postgres volume
+predates the schemas the migrator needs. The init script that creates them runs once, on an empty
+data directory, so `make reset` is the fix. Creating the missing schema by hand is not: a volume
+old enough to lack it is missing others too, and repairing one hides the rest.
+
 `buf` and the Go toolchain run in pinned containers, so neither is a host prerequisite. The
 generated protobuf stubs are **not committed** (ADR-0013 defers that decision to Phase 2), so run
 `make proto` once after cloning if you are working on either service — until you do, the suite

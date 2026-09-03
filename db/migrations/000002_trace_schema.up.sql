@@ -123,8 +123,11 @@ CREATE TABLE trace.candidates (
     -- The proto says the reason is empty when the candidate was included. Held
     -- both ways: an excluded candidate with no reason is the retrieval
     -- regression this table exists to make visible, silently unexplained.
+    -- btrim, like every other text column here: a reason of three spaces
+    -- satisfies `<> ''` while recording exactly the unexplained exclusion this
+    -- constraint exists to prevent.
     CONSTRAINT candidates_reason_iff_excluded
-        CHECK (included = (exclusion_reason = ''))
+        CHECK (included = (btrim(exclusion_reason) = ''))
 );
 
 -- Phase 1's confessional-question-retrieves-only-verses result, and Phase 2's
@@ -164,7 +167,7 @@ CREATE TABLE trace.verification_results (
     -- detail is a failure that got recorded as a pass.
     CONSTRAINT verification_results_detail_iff_failure
         CHECK ((locator_resolved AND quote_matched AND tier_permitted AND license_permitted)
-               = (failure_detail = ''))
+               = (btrim(failure_detail) = ''))
 );
 
 CREATE INDEX verification_results_request_idx

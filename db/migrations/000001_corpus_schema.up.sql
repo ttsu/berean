@@ -148,11 +148,19 @@ CREATE TABLE corpus.chunk_embeddings (
 CREATE INDEX chunk_embeddings_hnsw_cosine_idx
     ON corpus.chunk_embeddings USING hnsw (embedding extensions.vector_cosine_ops);
 
--- The chunk metadata contract, as a read surface: all fourteen fields for one
--- chunk, none of them null. The join to chunk_embeddings is inner on purpose —
--- a chunk with no embedding has no `embedding_model` and no `dim`, so it does
--- not yet carry fourteen fields, and it is a half-finished ingestion rather
--- than a row this view should paper over.
+-- The chunk metadata contract, as a read surface: all fourteen fields, none of
+-- them null. The join to chunk_embeddings is inner on purpose — a chunk with no
+-- embedding has no `embedding_model` and no `dim`, so it does not yet carry
+-- fourteen fields, and it is a half-finished ingestion rather than a row this
+-- view should paper over.
+--
+-- Keyed on `(chunk_id, embedding_model)`, not on `chunk_id`. Two of the fourteen
+-- fields describe an embedding, and chunk_embeddings deliberately holds a row
+-- per model so a re-index can write the new vectors beside the old ones — so
+-- during a re-index window this view returns one row per chunk per model, and a
+-- consumer reading it as one-row-per-chunk double counts. Constrain
+-- `embedding_model`, which is the rule retrieval already follows for the single
+-- HNSW index above, and for the same underlying reason.
 CREATE VIEW corpus.chunk_metadata AS
 SELECT c.id AS chunk_id,
        w.corpus_id,

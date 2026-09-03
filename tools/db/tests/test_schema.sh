@@ -35,8 +35,13 @@ psql_as() {  # role, then psql arguments
         psql -v ON_ERROR_STOP=1 --quiet --no-psqlrc --username "$role" --dbname "$DB" "$@"
 }
 
+# The count of migrations is the version the schema should be at once they are
+# all applied, and it is also how many steps `down` has to take. Derived once,
+# so the structural assertions and the reversibility leg cannot disagree.
+steps=$(find db/migrations -name '*.up.sql' | wc -l | tr -d ' ')
+
 run_file() {  # role, path
-    psql_as "$1" -f - <"$2"
+    psql_as "$1" -v expected_version="$steps" -f - <"$2"
 }
 
 value() {  # role, sql
@@ -67,7 +72,6 @@ if [ "$rows" != "0" ]; then
     exit 0
 fi
 
-steps=$(find db/migrations -name '*.up.sql' | wc -l | tr -d ' ')
 migrate_step down "$steps"
 gone=$(value berean_owner \
     "SELECT count(*) FROM (VALUES ('corpus.works'), ('corpus.chunks'), ('corpus.chunk_embeddings'),

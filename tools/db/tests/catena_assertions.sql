@@ -30,11 +30,14 @@ SELECT c.id, 'probe-embedder', 1024, p.v
   FROM corpus.chunks c, probe p
  WHERE c.corpus_id = 'probe-0000-invented';
 
+-- Scoped to the probe corpora throughout. An unscoped count would make this
+-- file fail against any database that already holds an ingested corpus, and the
+-- driver is written so only the reversibility leg needs an empty one.
 DO $$
 BEGIN
-    ASSERT (SELECT count(*) FROM corpus.chunk_metadata) = 1,
-        'the metadata view should expose the one fully ingested chunk';
-    ASSERT (SELECT author IS NULL FROM corpus.chunk_metadata),
+    ASSERT (SELECT count(*) FROM corpus.chunk_metadata WHERE corpus_id LIKE 'probe-%') = 1,
+        'the metadata view should expose the one fully ingested probe chunk';
+    ASSERT (SELECT author IS NULL FROM corpus.chunk_metadata WHERE corpus_id LIKE 'probe-%'),
         'author survives the view as NULL for a corporate document';
 END $$;
 
@@ -46,7 +49,7 @@ VALUES ('probe-0000-invented', 'Probe 1.2', 'The second invented probe sentence.
 
 DO $$
 BEGIN
-    ASSERT (SELECT count(*) FROM corpus.chunk_metadata) = 1,
+    ASSERT (SELECT count(*) FROM corpus.chunk_metadata WHERE corpus_id LIKE 'probe-%') = 1,
         'an unembedded chunk must not appear in the metadata view';
 END $$;
 
