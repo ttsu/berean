@@ -84,14 +84,16 @@ A locator that does not resolve is a verification failure, not a formatting nit.
 
 ## Chunk metadata
 
-Fourteen fields on every chunk: `corpus_id`, `work`, `author`, `era`, `tradition`, `locator`,
-`language`, `source_language`, `text_form`, `edition`, `license`, `attribution`, `embedding_model`,
-`dim`. `author` is the only nullable one.
+Every chunk carries `corpus_id`, `work`, `author`, `era`, `locator`, `language`,
+`source_language`, `text_form`, `edition`, `license`, `attribution`, `embedding_model` and `dim`.
+`author` is the only nullable one. There is deliberately no originating-tradition field: which
+traditions hold a corpus is the profile's N:M relation, and origination is unstatable for Scripture
+and the ecumenical creeds.
 
 `corpus_id` is the edition-specific join key — `work` is a display name and resolves nothing.
 
-The fourteen are stored where they are true — ten on `works`, two on `chunk_embeddings`, and
-`locator` on `chunks` — and the `corpus.chunk_metadata` view exposes them together, which is
+They are stored where they are true — most on `works`, the embedding pair on `chunk_embeddings`,
+and `locator` on `chunks` — and the `corpus.chunk_metadata` view exposes them together, which is
 where to read them. See the Phase 1 INTEGRATION-SPEC, **Chunk metadata contract**.
 
 `language`, `source_language` and `text_form` are required **from day one** even though

@@ -49,7 +49,7 @@ Required metadata on every chunk, with one exception — `author` may be null fo
 documents, which is most of the Phase 1 corpus. Nothing else may be:
 
 ```
-corpus_id, work, author, era, tradition, locator, language, source_language,
+corpus_id, work, author, era, locator, language, source_language,
 text_form, edition, license, attribution, embedding_model, dim
 ```
 
@@ -242,7 +242,7 @@ trusted on its own; layer 3 is what makes it real.
 ## Data model
 
 Corpus tables (Python writes, Go reads): `works`, `chunks`, `chunk_embeddings`, plus the
-`chunk_metadata` view that exposes the fourteen-field contract over the three.
+`chunk_metadata` view that exposes the chunk metadata contract over the three.
 Trace tables (Go writes, Python does not touch): `responses`, `traces`, `candidates`,
 `verification_results`.
 

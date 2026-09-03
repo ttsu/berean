@@ -111,10 +111,10 @@ denomination-specific (`pca-bco-2024`), omit it where it is not (`wcf-1788-ameri
 If a document's structure does not fit these, work out the right unit and document it here before
 writing the parser.
 
-## 5. Populate all fourteen metadata fields
+## 5. Populate every metadata field
 
 ```
-corpus_id, work, author, era, tradition, locator, language, source_language,
+corpus_id, work, author, era, locator, language, source_language,
 text_form, edition, license, attribution, embedding_model, dim
 ```
 
@@ -179,7 +179,7 @@ Then check by hand:
 - [ ] Archive fallback URL recorded alongside the source URL
 - [ ] Corpus ID is edition-specific
 - [ ] Segmented on structural boundaries
-- [ ] All fourteen metadata fields populated
+- [ ] Every metadata field populated
 - [ ] Normalised per the contract, at the recorded `normalisation_version`
 - [ ] Fingerprints written on `--bless`, and a plain re-run verifies clean
 - [ ] Idempotent on re-run

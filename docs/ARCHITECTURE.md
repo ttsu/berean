@@ -127,8 +127,9 @@ Chunk on structural boundaries: verse, article, question/objection/reply for Aqu
 naive 512-token splits.**
 
 **Metadata is the product.** Every chunk carries its edition-specific corpus ID, work, author, era,
-tradition, canonical locator, language, source language, text-form, edition, license, attribution,
-and `embedding_model` + `dim`. The last two make a model swap a re-index job rather than a schema
+canonical locator, language, source language, text-form, edition, license, attribution, and
+`embedding_model` + `dim`. Which traditions hold the corpus is the profile's business, not the
+chunk's. The last two make a model swap a re-index job rather than a schema
 migration. `text_form` and `license` are closed enums; a free-text licence would reduce the serving
 check to a non-empty test.
 

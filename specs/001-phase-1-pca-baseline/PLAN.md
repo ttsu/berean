@@ -253,12 +253,13 @@ All DDL lands here. Task 8 writes `VerificationResult` rows and Task 9 writes tr
 their tables before either starts — splitting the DDL across Tasks 3 and 9 makes the two circular.
 
 - [x] `works`, `chunks`, `chunk_embeddings` tables — plus the `chunk_metadata` view that exposes
-      the fourteen-field contract over the three
+      the chunk metadata contract over the three
 - [x] `responses`, `traces`, `verification_results` tables — plus `candidates`, below
-- [x] All fourteen required metadata fields NOT NULL where the spec requires it (`author` nullable).
+- [x] Every required metadata field NOT NULL where the spec requires it (`author` nullable).
       Asserted field by field from the catalogue, and asserted nullable for `author` rather than
       merely not asserted: a column that quietly became NOT NULL rejects every corporate document
-      in the Phase 1 corpus
+      in the Phase 1 corpus. The view assertion derives its expected column list from the same
+      arrays, so no count is stated anywhere and adding a field edits one list
 - [x] `license` and `text_form` are database-level enums, not free-text columns. An unrecognised
       value fails at insert, which is what makes check 4 a check with a closed domain (ADR-0017).
       Both label sets are asserted against the specs' spelling, because a drifted label fails at
@@ -281,13 +282,21 @@ their tables before either starts — splitting the DDL across Tasks 3 and 9 mak
 **Decisions Task 3 made that the spec did not anticipate**, recorded in INTEGRATION-SPEC,
 TECHNICAL-SPEC and SHARED in the same change:
 
-- **The fourteen metadata fields are stored where they are true**, not repeated per chunk: ten on
-  `works`, two on `chunk_embeddings`, and only `locator` on `chunks`. The contract said "every
-  chunk in `chunks`", which would have repeated the edition, licence and attribution on each of the
-  ~31,100 WEB verses and given a licence correction 31,100 rows to reach. The read surface is
-  restored by the `corpus.chunk_metadata` view, which exposes exactly the fourteen and joins
-  `chunk_embeddings` inner — an unembedded chunk does not yet carry fourteen fields and is a
-  half-finished ingestion, not a row to paper over with two nulls.
+- **The metadata fields are stored where they are true**, not repeated per chunk: most on `works`,
+  the embedding pair on `chunk_embeddings`, and only `locator` on `chunks`. The contract said
+  "every chunk in `chunks`", which would have repeated the edition, licence and attribution on each
+  of the ~31,100 WEB verses and given a licence correction 31,100 rows to reach. The read surface is
+  restored by the `corpus.chunk_metadata` view, which exposes exactly the contract's fields and
+  joins `chunk_embeddings` inner — an unembedded chunk does not yet carry the whole contract and is
+  a half-finished ingestion, not a row to paper over with two nulls.
+- **`tradition` is dropped from the contract.** Which traditions hold a corpus is the profile's N:M
+  relation and is the thing anybody means; origination is a weaker claim and is unstatable for the
+  WEB, which is ~90% of the index, and for the ecumenical creeds. Nothing read the field — not the
+  proto, not retrieval, not any of the four checks — and the use it would first be reached for,
+  generalising SHARED §7's cross-contamination assertion, is unsound for exactly those cases.
+- **No document states the field count.** A number in prose is a second place to update and goes
+  stale silently, so the specs, the skill and the suite all name the fields and none of them count
+  them.
 - **golang-migrate in a pinned container** (`migrate/migrate:v4.19.0`), `up`/`down` SQL pairs in
   `db/migrations/`, run as `berean_owner` by a compose one-shot in the default `up`. Pinned for the
   same reason `buf` and the Go toolchain are, and containerised so the schema adds no host
@@ -414,7 +423,7 @@ never touches the network. It reads staged records, enriches, embeds, and loads.
       no binding authority. Roughly 1,700 section chunks, and the largest embedding job after WEB
 - [ ] `wcf-1646-original` ingested, so the profile's `contrary` entry resolves and UC-3 has a
       counterpart to contrast against
-- [ ] All fourteen metadata fields populated on every chunk, including `source_language` (`la` for
+- [ ] Every metadata field populated on every chunk, including `source_language` (`la` for
       the *Institutes*, equal to `language` elsewhere) and `text_form` (`majority` for WEB, whose NT
       follows the Majority Text; `not-applicable` for every non-Scripture corpus)
 - [ ] Corpus IDs edition-specific (`wcf-1788-american`)

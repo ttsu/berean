@@ -22,7 +22,7 @@ BEGIN
 END $$;
 
 -- Every relation the data model names, plus the view that restores the chunk
--- metadata contract's fourteen fields.
+-- metadata contract's fields.
 DO $$
 DECLARE
     want text[] := ARRAY[
@@ -35,74 +35,63 @@ BEGIN
     END LOOP;
 END $$;
 
--- The fourteen required metadata fields, at the homes they were normalised to,
--- every one of them NOT NULL. `author` is the single exception the contract
--- allows, and it is asserted nullable rather than merely not asserted: a column
--- that quietly became NOT NULL would reject every corporate document in the
--- Phase 1 corpus.
+-- Every metadata field the contract names, at the home it was normalised to,
+-- and the view that puts them back together. One block, because the view
+-- assertion is derived from the same lists rather than restating them — two
+-- hand-maintained lists of column names drift, and a count beside either would
+-- need editing every time a field is added or removed.
 DO $$
 DECLARE
-    -- One entry per contract field, at the single home the INTEGRATION-SPEC
-    -- table gives it. Thirteen, not fourteen: `author` is asserted separately
-    -- below, being the one the contract allows to be null. `corpus.chunks.
-    -- corpus_id` is deliberately absent — it is the foreign key, not a second
-    -- home for the field, and listing it here made the count below pass by
-    -- coincidence while claiming to check something else.
+    -- One entry per contract field that must be present, at its single home.
     required text[] := ARRAY[
         'corpus.works.corpus_id', 'corpus.works.work', 'corpus.works.era',
-        'corpus.works.tradition', 'corpus.works.language', 'corpus.works.source_language',
+        'corpus.works.language', 'corpus.works.source_language',
         'corpus.works.text_form', 'corpus.works.edition', 'corpus.works.license',
         'corpus.works.attribution',
         'corpus.chunks.locator',
         'corpus.chunk_embeddings.embedding_model', 'corpus.chunk_embeddings.dim'];
+    -- The fields the contract allows to be null. Asserted nullable rather than
+    -- merely left unasserted: a column that quietly became NOT NULL would
+    -- reject every corporate document in the Phase 1 corpus.
+    nullable text[] := ARRAY['corpus.works.author'];
     spec text;
     rel text;
     col text;
     is_not_null boolean;
+    want text[];
+    got text[];
 BEGIN
-    ASSERT array_length(required, 1) = 13,
-        'the contract names fourteen fields: these thirteen plus the nullable author';
-
-    FOREACH spec IN ARRAY required LOOP
+    FOREACH spec IN ARRAY required || nullable LOOP
         rel := substring(spec from '^(.*)\.[^.]+$');
         col := substring(spec from '\.([^.]+)$');
         SELECT attnotnull INTO is_not_null
           FROM pg_attribute
          WHERE attrelid = rel::regclass AND attname = col AND attnum > 0 AND NOT attisdropped;
         ASSERT is_not_null IS NOT NULL, format('missing column %s', spec);
-        ASSERT is_not_null, format('%s must be NOT NULL', spec);
+        ASSERT is_not_null = (spec = ANY (required)),
+            format('%s is on the wrong side of the nullability contract', spec);
     END LOOP;
 
-    SELECT attnotnull INTO is_not_null
-      FROM pg_attribute
-     WHERE attrelid = 'corpus.works'::regclass AND attname = 'author';
-    ASSERT is_not_null IS NOT NULL, 'missing column corpus.works.author';
-    ASSERT NOT is_not_null, 'corpus.works.author is the one nullable metadata field';
-
     -- The join key that carries `corpus_id` down to a chunk. Not one of the
-    -- fourteen homes, and a chunk that reached no work would take the other
-    -- ten fields with it.
+    -- contract's homes, and a chunk that reached no work would take most of the
+    -- other fields with it.
     SELECT attnotnull INTO is_not_null
       FROM pg_attribute
      WHERE attrelid = 'corpus.chunks'::regclass AND attname = 'corpus_id';
     ASSERT is_not_null IS NOT NULL, 'missing column corpus.chunks.corpus_id';
     ASSERT is_not_null, 'corpus.chunks.corpus_id must be NOT NULL';
-END $$;
 
--- The view exposes exactly the fourteen, so the contract's read surface can be
--- checked against the contract rather than against the storage layout.
-DO $$
-DECLARE
-    got text[];
-BEGIN
-    SELECT array_agg(attname::text ORDER BY attname) INTO got
+    -- The view exposes exactly the contract, plus the chunk key, so the read
+    -- surface can be checked against the contract rather than against the
+    -- storage layout.
+    SELECT array_agg(f ORDER BY f) INTO want
+      FROM (SELECT substring(entry from '\.([^.]+)$') AS f
+              FROM unnest(required || nullable) AS t(entry)
+            UNION ALL SELECT 'chunk_id') AS s;
+    SELECT array_agg(attname::text ORDER BY attname::text) INTO got
       FROM pg_attribute
      WHERE attrelid = 'corpus.chunk_metadata'::regclass AND attnum > 0 AND NOT attisdropped;
-    ASSERT got = ARRAY[
-        'attribution', 'author', 'chunk_id', 'corpus_id', 'dim', 'edition', 'embedding_model',
-        'era', 'language', 'license', 'locator', 'source_language', 'text_form', 'tradition',
-        'work']::text[],
-        format('corpus.chunk_metadata exposes %s', got);
+    ASSERT got = want, format('corpus.chunk_metadata exposes %s, expected %s', got, want);
 END $$;
 
 -- Closed domains, spelled as the specs spell them. A label that drifts from the

@@ -456,8 +456,9 @@ em dash. All of it is invented text, never corpus text (ADR-0014).
 
 ## Chunk metadata contract
 
-Every chunk carries all of these. Ingestion rejects a chunk missing any of them. **Fourteen
-fields**; `author` is the only nullable one.
+Every chunk carries all of these. Ingestion rejects a chunk missing any of them. `author` is the
+only nullable one. The set is deliberately not stated as a count anywhere — a number in prose is a
+second place to update, and it goes stale silently.
 
 | Field | Stored on | Notes |
 | --- | --- | --- |
@@ -465,7 +466,6 @@ fields**; `author` is the only nullable one.
 | `work` | `works` | Human-readable work name |
 | `author` | `works` | May be null for corporate documents |
 | `era` | `works` | For filtering and display |
-| `tradition` | `works` | Originating tradition, not the querying one |
 | `locator` | `chunks` | Canonical, resolvable, stable — see GLOSSARY |
 | `language` | `works` | The language of the chunk text **as ingested** — `en` for a translation |
 | `source_language` | `works` | The language of the work itself — `la` for the *Institutes*. Equal to `language` for an untranslated work |
@@ -476,21 +476,34 @@ fields**; `author` is the only nullable one.
 | `embedding_model` | `chunk_embeddings` | Makes a model swap a re-index job |
 | `dim` | `chunk_embeddings` | As above |
 
-The fourteen are a property of a chunk and are **stored where they are true**: ten of them describe
-the work, two describe an embedding, and only `locator` belongs to the chunk itself. An earlier
+These are a property of a chunk and are **stored where they are true**: most describe the work, the
+embedding pair describes an embedding, and only `locator` belongs to the chunk itself. An earlier
 draft of this section said "every chunk in `chunks`", which would have repeated the edition, the
 licence and the attribution on every one of the ~31,100 WEB verses and given a licence correction
 31,100 rows to reach. The read surface is unchanged: **`corpus.chunk_metadata`** is a view exposing
-exactly these fourteen, plus `chunk_id`, with every column non-null except `author`. Read the
+exactly the contract's fields, plus `chunk_id`, with every column non-null except `author`. Read the
 contract there; write to the three tables.
+
+**There is no originating-tradition field, and there should not be one.** Which traditions hold a
+corpus, and how authoritatively, is already modelled — it is the profile, one per tradition,
+assigning a stance per corpus, and it is N:M because tier is a per-tradition stance rather than a
+property of the corpus. That relation is the one anybody means by "the traditions associated with
+this corpus". *Origination* is a different and weaker claim, and it is unstatable for the two cases
+that matter most: the WEB is ~90% of the Phase 1 index and originates in no tradition in scope, and
+the ecumenical creeds are claimed by every tradition as their own rather than as someone else's. A
+column that is a fudge on nine rows in ten is worse than an absent one, because it gets believed.
+The use it would first be reached for — generalising SHARED §7's cross-contamination assertion from
+enumerated corpus IDs to "nothing originating outside this tradition sits at `binding`" — is
+unsound for exactly those two cases, so it would need an exemption list amounting to the
+enumeration it replaced, plus a false sense of coverage.
 
 The view joins `chunk_embeddings` inner, so a chunk that has not been embedded does not appear in
 it. That is deliberate — such a chunk has no `embedding_model` and no `dim`, so it does not yet
-carry fourteen fields, and it is a half-finished ingestion rather than a row the view should paper
-over with two nulls.
+carry the whole contract, and it is a half-finished ingestion rather than a row the view should
+paper over with two nulls.
 
-Its key is `(chunk_id, embedding_model)`, not `chunk_id`. Two of the fourteen describe an embedding
-and `chunk_embeddings` holds a row per model, so during a re-index window the view returns one row
+Its key is `(chunk_id, embedding_model)`, not `chunk_id`. `embedding_model` and `dim` describe an
+embedding and `chunk_embeddings` holds a row per model, so during a re-index window the view returns one row
 per chunk per model and a consumer reading it as one-row-per-chunk double counts. **A reader MUST
 constrain `embedding_model`** — the same rule retrieval already follows for the single HNSW index,
 and for the same underlying reason.
@@ -582,7 +595,7 @@ it.
 
 ### Corpus tables
 
-`works` is keyed by `corpus_id` and holds ten of the fourteen metadata fields. `chunks` is keyed by
+`works` is keyed by `corpus_id` and holds most of the metadata fields. `chunks` is keyed by
 a surrogate id with a **unique constraint on `(corpus_id, locator)`** — verification check 1 is
 "resolves to exactly one chunk", and that is a constraint or it is a race. `chunks.text` is
 post-normalisation text and nothing else, because verification substring-matches against exactly

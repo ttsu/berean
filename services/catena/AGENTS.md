@@ -53,8 +53,8 @@ Auth, sessions, profile resolution, verification, trace persistence, translation
 
 ## Conventions
 
-- Embedder behind an interface. `embedding_model` and `dim` written on every chunk, and all fourteen
-  metadata fields populated — `text_form` and `license` are closed enums, and `source_language` is
+- Embedder behind an interface. `embedding_model` and `dim` written on every chunk, and every
+  metadata field populated — `text_form` and `license` are closed enums, and `source_language` is
   the work's own language rather than the chunk's.
 - Generation behind an OpenAI-compatible interface so Ollama, vLLM, llama.cpp, and hosted APIs are
   interchangeable. Default to local so the acceptance test holds with no accounts.
