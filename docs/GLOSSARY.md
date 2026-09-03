@@ -90,6 +90,10 @@ Fourteen fields on every chunk: `corpus_id`, `work`, `author`, `era`, `tradition
 
 `corpus_id` is the edition-specific join key — `work` is a display name and resolves nothing.
 
+The fourteen are stored where they are true — ten on `works`, two on `chunk_embeddings`, and
+`locator` on `chunks` — and the `corpus.chunk_metadata` view exposes them together, which is
+where to read them. See the Phase 1 INTEGRATION-SPEC, **Chunk metadata contract**.
+
 `language`, `source_language` and `text_form` are required **from day one** even though
 original-language support is Phase 3–4 — otherwise the corpus needs re-ingesting (ADR-0008).
 `language` is the chunk text as ingested and `source_language` is the work's own: `en` and `la` for

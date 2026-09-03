@@ -1,12 +1,16 @@
 #!/bin/bash
 # Schema-level grants and default privileges for the two service roles.
 #
-# No tables exist yet — Task 3 lands all DDL. What is asserted here is the
-# standing policy: ALTER DEFAULT PRIVILEGES means a table created later by
-# berean_owner arrives with the right grants rather than needing a matching
-# GRANT statement in whichever migration happened to create it. Task 3
-# re-asserts table grants explicitly anyway, because a default privilege that
-# silently did not apply is indistinguishable from one that did.
+# No tables are created here — `db/migrations/` lands all DDL, applied by the
+# `migrate` service. What is asserted here is the standing policy: ALTER DEFAULT
+# PRIVILEGES means a table created later by berean_owner arrives with the right
+# grants rather than needing a matching GRANT statement in whichever migration
+# happened to create it. The migrations re-assert table grants explicitly
+# anyway, because a default privilege that silently did not apply is
+# indistinguishable from one that did.
+#
+# This file runs once, on an empty data directory. A volume created before a
+# change here does not pick it up; `make reset` is what re-runs it.
 set -euo pipefail
 
 # The heredoc stays quoted, so the database name arrives as a psql variable.
@@ -27,7 +31,15 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" \
 	-- SHARED §5 requires is a property of the schema, so it holds for every
 	-- table added later without anyone remembering to grant per table.
 	CREATE SCHEMA corpus AUTHORIZATION berean_owner;  -- works, chunks, chunk_embeddings
-	CREATE SCHEMA trace  AUTHORIZATION berean_owner;  -- responses, traces, verification_results
+	CREATE SCHEMA trace  AUTHORIZATION berean_owner;  -- responses, traces, candidates, verification_results
+
+	-- The migration tool's own version table. It is created before the first
+	-- migration runs, so it cannot be created by one, and it has to land
+	-- somewhere: in `corpus` the default privileges below would hand catena
+	-- INSERT and DELETE on the record of which migrations have been applied,
+	-- and in `public` berean_owner has no CREATE. Its own schema, granted to
+	-- neither service, is the only placement that is not a compromise.
+	CREATE SCHEMA migration AUTHORIZATION berean_owner;
 
 	-- Nobody creates objects in public, including by accident.
 	REVOKE CREATE ON SCHEMA public FROM PUBLIC;

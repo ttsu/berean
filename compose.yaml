@@ -131,6 +131,39 @@ services:
         mc mb --ignore-existing local/berean
     restart: "no"
 
+  # One-shot. Applies db/migrations/ as berean_owner, the role that owns both
+  # schemas and that neither service authenticates as. In the default `up`
+  # rather than behind a profile: `docker compose up` must give a working
+  # system (SHARED §1), and a system whose tables do not exist is not one.
+  #
+  # `search_path=migration` puts the tool's own version table in the schema
+  # granted to neither service, so nothing but this container can rewrite the
+  # record of which migrations have been applied. Everything in db/migrations/
+  # is schema-qualified for the same reason — the DDL cannot rely on a path it
+  # has deliberately narrowed.
+  #
+  # The password travels as PGPASSWORD rather than inside the URL, because a
+  # rotated password containing `@`, `/`, `?` or `#` would otherwise be parsed
+  # as URL structure. Same class of problem the init script solves with psql
+  # variables, and the same reason for not solving it with escaping.
+  migrate:
+    image: migrate/migrate:v4.19.0
+    depends_on:
+      postgres: { condition: service_healthy }
+    environment:
+      PGPASSWORD: ${BEREAN_DB_OWNER_PASSWORD}
+    volumes:
+      - ./db/migrations:/migrations:ro
+    # -path and -database live on the entrypoint so that
+    # `docker compose run --rm migrate down 1` inherits them; only the
+    # subcommand is the command.
+    entrypoint:
+      - migrate
+      - -path=/migrations
+      - -database=postgres://berean_owner@postgres:5432/${POSTGRES_DB}?sslmode=disable&search_path=migration
+    command: ["up"]
+    restart: "no"
+
   langfuse-worker:
     image: langfuse/langfuse-worker:4.27.0
     depends_on:
@@ -203,6 +236,7 @@ services:
       dockerfile: services/catena/Dockerfile
     depends_on:
       postgres: { condition: service_healthy }
+      migrate: { condition: service_completed_successfully }
       ollama: { condition: service_healthy }
     # Everything this container writes lands in a bind mount, so it runs as the
     # invoking user rather than as the image's uid — otherwise ./data and
@@ -238,6 +272,7 @@ services:
       dockerfile: services/gateway/Dockerfile
     depends_on:
       postgres: { condition: service_healthy }
+      migrate: { condition: service_completed_successfully }
       catena: { condition: service_started }
     environment:
       BEREAN_DATABASE_URL: postgresql://gateway:${BEREAN_DB_GATEWAY_PASSWORD}@postgres:5432/${POSTGRES_DB}

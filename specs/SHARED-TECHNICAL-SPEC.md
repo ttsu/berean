@@ -159,5 +159,8 @@ Targets, not guarantees, until measured under load in Phase 6.
 
 - Migrations MUST be reversible or carry a documented rollback strategy.
 - Re-indexing after an embedding model change MUST be a job, not a migration. `embedding_model`
-  and `dim` on every chunk are what make this true.
+  and `dim` on every chunk are what make this true. One qualification, from the datastore rather
+  than from the design: pgvector cannot index a vector of unconstrained width, so the embedding
+  column declares one. A model of the same width is a re-index alone; a model of a different width
+  is a migration as well, and no schema over this extension avoids that.
 - Secrets via env + SOPS/age, or Vault. Never in the repository.
