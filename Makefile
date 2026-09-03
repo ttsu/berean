@@ -101,7 +101,15 @@ dev: env dirs ## Bring up the stack (Postgres, Langfuse, Ollama)
 	@# with a resolver that SERVFAILs every name, including a container's own.
 	@# Volumes survive; only `make reset` destroys those.
 	$(COMPOSE) down --remove-orphans
-	$(COMPOSE) up -d --wait
+	@# `--wait` counts any container that exits as a failure unless a started
+	@# service depends on its completion -- which is how minio-init passes and
+	@# why the migrator does not: the two services that depend on it are behind
+	@# the `services` profile. So it is scaled out of the waited-on `up` and run
+	@# on its own, where its exit code is the thing being checked rather than a
+	@# surprise. A bare `docker compose up` still applies migrations, because
+	@# that path uses no `--wait` at all.
+	$(COMPOSE) up -d --wait --scale migrate=0
+	$(COMPOSE) run --rm migrate up
 	@echo
 	@echo "  Postgres  $$($(COMPOSE) port postgres 5432)"
 	@echo "  Langfuse  http://$$($(COMPOSE) port langfuse-web 3000)"
@@ -110,7 +118,8 @@ dev: env dirs ## Bring up the stack (Postgres, Langfuse, Ollama)
 .PHONY: dev-offline
 dev-offline: env dirs ## Bring up the stack with egress blocked (SHARED §1)
 	$(COMPOSE) down --remove-orphans
-	$(OFFLINE) up -d --wait
+	$(OFFLINE) up -d --wait --scale migrate=0
+	$(OFFLINE) run --rm migrate up
 	@echo
 	@echo "  Ports are not published on an internal network. Run the CLI inside the stack:"
 	@echo "    $(OFFLINE) run --rm gateway ask --profile pca \"...\""
@@ -130,6 +139,33 @@ logs: ## Follow the stack's logs
 .PHONY: env
 env: ## Create .env from .env.example if it is missing
 	@test -f .env || { cp .env.example .env; echo "created .env from .env.example"; }
+
+# ---------------------------------------------------------------------------
+# Database -- all DDL is db/migrations/, applied by the `migrate` service
+# ---------------------------------------------------------------------------
+
+# `make dev` already applies these: the migrate one-shot is in the default `up`,
+# because a stack whose tables do not exist is not the working system SHARED §1
+# requires. This target is for applying a new migration without a full restart.
+.PHONY: migrate
+migrate: env dirs ## Apply db/migrations/ to a running Postgres
+	$(COMPOSE) up -d --wait postgres
+	$(COMPOSE) run --rm migrate up
+
+.PHONY: migrate-down
+migrate-down: env ## Roll back the most recent migration -- DESTROYS the data in it
+	$(COMPOSE) run --rm migrate down 1
+
+.PHONY: migrate-version
+migrate-version: env ## Print the applied migration version, and whether it is dirty
+	$(COMPOSE) run --rm migrate version
+
+# Not part of `make check`: `check` runs with nothing started, and every
+# assertion here is about a live database -- grants, closed enum domains, and
+# constraints that only a real INSERT can exercise.
+.PHONY: test-schema
+test-schema: ## Assert the schema, its constraints and both roles' grants (needs `make dev`)
+	@./tools/db/tests/test_schema.sh
 
 # ---------------------------------------------------------------------------
 # Checks

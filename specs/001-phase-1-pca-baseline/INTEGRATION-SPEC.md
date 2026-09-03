@@ -456,25 +456,38 @@ em dash. All of it is invented text, never corpus text (ADR-0014).
 
 ## Chunk metadata contract
 
-Every chunk in `chunks`. Ingestion rejects a chunk missing any of these. **Fourteen fields**;
-`author` is the only nullable one.
+Every chunk carries all of these. Ingestion rejects a chunk missing any of them. **Fourteen
+fields**; `author` is the only nullable one.
 
-| Field | Notes |
-| --- | --- |
-| `corpus_id` | Edition-specific. The join key to `works`, and half of every citation reference |
-| `work` | Human-readable work name |
-| `author` | May be null for corporate documents |
-| `era` | For filtering and display |
-| `tradition` | Originating tradition, not the querying one |
-| `locator` | Canonical, resolvable, stable — see GLOSSARY |
-| `language` | The language of the chunk text **as ingested** — `en` for a translation |
-| `source_language` | The language of the work itself — `la` for the *Institutes*. Equal to `language` for an untranslated work |
-| `text_form` | Enum: `tr`, `critical`, `majority`, `not-applicable` |
-| `edition` | What makes 1788 distinguishable from 1646 |
-| `license` | Enum: `public-domain`, `cc-by`, `cc-by-sa`, `local-only`, `refused` |
-| `attribution` | Drives mechanical generation of the attribution page |
-| `embedding_model` | Makes a model swap a re-index job |
-| `dim` | As above |
+| Field | Stored on | Notes |
+| --- | --- | --- |
+| `corpus_id` | `works` | Edition-specific. The join key to `works`, and half of every citation reference |
+| `work` | `works` | Human-readable work name |
+| `author` | `works` | May be null for corporate documents |
+| `era` | `works` | For filtering and display |
+| `tradition` | `works` | Originating tradition, not the querying one |
+| `locator` | `chunks` | Canonical, resolvable, stable — see GLOSSARY |
+| `language` | `works` | The language of the chunk text **as ingested** — `en` for a translation |
+| `source_language` | `works` | The language of the work itself — `la` for the *Institutes*. Equal to `language` for an untranslated work |
+| `text_form` | `works` | Enum: `tr`, `critical`, `majority`, `not-applicable` |
+| `edition` | `works` | What makes 1788 distinguishable from 1646 |
+| `license` | `works` | Enum: `public-domain`, `cc-by`, `cc-by-sa`, `local-only`, `refused` |
+| `attribution` | `works` | Drives mechanical generation of the attribution page |
+| `embedding_model` | `chunk_embeddings` | Makes a model swap a re-index job |
+| `dim` | `chunk_embeddings` | As above |
+
+The fourteen are a property of a chunk and are **stored where they are true**: ten of them describe
+the work, two describe an embedding, and only `locator` belongs to the chunk itself. An earlier
+draft of this section said "every chunk in `chunks`", which would have repeated the edition, the
+licence and the attribution on every one of the ~31,100 WEB verses and given a licence correction
+31,100 rows to reach. The read surface is unchanged: **`corpus.chunk_metadata`** is a view exposing
+exactly these fourteen, plus `chunk_id`, with every column non-null except `author`. Read the
+contract there; write to the three tables.
+
+The view joins `chunk_embeddings` inner, so a chunk that has not been embedded does not appear in
+it. That is deliberate — such a chunk has no `embedding_model` and no `dim`, so it does not yet
+carry fourteen fields, and it is a half-finished ingestion rather than a row the view should paper
+over with two nulls.
 
 `text_form` is a closed enum because the TR-versus-critical distinction exists only for biblical
 text, and most of the Phase 1 corpus is not Scripture. `not-applicable` says that honestly; a free
@@ -534,6 +547,90 @@ invisible to a role whose path does not name `public` — retrieval fails at que
 therefore ends in `extensions`, and none of them names `public`: `berean_owner` gets
 `corpus, trace, extensions` (its DDL declares the column), `catena` gets `corpus, extensions`, and
 `gateway` gets `trace, corpus, extensions`.
+
+## Schema and migrations
+
+All DDL lives in `db/migrations/`, as `up`/`down` SQL pairs applied by **golang-migrate** in a
+pinned container (`migrate/migrate:v4.19.0`), the same way `buf` and the Go toolchain are pinned —
+"the same commit" has to mean the same stack, and neither the schema nor a host prerequisite is an
+exception. It runs as `berean_owner`, as a compose one-shot in the default `up`, and the two
+service containers depend on its successful completion. Every statement is schema-qualified,
+including `extensions.vector`, because the migrator narrows its own `search_path` and DDL that
+relies on a path it has narrowed is DDL that works until someone reads the init script.
+
+Every migration is reversible: `make migrate` applies, `make migrate-down` rolls back one, and
+`make test-schema` runs the whole suite and then a full `down`/`up` cycle against an empty
+database. A migration that fails part-way leaves the version marked dirty, which `make
+migrate-version` reports and which is cleared by hand — the rollback strategy SHARED §10 requires is
+the `down` file, and the dirty flag is what stops a half-applied migration being mistaken for an
+applied one.
+
+A fourth schema, **`migration`**, holds the tool's version table. It is granted to neither service.
+The table is created before the first migration runs, so it cannot be created by one and has to
+land somewhere: in `corpus` the default privileges would hand `catena` `INSERT` and `DELETE` on the
+record of which migrations have been applied, and in `public` `berean_owner` has no `CREATE`.
+
+The three service schemas are created by the Postgres init script, which runs once on an empty data
+directory. A change there does not reach a volume that already exists; `make reset` is what re-runs
+it.
+
+### Corpus tables
+
+`works` is keyed by `corpus_id` and holds ten of the fourteen metadata fields. `chunks` is keyed by
+a surrogate id with a **unique constraint on `(corpus_id, locator)`** — verification check 1 is
+"resolves to exactly one chunk", and that is a constraint or it is a race. `chunks.text` is
+post-normalisation text and nothing else, because verification substring-matches against exactly
+that column and storing the raw text beside it would give the check two candidates and no rule for
+choosing.
+
+`chunks` also carries **`normalisation_version`**, which the metadata contract does not name. The
+per-chunk hash is over post-normalisation text, so a corpus ingested under one version of the
+normalisation contract and queried by a gateway running another produces quote-match failures on
+visually identical text — the symptom the contract exists to prevent, and the one this spec calls
+extremely annoying to diagnose. The column makes it a lookup rather than an investigation.
+
+`chunk_embeddings` is keyed by `(chunk_id, embedding_model)`, so a re-index writes the new model's
+vectors beside the old ones and the cutover is a change of which model retrieval asks for. The
+vector column is **`vector(1024)`** — BGE-M3's width. pgvector cannot index a vector of
+unconstrained width, so the HNSW index forces a declared dimension: a model of the same width is a
+re-index job, and a model of a different width is a migration as well as one. HNSW rather than
+IVFFlat because IVFFlat's lists are trained from the rows present when the index is built and this
+index is built against an empty table. There is one index across all models, so **retrieval MUST
+filter on `embedding_model`**; during a re-index window the index spans two vector spaces and HNSW
+post-filters, which costs recall until the old rows are dropped.
+
+### Trace tables
+
+`responses` is one row per turn, keyed by `request_id` — a **uuid**, though the proto carries it as
+a string, because proto3 has no uuid type and the column everything else keys on is worth
+constraining where it can be. It holds the answer object as `protojson` rather than a column per
+field: the proto is the contract, defined once and generated for both sides, and a column per field
+is the hand-maintained struct SHARED §5 prohibits, one layer further out.
+
+`traces` is one row per generation attempt, keyed by `(request_id, attempt)`.
+
+**`candidates`** is a fourth table this spec did not previously name: one row per retrieved
+candidate, keyed by `(request_id, attempt, rank)`. Rows rather than a JSON array on `traces`,
+because this is what Phase 2 computes recall@k from and TECHNICAL-SPEC asks for a trace schema
+designed with that consumer in mind. `rank` has no counterpart in `RetrievalTrace.candidates`: a
+repeated proto field carries its order positionally, a table has no order without a column, and the
+order is the whole of what @k means.
+
+`verification_results` is one row per citation per attempt. It carries `corpus_id` and `locator` as
+plain columns with **no foreign key into `corpus`** — a citation to a corpus that does not exist is
+precisely what check 1 records, and a foreign key would make the fabrication unrecordable. The same
+applies to `candidates`, for the weaker reason that an audit record a corpus lifecycle event can
+cascade away is not an audit record.
+
+The whole turn is written in one transaction after it completes, because `overall_result` and
+`confidence` are known only at the end. A crash mid-turn therefore persists nothing, which is the
+right trade in Phase 1: a partial trace would enter the Phase 2 dataset as a turn that retrieved
+nothing.
+
+Constraints hold the invariants the proto states in prose: `attempts` is 1 or 2 and a third is the
+seam moving (ADR-0002, ADR-0010); a `verified` turn took one attempt and a `regenerated` turn took
+two, so the degradation rate stays readable; `failure_detail` is empty exactly when all four checks
+passed; and a candidate carries an `exclusion_reason` exactly when it was excluded.
 
 ## Versioning
 

@@ -241,10 +241,16 @@ trusted on its own; layer 3 is what makes it real.
 
 ## Data model
 
-Corpus tables (Python writes, Go reads): `works`, `chunks`, `chunk_embeddings`.
-Trace tables (Go writes, Python does not touch): `responses`, `traces`, `verification_results`.
+Corpus tables (Python writes, Go reads): `works`, `chunks`, `chunk_embeddings`, plus the
+`chunk_metadata` view that exposes the fourteen-field contract over the three.
+Trace tables (Go writes, Python does not touch): `responses`, `traces`, `candidates`,
+`verification_results`.
 
 Disjoint write scope is enforced by separate database roles, not by convention.
+
+All DDL lives in `db/migrations/` and is applied by a pinned golang-migrate container running as
+`berean_owner`. Column-level detail, the constraints that hold the proto's prose invariants, and
+the reasoning behind each is in INTEGRATION-SPEC, **Schema and migrations**.
 
 ## Observability
 

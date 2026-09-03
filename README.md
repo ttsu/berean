@@ -114,9 +114,16 @@ make hooks          # install the pre-commit hook that enforces ADR-0014
 make proto          # regenerate the Go and Python stubs from proto/
 make check          # guards, unit suites, contract lint, and compose validation
 make test           # the unit suites on their own
+make test-schema    # assert the schema, its constraints and both roles' grants (needs `make dev`)
+make migrate        # apply db/migrations/ to a running Postgres
 make build          # build the gateway and catena images
 make reset          # destroy the volumes, so Postgres re-runs its init scripts
 ```
+
+All DDL lives in `db/migrations/`, as reversible `up`/`down` pairs applied by a pinned
+golang-migrate container. `make dev` applies them, so `make migrate` is only for picking up a new
+migration without a restart. `make test-schema` is not part of `make check`: `check` runs with
+nothing started, and a grant is only demonstrated by a statement a live database actually refuses.
 
 `buf` and the Go toolchain run in pinned containers, so neither is a host prerequisite. The
 generated protobuf stubs are **not committed** (ADR-0013 defers that decision to Phase 2), so run

@@ -252,17 +252,87 @@ infrastructure rather than in the contract:
 All DDL lands here. Task 8 writes `VerificationResult` rows and Task 9 writes traces, so both need
 their tables before either starts — splitting the DDL across Tasks 3 and 9 makes the two circular.
 
-- [ ] `works`, `chunks`, `chunk_embeddings` tables
-- [ ] `responses`, `traces`, `verification_results` tables
-- [ ] All fourteen required metadata fields NOT NULL where the spec requires it (`author` nullable)
-- [ ] `license` and `text_form` are database-level enums, not free-text columns. An unrecognised
-      value fails at insert, which is what makes check 4 a check with a closed domain (ADR-0017)
-- [ ] `source_language` present alongside `language` — the *Institutes* is English text of a Latin
+- [x] `works`, `chunks`, `chunk_embeddings` tables — plus the `chunk_metadata` view that exposes
+      the fourteen-field contract over the three
+- [x] `responses`, `traces`, `verification_results` tables — plus `candidates`, below
+- [x] All fourteen required metadata fields NOT NULL where the spec requires it (`author` nullable).
+      Asserted field by field from the catalogue, and asserted nullable for `author` rather than
+      merely not asserted: a column that quietly became NOT NULL rejects every corporate document
+      in the Phase 1 corpus
+- [x] `license` and `text_form` are database-level enums, not free-text columns. An unrecognised
+      value fails at insert, which is what makes check 4 a check with a closed domain (ADR-0017).
+      Both label sets are asserted against the specs' spelling, because a drifted label fails at
+      ingestion one task later and reads as an ingestion bug
+- [x] `source_language` present alongside `language` — the *Institutes* is English text of a Latin
       work, and one column cannot carry both (ADR-0008's backfill argument applies to the split)
-- [ ] pgvector index on embeddings
-- [ ] Migration is reversible
-- [ ] Insert without `license` or `attribution` fails at the database level, not in application code
-- [ ] Table grants applied for both roles, disjoint per INTEGRATION-SPEC
+- [x] pgvector index on embeddings — HNSW with `vector_cosine_ops`. Not IVFFlat: its lists are
+      trained from the rows present when the index is built, and a migration builds it against an
+      empty table
+- [x] Migration is reversible. `make test-schema` runs the suite, then a full `down` and `up`
+      against an empty database and re-runs the structural half — a `down` nobody has run is not a
+      rollback strategy
+- [x] Insert without `license` or `attribution` fails at the database level, not in application
+      code. Also with a blank `attribution`, which is a missing attribution that satisfies NOT NULL
+- [x] Table grants applied for both roles, disjoint per INTEGRATION-SPEC. Asserted twice: from the
+      catalogue, so the negative half is an assertion rather than an absence of evidence, and from
+      each role's own connection, where `catena` is refused `trace` at the schema level and
+      `gateway` is refused INSERT on `corpus`
+
+**Decisions Task 3 made that the spec did not anticipate**, recorded in INTEGRATION-SPEC,
+TECHNICAL-SPEC and SHARED in the same change:
+
+- **The fourteen metadata fields are stored where they are true**, not repeated per chunk: ten on
+  `works`, two on `chunk_embeddings`, and only `locator` on `chunks`. The contract said "every
+  chunk in `chunks`", which would have repeated the edition, licence and attribution on each of the
+  ~31,100 WEB verses and given a licence correction 31,100 rows to reach. The read surface is
+  restored by the `corpus.chunk_metadata` view, which exposes exactly the fourteen and joins
+  `chunk_embeddings` inner — an unembedded chunk does not yet carry fourteen fields and is a
+  half-finished ingestion, not a row to paper over with two nulls.
+- **golang-migrate in a pinned container** (`migrate/migrate:v4.19.0`), `up`/`down` SQL pairs in
+  `db/migrations/`, run as `berean_owner` by a compose one-shot in the default `up`. Pinned for the
+  same reason `buf` and the Go toolchain are, and containerised so the schema adds no host
+  prerequisite to the README's list.
+- **A fourth schema, `migration`**, holding the tool's version table and granted to neither
+  service. The table is created before the first migration runs, so it cannot be created by one:
+  in `corpus` the default privileges would hand `catena` INSERT and DELETE on the record of which
+  migrations have been applied, and in `public` `berean_owner` has no CREATE. It is added to the
+  init script, so an existing volume needs `make reset`.
+- **`docker compose up -d --wait` counts an exited container as a failure** unless a *started*
+  service depends on its completion — which is how `minio-init` passes and why the migrator does
+  not, its two dependants being behind the `services` profile. `make dev` scales it out of the
+  waited-on `up` and runs it on its own, where its exit code is the thing being checked. A bare
+  `docker compose up` still applies migrations, because that path uses no `--wait`.
+- **`vector(1024)`, and the honest consequence.** pgvector cannot index a vector of unconstrained
+  width, so the HNSW index forces a declared dimension. A model of the same width stays the
+  re-index job SHARED §10 requires; a model of a different width is a migration as well, and no
+  schema over this extension avoids that. SHARED §10 now says so. One index across all models, so
+  retrieval MUST filter on `embedding_model`.
+- **`trace.candidates` is a table, not a JSON array on `traces`.** It is what Phase 2 computes
+  recall@k from, and TECHNICAL-SPEC asks for a trace schema designed with that consumer in mind. It
+  carries a `rank` column with no counterpart in the proto: a repeated field carries its order
+  positionally, a table has no order without a column, and the order is the whole of what @k means.
+- **`request_id` is a uuid**, though the proto carries it as a string, because proto3 has no uuid
+  type and the column everything else in `trace` keys on is worth constraining where it can be.
+- **`chunks.normalisation_version`**, which the metadata contract does not name. The per-chunk hash
+  is over post-normalisation text, so a corpus ingested under one contract version and queried by a
+  gateway running another produces quote-match failures on visually identical text. That is the
+  symptom the contract exists to prevent; the column makes it a lookup rather than an investigation.
+- **The proto's prose invariants are constraints.** `attempts` is 1 or 2 and a third is the seam
+  moving; a `verified` turn took one attempt and a `regenerated` turn took two, so the degradation
+  rate ADR-0010 needs kept clean cannot be recorded incoherently; `failure_detail` is empty exactly
+  when all four checks passed; a candidate carries an `exclusion_reason` exactly when excluded.
+  `degraded` is left free on attempt count — whether an unretryable failure degrades at one attempt
+  or two is Task 8's to decide, and a constraint here would pre-empt it.
+- **No foreign key from `trace` into `corpus`.** On `verification_results` this is load-bearing: a
+  citation to a corpus that does not exist is precisely what check 1 records, and a foreign key
+  would make the fabrication unrecordable. On `candidates` the reason is weaker — an audit record a
+  corpus lifecycle event can cascade away is not an audit record.
+- **The whole turn is written in one transaction after it completes**, because `overall_result` and
+  `confidence` are known only at the end. A crash mid-turn therefore persists nothing, which is the
+  right trade: a partial trace enters the Phase 2 dataset as a turn that retrieved nothing.
+- **`make test-schema` is not part of `make check`.** `check` runs with nothing started, and every
+  assertion here is about a live database — a grant is only demonstrated by a statement that is
+  actually refused.
 
 ---
 
