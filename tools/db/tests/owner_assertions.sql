@@ -42,20 +42,26 @@ END $$;
 -- Phase 1 corpus.
 DO $$
 DECLARE
+    -- One entry per contract field, at the single home the INTEGRATION-SPEC
+    -- table gives it. Thirteen, not fourteen: `author` is asserted separately
+    -- below, being the one the contract allows to be null. `corpus.chunks.
+    -- corpus_id` is deliberately absent — it is the foreign key, not a second
+    -- home for the field, and listing it here made the count below pass by
+    -- coincidence while claiming to check something else.
     required text[] := ARRAY[
         'corpus.works.corpus_id', 'corpus.works.work', 'corpus.works.era',
         'corpus.works.tradition', 'corpus.works.language', 'corpus.works.source_language',
         'corpus.works.text_form', 'corpus.works.edition', 'corpus.works.license',
         'corpus.works.attribution',
-        'corpus.chunks.corpus_id', 'corpus.chunks.locator',
+        'corpus.chunks.locator',
         'corpus.chunk_embeddings.embedding_model', 'corpus.chunk_embeddings.dim'];
     spec text;
     rel text;
     col text;
     is_not_null boolean;
 BEGIN
-    ASSERT array_length(required, 1) = 14,
-        'the contract names fourteen fields, thirteen of them plus author';
+    ASSERT array_length(required, 1) = 13,
+        'the contract names fourteen fields: these thirteen plus the nullable author';
 
     FOREACH spec IN ARRAY required LOOP
         rel := substring(spec from '^(.*)\.[^.]+$');
@@ -72,6 +78,15 @@ BEGIN
      WHERE attrelid = 'corpus.works'::regclass AND attname = 'author';
     ASSERT is_not_null IS NOT NULL, 'missing column corpus.works.author';
     ASSERT NOT is_not_null, 'corpus.works.author is the one nullable metadata field';
+
+    -- The join key that carries `corpus_id` down to a chunk. Not one of the
+    -- fourteen homes, and a chunk that reached no work would take the other
+    -- ten fields with it.
+    SELECT attnotnull INTO is_not_null
+      FROM pg_attribute
+     WHERE attrelid = 'corpus.chunks'::regclass AND attname = 'corpus_id';
+    ASSERT is_not_null IS NOT NULL, 'missing column corpus.chunks.corpus_id';
+    ASSERT is_not_null, 'corpus.chunks.corpus_id must be NOT NULL';
 END $$;
 
 -- The view exposes exactly the fourteen, so the contract's read surface can be
@@ -197,14 +212,20 @@ BEGIN
         'gateway needs the metadata view';
 END $$;
 
--- Applied, and not left dirty by a failed run.
+-- Applied, and not left dirty by a failed run. The expected version arrives
+-- from the driver, which counts the files in db/migrations/ -- hardcoding it
+-- would break on the first 000003 pair while the driver's own step count
+-- adjusted itself, and the two halves drifting is worse than either being wrong.
+SET berean.expected_version = :'expected_version';
+
 DO $$
 DECLARE
     v bigint;
     dirty boolean;
+    want bigint := current_setting('berean.expected_version')::bigint;
 BEGIN
     SELECT version, migration.schema_migrations.dirty INTO v, dirty FROM migration.schema_migrations;
-    ASSERT v = 2, format('expected migration version 2, found %s', v);
+    ASSERT v = want, format('expected migration version %s, found %s', want, v);
     ASSERT NOT dirty, 'the migration state is dirty; a migration failed part-way';
 END $$;
 

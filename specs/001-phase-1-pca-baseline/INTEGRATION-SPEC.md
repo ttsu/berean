@@ -489,6 +489,12 @@ it. That is deliberate — such a chunk has no `embedding_model` and no `dim`, s
 carry fourteen fields, and it is a half-finished ingestion rather than a row the view should paper
 over with two nulls.
 
+Its key is `(chunk_id, embedding_model)`, not `chunk_id`. Two of the fourteen describe an embedding
+and `chunk_embeddings` holds a row per model, so during a re-index window the view returns one row
+per chunk per model and a consumer reading it as one-row-per-chunk double counts. **A reader MUST
+constrain `embedding_model`** — the same rule retrieval already follows for the single HNSW index,
+and for the same underlying reason.
+
 `text_form` is a closed enum because the TR-versus-critical distinction exists only for biblical
 text, and most of the Phase 1 corpus is not Scripture. `not-applicable` says that honestly; a free
 text column would have collected five different improvised spellings of it. WEB is `majority` — its
@@ -597,7 +603,8 @@ re-index job, and a model of a different width is a migration as well as one. HN
 IVFFlat because IVFFlat's lists are trained from the rows present when the index is built and this
 index is built against an empty table. There is one index across all models, so **retrieval MUST
 filter on `embedding_model`**; during a re-index window the index spans two vector spaces and HNSW
-post-filters, which costs recall until the old rows are dropped.
+post-filters, which costs recall until the old rows are dropped. The same window is why
+`chunk_metadata` is keyed on `(chunk_id, embedding_model)` rather than on the chunk alone.
 
 ### Trace tables
 

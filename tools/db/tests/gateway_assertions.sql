@@ -112,6 +112,27 @@ BEGIN
         RAISE EXCEPTION 'an included candidate carried an exclusion reason';
     EXCEPTION WHEN check_violation THEN NULL;
     END;
+
+    -- Whitespace is not a reason. Both iff-constraints btrim, because a value of
+    -- three spaces satisfies `<> ''` while explaining nothing.
+    BEGIN
+        INSERT INTO trace.candidates
+            (request_id, attempt, rank, corpus_id, locator, score, included, exclusion_reason)
+        VALUES ('00000000-0000-4000-8000-000000000001', 1, 5,
+                'probe-0000-invented', 'Probe 1.5', 0.1, false, '   ');
+        RAISE EXCEPTION 'a blank exclusion reason was accepted';
+    EXCEPTION WHEN check_violation THEN NULL;
+    END;
+
+    BEGIN
+        INSERT INTO trace.verification_results
+            (request_id, attempt, corpus_id, locator,
+             locator_resolved, quote_matched, tier_permitted, license_permitted, failure_detail)
+        VALUES ('00000000-0000-4000-8000-000000000001', 1, 'probe-0000-invented', 'Probe 2.3',
+                false, true, true, true, '   ');
+        RAISE EXCEPTION 'a blank failure detail was accepted';
+    EXCEPTION WHEN check_violation THEN NULL;
+    END;
 END $$;
 
 -- The outcome enum is defined by attempt number, so the degradation rate
@@ -164,11 +185,18 @@ END $$;
 -- candidates is an eval row that silently reports recall@k of nothing.
 DELETE FROM trace.responses WHERE request_id = '00000000-0000-4000-8000-000000000001';
 
+-- Scoped to the probe turn. An unscoped count would make this file fail after a
+-- single real turn had been persisted, and nothing about this assertion needs
+-- the trace tables to be empty.
 DO $$
+DECLARE
+    probe uuid := '00000000-0000-4000-8000-000000000001';
 BEGIN
-    ASSERT (SELECT count(*) FROM trace.traces) = 0, 'traces outlived their response';
-    ASSERT (SELECT count(*) FROM trace.candidates) = 0, 'candidates outlived their trace';
-    ASSERT (SELECT count(*) FROM trace.verification_results) = 0,
+    ASSERT (SELECT count(*) FROM trace.traces WHERE request_id = probe) = 0,
+        'traces outlived their response';
+    ASSERT (SELECT count(*) FROM trace.candidates WHERE request_id = probe) = 0,
+        'candidates outlived their trace';
+    ASSERT (SELECT count(*) FROM trace.verification_results WHERE request_id = probe) = 0,
         'verification results outlived their trace';
 END $$;
 
