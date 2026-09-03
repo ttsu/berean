@@ -7,11 +7,11 @@
 -- runs with `search_path=migration` so the tool's version table lands where it
 -- should, which means nothing here may rely on a path.
 
--- The chunk metadata contract names fourteen fields on every chunk. They are
--- stored where they are true rather than repeated on every row: ten describe
--- the work, two describe an embedding, and only `corpus_id` and `locator`
--- belong to the chunk itself. `corpus.chunk_metadata` at the bottom of this
--- file puts the fourteen back together, so the contract's read surface is
+-- The chunk metadata contract names a set of fields carried by every chunk.
+-- They are stored where they are true rather than repeated on every row: most
+-- describe the work, two describe an embedding, and only `corpus_id` and
+-- `locator` belong to the chunk itself. `corpus.chunk_metadata` at the bottom
+-- of this file puts them back together, so the contract's read surface is
 -- unchanged while each fact has one place to be wrong.
 
 -- `license` and `text_form` are enums so their domains are closed. A free-text
@@ -51,9 +51,13 @@ CREATE TABLE corpus.works (
     -- becoming a second way to say it.
     author text CHECK (author IS NULL OR btrim(author) <> ''),
     era text NOT NULL CHECK (btrim(era) <> ''),
-    -- The originating tradition, never the querying one. Tier is the querying
-    -- tradition's stance and lives in the profile, so no column here holds it.
-    tradition text NOT NULL CHECK (btrim(tradition) <> ''),
+    -- No originating-tradition column, deliberately. Which traditions hold a
+    -- corpus, and how authoritatively, is the profile's N:M relation, and it is
+    -- the one anybody actually means. Origination is a different and weaker
+    -- claim, and it is unstatable for the two cases that matter most here:
+    -- Scripture, which is ~90% of the index, and the ecumenical creeds, which
+    -- every tradition claims as its own rather than as someone else's. See
+    -- INTEGRATION-SPEC, "Chunk metadata contract".
 
     -- The language of the text as ingested; `en` for a translation.
     language text NOT NULL CHECK (language ~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$'),
@@ -148,14 +152,14 @@ CREATE TABLE corpus.chunk_embeddings (
 CREATE INDEX chunk_embeddings_hnsw_cosine_idx
     ON corpus.chunk_embeddings USING hnsw (embedding extensions.vector_cosine_ops);
 
--- The chunk metadata contract, as a read surface: all fourteen fields, none of
+-- The chunk metadata contract, as a read surface: every field it names, none of
 -- them null. The join to chunk_embeddings is inner on purpose — a chunk with no
--- embedding has no `embedding_model` and no `dim`, so it does not yet carry
--- fourteen fields, and it is a half-finished ingestion rather than a row this
+-- embedding has no `embedding_model` and no `dim`, so it does not yet carry the
+-- whole contract, and it is a half-finished ingestion rather than a row this
 -- view should paper over.
 --
--- Keyed on `(chunk_id, embedding_model)`, not on `chunk_id`. Two of the fourteen
--- fields describe an embedding, and chunk_embeddings deliberately holds a row
+-- Keyed on `(chunk_id, embedding_model)`, not on `chunk_id`. Two of the fields
+-- describe an embedding, and chunk_embeddings deliberately holds a row
 -- per model so a re-index can write the new vectors beside the old ones — so
 -- during a re-index window this view returns one row per chunk per model, and a
 -- consumer reading it as one-row-per-chunk double counts. Constrain
@@ -167,7 +171,6 @@ SELECT c.id AS chunk_id,
        w.work,
        w.author,
        w.era,
-       w.tradition,
        c.locator,
        w.language,
        w.source_language,

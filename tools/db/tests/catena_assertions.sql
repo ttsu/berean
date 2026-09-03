@@ -15,10 +15,10 @@ SELECT ('[' || array_to_string(array_fill(0.1::real, ARRAY[1024]), ',') || ']'):
 -- The happy path: a work, a chunk, and its embedding, with every required field
 -- populated. If this fails, no assertion below means anything.
 INSERT INTO corpus.works
-    (corpus_id, work, author, era, tradition, language, source_language,
+    (corpus_id, work, author, era, language, source_language,
      text_form, edition, license, attribution)
 VALUES
-    ('probe-0000-invented', 'A Probe', NULL, 'test', 'none', 'en', 'en',
+    ('probe-0000-invented', 'A Probe', NULL, 'test', 'en', 'en',
      'not-applicable', 'invented', 'public-domain', 'Invented for the schema suite.');
 
 INSERT INTO corpus.chunks (corpus_id, locator, text, content_hash, normalisation_version)
@@ -41,7 +41,7 @@ BEGIN
         'author survives the view as NULL for a corporate document';
 END $$;
 
--- A chunk with no embedding is not yet a chunk carrying fourteen fields, and the
+-- A chunk with no embedding is not yet a chunk carrying the whole contract, and the
 -- view says so rather than showing it with two nulls.
 INSERT INTO corpus.chunks (corpus_id, locator, text, content_hash, normalisation_version)
 VALUES ('probe-0000-invented', 'Probe 1.2', 'The second invented probe sentence.',
@@ -68,10 +68,10 @@ END $$;
 -- The same locator in a different edition is not a duplicate. WCF 7.2 exists in
 -- both the 1788 American revision and the 1646 original, and they differ.
 INSERT INTO corpus.works
-    (corpus_id, work, author, era, tradition, language, source_language,
+    (corpus_id, work, author, era, language, source_language,
      text_form, edition, license, attribution)
 VALUES
-    ('probe-0001-invented', 'A Probe', NULL, 'test', 'none', 'en', 'en',
+    ('probe-0001-invented', 'A Probe', NULL, 'test', 'en', 'en',
      'not-applicable', 'invented-revision', 'public-domain', 'Invented for the schema suite.');
 INSERT INTO corpus.chunks (corpus_id, locator, text, content_hash, normalisation_version)
 VALUES ('probe-0001-invented', 'Probe 1.1', 'The same locator, a different edition.',
@@ -83,9 +83,9 @@ DO $$
 BEGIN
     BEGIN
         INSERT INTO corpus.works
-            (corpus_id, work, era, tradition, language, source_language,
+            (corpus_id, work, era, language, source_language,
              text_form, edition, license, attribution)
-        VALUES ('probe-0002-invented', 'A Probe', 'test', 'none', 'en', 'en',
+        VALUES ('probe-0002-invented', 'A Probe', 'test', 'en', 'en',
                 'not-applicable', 'invented', 'freely-available', 'Invented.');
         RAISE EXCEPTION 'an unrecognised licence was accepted';
     EXCEPTION WHEN invalid_text_representation THEN NULL;
@@ -93,9 +93,9 @@ BEGIN
 
     BEGIN
         INSERT INTO corpus.works
-            (corpus_id, work, era, tradition, language, source_language,
+            (corpus_id, work, era, language, source_language,
              text_form, edition, license, attribution)
-        VALUES ('probe-0002-invented', 'A Probe', 'test', 'none', 'en', 'en',
+        VALUES ('probe-0002-invented', 'A Probe', 'test', 'en', 'en',
                 'n/a', 'invented', 'public-domain', 'Invented.');
         RAISE EXCEPTION 'an unrecognised text_form was accepted';
     EXCEPTION WHEN invalid_text_representation THEN NULL;
@@ -107,9 +107,9 @@ DO $$
 BEGIN
     BEGIN
         INSERT INTO corpus.works
-            (corpus_id, work, era, tradition, language, source_language,
+            (corpus_id, work, era, language, source_language,
              text_form, edition, attribution)
-        VALUES ('probe-0002-invented', 'A Probe', 'test', 'none', 'en', 'en',
+        VALUES ('probe-0002-invented', 'A Probe', 'test', 'en', 'en',
                 'not-applicable', 'invented', 'Invented.');
         RAISE EXCEPTION 'a work with no licence was accepted';
     EXCEPTION WHEN not_null_violation THEN NULL;
@@ -117,9 +117,9 @@ BEGIN
 
     BEGIN
         INSERT INTO corpus.works
-            (corpus_id, work, era, tradition, language, source_language,
+            (corpus_id, work, era, language, source_language,
              text_form, edition, license)
-        VALUES ('probe-0002-invented', 'A Probe', 'test', 'none', 'en', 'en',
+        VALUES ('probe-0002-invented', 'A Probe', 'test', 'en', 'en',
                 'not-applicable', 'invented', 'public-domain');
         RAISE EXCEPTION 'a work with no attribution was accepted';
     EXCEPTION WHEN not_null_violation THEN NULL;
@@ -128,9 +128,9 @@ BEGIN
     -- An empty attribution is a missing attribution that satisfies NOT NULL.
     BEGIN
         INSERT INTO corpus.works
-            (corpus_id, work, era, tradition, language, source_language,
+            (corpus_id, work, era, language, source_language,
              text_form, edition, license, attribution)
-        VALUES ('probe-0002-invented', 'A Probe', 'test', 'none', 'en', 'en',
+        VALUES ('probe-0002-invented', 'A Probe', 'test', 'en', 'en',
                 'not-applicable', 'invented', 'public-domain', '   ');
         RAISE EXCEPTION 'a blank attribution was accepted';
     EXCEPTION WHEN check_violation THEN NULL;
@@ -143,9 +143,9 @@ DO $$
 BEGIN
     BEGIN
         INSERT INTO corpus.works
-            (corpus_id, work, era, tradition, language, source_language,
+            (corpus_id, work, era, language, source_language,
              text_form, edition, license, attribution)
-        VALUES ('probe', 'A Probe', 'test', 'none', 'en', 'en',
+        VALUES ('probe', 'A Probe', 'test', 'en', 'en',
                 'not-applicable', 'invented', 'public-domain', 'Invented.');
         RAISE EXCEPTION 'a bare corpus_id was accepted';
     EXCEPTION WHEN check_violation THEN NULL;

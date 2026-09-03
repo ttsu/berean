@@ -13,9 +13,9 @@ BEGIN
 
     BEGIN
         INSERT INTO corpus.works
-            (corpus_id, work, era, tradition, language, source_language,
+            (corpus_id, work, era, language, source_language,
              text_form, edition, license, attribution)
-        VALUES ('probe-0003-invented', 'A Probe', 'test', 'none', 'en', 'en',
+        VALUES ('probe-0003-invented', 'A Probe', 'test', 'en', 'en',
                 'not-applicable', 'invented', 'public-domain', 'Invented.');
         RAISE EXCEPTION 'gateway wrote to the corpus schema';
     EXCEPTION WHEN insufficient_privilege THEN NULL;
