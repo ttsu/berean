@@ -120,3 +120,5 @@ cover the case where the divergence has no single home, and they cost no text ei
 - **`services/catena/src/catena/acquire/pipeline.py`** — the edition check, and what `--bless`
   prints and writes.
 - **`services/catena/src/catena/acquire/cli.py`** — `--show-diagnostic`.
+- **`Makefile`** — `make bless CORPUS=<id>` and `make show-diagnostic CORPUS=<id>`, so the command
+  this decision leans on is as reachable as the one that writes.

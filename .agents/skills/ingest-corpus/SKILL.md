@@ -50,10 +50,17 @@ then write the manifest and fingerprints. Every run after that verifies against 
 mismatch is a hard failure with a diff summary. Never bless your way past a mismatch you have not
 understood — that is the one action in this process that discards a human verification.
 
+```
+make bless CORPUS=<corpus-id>
+```
+
 `--bless` needs a terminal and there is no flag that says otherwise, so **an agent cannot do this
 step for you.** It prints the diagnostic locator's acquired text, the chunk counts, and — when the
 corpus has been blessed before — the full diff, and then blocks on your typed name. That name is
 the record.
+
+To read a diagnostic without blessing anything — before the first bless, or afterwards to see what
+a verifier saw — `make show-diagnostic CORPUS=<corpus-id>`.
 
 ## 1. Verify the edition before anything else
 
