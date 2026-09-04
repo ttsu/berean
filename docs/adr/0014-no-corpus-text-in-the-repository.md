@@ -1,6 +1,6 @@
 # ADR-0014: No corpus text in the repository, from any source
 
-- **Status:** Accepted
+- **Status:** Accepted (`edition_check` amended by ADR-0021)
 - **Date:** 2026-08-30
 - **Phase:** 1 — cheap now, and expensive to reverse once git history carries text
 
@@ -29,7 +29,8 @@ not in fixtures, not in test data, not in golden sets.
 The repository carries, per corpus:
 
 - a **manifest** — source URL, archive fallback, retrieval date, licence, attribution, the edition
-  diagnostic with its divergent text quoted, and the normalisation contract version;
+  diagnostic and the hash of the text its verifier read, and the normalisation contract version;
+  ADR-0021 amended this bullet, which formerly quoted the divergent text into the manifest;
 - a **fingerprints file** — one `<locator>  <sha256-of-normalised-text>` per line;
 - an **acquisition script**.
 
@@ -75,8 +76,9 @@ A change to the normalisation contract invalidates every fingerprint file. `norm
 records what a manifest was blessed under, and bumping it means re-blessing every corpus. That cost
 is deliberate: it makes a silent change to normalisation impossible.
 
-Edition verification happens once, by a human, and is recorded as quoted divergent text rather than
-a checkbox. Every subsequent acquisition verifies mechanically.
+Edition verification happens once, by a human, and is recorded as the hash of the text they read
+rather than as a checkbox or as the text itself (ADR-0021). Every subsequent acquisition verifies
+mechanically, and `--show-diagnostic` reprints what the verifier read without committing it.
 
 A note on the fingerprints themselves: a hash is not the expression, and cannot be inverted to
 recover it. For a very short chunk a hash could confirm a guess someone already holds, but

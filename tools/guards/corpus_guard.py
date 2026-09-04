@@ -4,7 +4,9 @@
 The rule is structural on purpose. It denies by path and shape and never asks what
 a file means, because a rule that needs per-corpus licensing judgement is exactly
 the rule ADR-0014 exists to replace. The repository carries acquisition manifests,
-fingerprints, and scripts; text is acquired to gitignored local storage.
+fingerprints, and the per-corpus adapters under
+`services/catena/src/catena/acquire/corpora/`; text is acquired to gitignored
+local storage.
 
 What this catches: text staged under the acquired-data trees, text smuggled into
 the `corpora/` tree beside its manifest, and text-bearing or dump file formats
