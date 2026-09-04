@@ -72,6 +72,40 @@ provision-corpus: env dirs ## Acquire every corpus into ./data/ (ADR-0014)
 corpus-verify: env dirs ## Re-acquire every corpus and diff against committed fingerprints
 	$(COMPOSE) run --rm catena acquire --all --verify-only
 
+# One corpus at a time, and both write into ./data, so they go through $(COMPOSE)
+# for the uid. --no-deps because acquisition reads no database and calls no
+# model: without it, compose starts Postgres, the migrator and Ollama before
+# printing the text a human is standing there waiting to read.
+ACQUIRE_ONE = $(COMPOSE) run --rm --no-deps catena acquire --corpus
+
+# Requiring a corpus ID is the point rather than a nicety -- neither of these
+# has an `--all` form, because reading one edition diagnostic and blessing seven
+# corpora are different acts.
+define require_corpus
+@test -n "$(CORPUS)" || { \
+    echo "usage: make $(1) CORPUS=<corpus-id>"; \
+    echo "  e.g. make $(1) CORPUS=wcf-1788-american"; \
+    exit 64; }
+endef
+
+# The one step in this repository that a human has to run, and the only one that
+# writes a manifest. `--bless` aborts when stdin is not a terminal and no flag
+# overrides that, so this target is deliberately not reachable from `provision`:
+# a batch bless would record verifications nobody made.
+.PHONY: bless
+bless: env dirs ## Verify one corpus's edition by hand and write its manifest: make bless CORPUS=<id>
+	$(call require_corpus,bless)
+	$(ACQUIRE_ONE) $(CORPUS) --bless
+
+# What replaces quoting the diagnostic's text into the manifest (ADR-0021).
+# `bless` prints this itself before it prompts, so it is never a prerequisite --
+# it is here for everyone who reads the record afterwards and wants to see what
+# the verifier saw.
+.PHONY: show-diagnostic
+show-diagnostic: env dirs ## Print one corpus's edition diagnostic and its hash: make show-diagnostic CORPUS=<id>
+	$(call require_corpus,show-diagnostic)
+	$(ACQUIRE_ONE) $(CORPUS) --show-diagnostic
+
 # ---------------------------------------------------------------------------
 # The contract -- proto/ is normative, and its output is gitignored
 # ---------------------------------------------------------------------------

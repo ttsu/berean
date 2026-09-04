@@ -368,8 +368,8 @@ scripts; text lands in gitignored `/data/`.
 outstanding.** Design, and the decisions implementation and review revised, are in
 [ACQUISITION-DESIGN.md](ACQUISITION-DESIGN.md). The corpus was blessed once and then ADR-0021
 changed the manifest schema — `edition_check` records the hash of the text the verifier read rather
-than the text — so it needs re-blessing at a terminal, which `--bless` requires and no flag
-overrides. Then the other six corpora, each a module under `catena/acquire/corpora/`, an entry in
+than the text — so it needs re-blessing at a terminal (`make bless CORPUS=wcf-1788-american`),
+which `--bless` requires and no flag overrides. Then the other six corpora, each a module under `catena/acquire/corpora/`, an entry in
 that package's `CORPUS_IDS`, and a bless.
 
 Pipeline:

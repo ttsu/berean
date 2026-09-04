@@ -623,7 +623,9 @@ opt-in set, and the README says so.
 **Corpus acquisition contract** above. Two flags exist for operating on the whole set: `--all`
 replaces `--corpus`, and `--verify-only` runs fetch → segment → normalise → verify and stops
 without staging. `make provision` runs `--all`; `make corpus-verify` runs `--all --verify-only`,
-which is how upstream drift gets noticed without disturbing staged records.
+which is how upstream drift gets noticed without disturbing staged records. `make bless CORPUS=<id>`
+and `make show-diagnostic CORPUS=<id>` are the two per-corpus targets; neither has an `--all` form,
+because reading one edition diagnostic and blessing seven corpora are different acts.
 
 ## Database roles
 

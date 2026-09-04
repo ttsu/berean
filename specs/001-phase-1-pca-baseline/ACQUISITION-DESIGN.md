@@ -321,14 +321,14 @@ It was blessed once, before review. ADR-0021 changed `edition_check.expected` to
 old shape were removed rather than hand-edited. Re-blessing is:
 
 ```
-docker compose run --rm catena acquire --corpus wcf-1788-american --bless
+make bless CORPUS=wcf-1788-american
 ```
 
 which prints WCF 23.3 in full — read it against the 1646 original at chapter 23 — and blocks on a
 typed name. To read the diagnostic without blessing anything, at any time:
 
 ```
-docker compose run --rm catena acquire --corpus wcf-1788-american --show-diagnostic
+make show-diagnostic CORPUS=wcf-1788-american
 ```
 
 The remaining six corpora are follow-on work against this same interface: a module under
