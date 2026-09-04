@@ -48,10 +48,11 @@ Use [0000-template.md](0000-template.md).
 | [0011](0011-scripture-tier-is-profile-configurable.md) | Scripture's tier is profile-configurable, defaulting to binding | Accepted (check 3 restated by 0016) |
 | [0012](0012-drop-tyndale-house-gnt.md) | Drop Tyndale House GNT; SBLGNT and OSHB are the base texts | Accepted |
 | [0013](0013-go-cli-in-phase-1.md) | Phase 1 includes a minimal Go CLI, not a Python-only one | Accepted |
-| [0014](0014-no-corpus-text-in-the-repository.md) | No corpus text in the repository, from any source | Accepted |
+| [0014](0014-no-corpus-text-in-the-repository.md) | No corpus text in the repository, from any source | Accepted (`edition_check` amended by 0021) |
 | [0015](0015-contested-loci-cross-the-boundary.md) | Contested loci cross the boundary; profile identity does not | Accepted (amended by 0019) |
 | [0016](0016-affirmative-claims-are-a-slot.md) | Affirmative claims are a slot, not a category | Accepted |
 | [0017](0017-serving-is-the-licensed-act.md) | Serving is the licensed act; PCA-published corpora acquired on deployer terms | Accepted |
 | [0018](0018-qwen3-8b-as-the-generation-default.md) | Qwen3-8B as the Phase 1 generation default | Accepted (provisional) |
 | [0019](0019-a-contested-locus-admits-no-arguments.md) | A contested locus admits no affirmative arguments | Accepted |
 | [0020](0020-the-uncited-surface-of-the-answer-object.md) | The answer object's uncited surface, and what verification guarantees | Accepted |
+| [0021](0021-the-edition-diagnostic-is-verified-not-quoted.md) | The edition diagnostic is verified, not quoted | Accepted |

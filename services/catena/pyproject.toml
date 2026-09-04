@@ -16,6 +16,12 @@ license = "Apache-2.0"
 dependencies = [
     "protobuf>=6.33.1,<7",
     "grpcio>=1.76.0,<2",
+    # Task 4's one dependency. `corpora/<corpus-id>/manifest.yaml` is a
+    # committed, hand-reviewed provenance record, and YAML is what the
+    # acquisition contract specifies it in. Fetch is stdlib `urllib` and HTML
+    # extraction is stdlib `html.parser`, so the offline overlay stays honest
+    # and no acquisition pulls a parser at run time.
+    "pyyaml>=6.0.2,<7",
 ]
 
 [project.scripts]

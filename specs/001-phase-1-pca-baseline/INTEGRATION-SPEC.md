@@ -365,8 +365,30 @@ No corpus text is committed (ADR-0014). What the repository carries instead, per
 ```
 corpora/<corpus-id>/manifest.yaml
 corpora/<corpus-id>/fingerprints.txt
-tools/acquire/<corpus-id>.py
+services/catena/src/catena/acquire/corpora/<corpus_id>.py
 ```
+
+The adapter's filename is the corpus ID with hyphens replaced by underscores, so
+`wcf-1788-american` is `wcf_1788_american.py`. It lives inside the package rather than under
+`tools/`, and the first of the three reasons is fatal on its own: the catena image copies only
+`services/catena/src`, so a script under `tools/` is not present in the container that
+`make provision-corpus` runs. A hyphenated filename is not an importable module name. And an
+adapter imports `catena.normalise` and the pipeline's types, which makes it package code, where
+everything under `tools/` is host-side operational scripting the service never imports.
+
+An adapter is a module carrying `corpus_id`, `work` (the work-level half of the chunk metadata
+contract), `license_terms`, `diagnostic` (the edition-check locator), and three functions:
+`fetch_plan`, `extract`, and `segment`. Those three are the only stages that know anything about a
+particular corpus. **An adapter cannot override normalisation** — `catena.normalise` is applied by
+the pipeline, because a per-corpus normalisation is precisely the drift the contract exists to
+prevent, and an interface that permits it invites it.
+
+`extract` and `segment` are separate because they fail differently. Extraction fails on the shape
+of a source — wrong element, a JavaScript-rendered page, a table read across its rows when its
+columns are the reading order — and shows up as garbage text. Segmentation fails on the structure
+of a document — a missed heading, a catechism answer split from its question — and shows up as a
+wrong locator set. Fusing them produces one function that can fail either way and reports both the
+same.
 
 ```yaml
 corpus_id: wcf-1788-american    # edition-specific
@@ -380,13 +402,18 @@ attribution: string
 normalisation_version: int      # fingerprints are over normalised text; see below
 chunk_count: int
 edition_check:
-  diagnostic: string            # e.g. WCF 23.3
-  expected: string              # the actual divergent text, quoted
+  diagnostic: string            # the locator whose text distinguishes this edition, e.g. WCF 23.3
+  expected_sha256: string       # hash of the normalised text the verifier read — never the text
   verified_by: string
   verified: YYYY-MM-DD
 ```
 
-`fingerprints.txt` is one `<locator>  <sha256-of-normalised-text>` per line, sorted by locator.
+`fingerprints.txt` is one `<locator>  <sha256-of-normalised-text>` per line, ordered **bytewise on
+the UTF-8 encoding of the locator**. So `WCF 10.1` sorts before `WCF 2.1`, which is not the reading
+order and is not meant to be: a numeric-aware sort needs a locator grammar this format does not
+have, and the moment a locator is `Inst. 4.17.10` or `Gen 1:1`, "natural order" means a per-corpus
+parser living inside a corpus-agnostic file format. The file's job is a diff that is stable across
+machines and locales.
 
 The fingerprints are the mechanism that replaces committing the text. On acquisition, a corpus is
 fetched, segmented, normalised, and hashed, and every hash must match the committed value. That is a
@@ -401,6 +428,65 @@ visible and deliberate.
 First acquisition of a corpus has nothing to verify against. `--bless` covers that case: it runs the
 pipeline, presents the output for human edition verification, and writes the manifest. Every run
 after that verifies, and a mismatch is a hard failure with a diff summary — never a silent update.
+
+`--bless` **aborts when stdin is not a terminal**, and no flag overrides that: an unattended CI run
+cannot bless. It blocks on a typed verifier name, which is what lands in `verified_by` — a name
+passed as a flag records that someone typed a name, not that anyone read the text. Re-blessing over
+an existing fingerprint file prints the full diff first and then demands a different, more explicit
+confirmation than a first bless. Manifest and fingerprints are written temp-then-rename, because an
+interrupted bless that left half a fingerprint file behind would be verified against on the next
+run.
+
+`edition_check` records **that** a human verified the edition and **what they verified against**,
+and commits none of the text (ADR-0021). `expected_sha256` is the hash of the diagnostic locator's
+normalised text as the verifier read it; on every run after, it asserts that what was acquired now
+still hashes to what was approved then. The hash is over normalised text, because that is what is on
+disk and what every other fingerprint in this system is taken over.
+
+What replaces quoting the text into the manifest is not a checkbox but a command.
+**`catena acquire --corpus <id> --show-diagnostic`** acquires and prints the diagnostic locator's
+normalised text and its hash, and stages nothing; it works before a corpus has ever been blessed,
+which is when someone most needs to read it. `--bless` prints the same thing before it prompts, so
+the verifier decides on a full reading rather than on a label. The next person runs the command and
+reads exactly what the verifier read — which is what the quoted text was for, without the repository
+distributing anything.
+
+### Stages, the fetch cache, and verification
+
+The pipeline is `fetch → extract → segment → normalise → verify → stage`. Each stage writes its
+output under `/data/acquire/<corpus-id>/<stage>/` and reads its predecessor's file rather than
+receiving a value in memory, which is what makes a stage independently re-runnable and inspectable.
+
+**Only `fetch` treats its output as a cache.** Fetched bytes are content-addressed at
+`/data/acquire/<corpus-id>/fetch/<sha256>`, and the manifest's `upstream_sha256` is what *selects* a
+blob rather than what keys the fetch — a cache key cannot be the hash of something not yet fetched.
+The pure stages recompute every run, because reusing a cached extraction would let an adapter fix
+land while verification still ran against the output of the code it replaced, silently.
+
+| Invocation | Network | Why |
+| --- | --- | --- |
+| `acquire --corpus <id>` | only on a cache miss | re-runs are cheap, and acquisition works with egress blocked once the blob is present |
+| `acquire --verify-only` | **always** | noticing upstream drift is the entire job of `make corpus-verify`; a cache hit would report success while evaluating nothing |
+| `acquire --from-file PATH` | never | the local copy is hashed into the same cache, so a dead upstream takes an identical path through every later stage |
+
+`--verify-only` stops before staging, so drift detection never disturbs records an ingestion may be
+reading. `--bless` takes one `--corpus` and refuses `--all`: a flag that blessed seven corpora at
+once would record seven verifications nobody made.
+
+Verify reports three classes together, never one at a time — **missing** (committed, not acquired),
+**unexpected** (acquired, not committed), and **mismatched** (both, different hash) — as counts plus
+a bounded sample of **locators only**. Never text: a diff that printed the differing passage would
+put corpus text into CI logs and terminal scrollback, and the point of ADR-0014 is that text has
+exactly one home. `chunk_count` is asserted rather than merely recorded, because a recorded number
+nothing checks is a comment. A `normalisation_version` mismatch between the manifest and
+`catena.normalise` fails hard before anything else is compared: the contract moved, so every
+fingerprint in the file is a hash of text this code no longer produces.
+
+A changed `upstream_sha256` is **reported and is not a failure on its own**. Publishers change page
+furniture — a footer's copyright year — without touching the text, and a `make corpus-verify` that
+failed every January is a check nobody would trust. The fingerprints are what say whether the text
+moved. The same allowance is what lets the archive fallback work at all: an archived copy does not
+hash to the live page's bytes.
 
 ## Normalisation contract
 

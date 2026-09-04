@@ -45,8 +45,10 @@ These are not style preferences. Violating any of them is a correctness or legal
    `data/`, not in fixtures, not in test data, and specifically **not in the eval golden set**,
    which is the likeliest way it gets in because golden sets naturally contain expected
    passages. The repo carries acquisition manifests, fingerprints, and scripts; text is
-   acquired locally and never distributed (ADR-0014). This is a bright line precisely so it
-   needs no per-corpus judgement. ESV and NIV are the sharpest case and carry an additional
+   acquired locally and never distributed (ADR-0014). A manifest carries evidence *about* text —
+   including the edition diagnostic's locator and the hash of what its verifier read, never the
+   text itself (ADR-0021). This is a bright line precisely so it needs no per-corpus judgement.
+   ESV and NIV are the sharpest case and carry an additional
    rule — they never enter the database at all, and are fetched at render time via a
    deployer-supplied key. See [docs/CORPUS-POLICY.md](docs/CORPUS-POLICY.md).
 2. **Corpus IDs are edition-specific.** Write `wcf-1788-american`, never `wcf`. The PCA holds

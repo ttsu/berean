@@ -19,8 +19,14 @@ What is committed, per corpus:
 ```
 corpora/<corpus-id>/manifest.yaml       provenance, licence, edition check
 corpora/<corpus-id>/fingerprints.txt    <locator>  <sha256-of-normalised-text>
-tools/acquire/<corpus-id>.py            the acquisition script
+services/catena/src/catena/acquire/corpora/<corpus_id>.py    the adapter
 ```
+
+The adapter's filename is the corpus ID with hyphens replaced by underscores. It lives inside the
+package, not under `tools/`: the catena image copies only `services/catena/src`, so a script under
+`tools/` is not in the container `make provision-corpus` runs. Register it in
+`catena/acquire/corpora/__init__.py` — `--all` acquires what is enumerated there, because a corpus
+that joins the set because a file was dropped in a directory is a corpus nobody reviewed.
 
 Text lives in gitignored `/data/`. All of `/data/` is ignored, with no negation patterns, so
 there is no path by which a stray file becomes committable.
@@ -44,6 +50,11 @@ then write the manifest and fingerprints. Every run after that verifies against 
 mismatch is a hard failure with a diff summary. Never bless your way past a mismatch you have not
 understood — that is the one action in this process that discards a human verification.
 
+`--bless` needs a terminal and there is no flag that says otherwise, so **an agent cannot do this
+step for you.** It prints the diagnostic locator's acquired text, the chunk counts, and — when the
+corpus has been blessed before — the full diff, and then blocks on your typed name. That name is
+the record.
+
 ## 1. Verify the edition before anything else
 
 Confirm which edition the tradition actually holds. This is not a formality.
@@ -54,8 +65,11 @@ civil magistrate. OPC and PCA both hold the WCF but permit different exceptions.
 Verify by checking a known point of divergence by hand against a reference. For the Westminster
 Confession, WCF ch. 23 is the diagnostic. Do not trust a source's own label.
 
-Record the divergence in the manifest as **quoted text**, not a checkbox. A checkbox records that
-someone once believed the edition was right; the quoted text lets the next person check.
+**Read the diagnostic in full before you bless, and never commit it.** The manifest records the
+locator, the hash of the normalised text you read, your name and the date — and none of the text
+(ADR-0021). A checkbox would record that someone once believed the edition was right; what lets the
+next person check is `catena acquire --corpus <id> --show-diagnostic`, which prints the text on
+demand. `--bless` prints the same thing before it asks for your name, so read it there.
 
 **Take the bare text, never a modern edition's apparatus.** A 17th-century confession is public
 domain, but a contemporary edition's additions may not be: footnotes, cross-references, modernised
@@ -173,7 +187,8 @@ Then check by hand:
 ## Checklist
 
 - [ ] **No corpus text staged for commit** — manifest, fingerprints, and script only
-- [ ] Edition verified by hand at a known point of divergence, recorded as quoted text
+- [ ] Edition verified by hand at a known point of divergence, read in full at bless and recorded
+      as its hash — never as committed text (ADR-0021)
 - [ ] Bare text taken; no modern edition's apparatus or proof-text selection
 - [ ] Licence classified to an enum value, with the terms recorded verbatim rather than assumed
 - [ ] Archive fallback URL recorded alongside the source URL
@@ -181,6 +196,6 @@ Then check by hand:
 - [ ] Segmented on structural boundaries
 - [ ] Every metadata field populated
 - [ ] Normalised per the contract, at the recorded `normalisation_version`
-- [ ] Fingerprints written on `--bless`, and a plain re-run verifies clean
+- [ ] Fingerprints written on `--bless` by a human at a terminal, and a plain re-run verifies clean
 - [ ] Idempotent on re-run
 - [ ] Two locators spot-checked by reading them

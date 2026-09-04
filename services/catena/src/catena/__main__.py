@@ -1,6 +1,6 @@
 """The `catena` command.
 
-Two subcommands are planned and neither is implemented. They exit 69
+`acquire` is implemented (PLAN Task 4). The rest are planned and exit 69
 (EX_UNAVAILABLE) rather than 0, because a provisioning step that reports
 success while acquiring nothing is the failure this project can least afford.
 """
@@ -13,7 +13,7 @@ USAGE = """catena — Berean retrieval and citation service
 
 Usage:
   catena acquire (--corpus <id> | --all) [--bless] [--verify-only]
-                 [--from-file PATH]                           (Task 4)
+                 [--show-diagnostic] [--from-file PATH]
   catena ingest  --corpus <id> --source PATH                  (Task 5)
   catena serve                                                (Task 7)
   catena version
@@ -22,7 +22,6 @@ Phase 1 is under construction. See specs/001-phase-1-pca-baseline/PLAN.md.
 """
 
 NOT_IMPLEMENTED = {
-    "acquire": "corpus acquisition is not implemented yet (PLAN Task 4)",
     "ingest": "ingestion is not implemented yet (PLAN Task 5)",
     "serve": "the gRPC server is not implemented yet (PLAN Task 7)",
 }
@@ -43,6 +42,10 @@ def main(argv: list[str] | None = None) -> int:
     if command == "version":
         print(__version__)
         return 0
+    if command == "acquire":
+        from catena.acquire import cli
+
+        return cli.main(args[1:])
     if command in NOT_IMPLEMENTED:
         print(f"catena: {NOT_IMPLEMENTED[command]}", file=sys.stderr)
         return EX_UNAVAILABLE

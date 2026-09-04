@@ -364,23 +364,40 @@ that exercises `source_language` and the book/chapter/section locator.
 **No corpus text enters the repository** (ADR-0014). The repo carries manifests, fingerprints, and
 scripts; text lands in gitignored `/data/`.
 
+**Status: the pipeline has landed and `wcf-1788-american` acquires cleanly; the bless is
+outstanding.** Design, and the decisions implementation and review revised, are in
+[ACQUISITION-DESIGN.md](ACQUISITION-DESIGN.md). The corpus was blessed once and then ADR-0021
+changed the manifest schema — `edition_check` records the hash of the text the verifier read rather
+than the text — so it needs re-blessing at a terminal, which `--bless` requires and no flag
+overrides. Then the other six corpora, each a module under `catena/acquire/corpora/`, an entry in
+that package's `CORPUS_IDS`, and a bless.
+
 Pipeline:
 
-- [ ] `catena acquire --corpus <id>` runs fetch → extract → segment → normalise → verify → stage
-- [ ] Each stage independently re-runnable and idempotent; fetch caches on `upstream_sha256`
+- [x] `catena acquire --corpus <id>` runs fetch → extract → segment → normalise → verify → stage
+- [x] Each stage independently re-runnable and idempotent; fetch caches on `upstream_sha256` —
+      content-addressed at `/data/acquire/<id>/fetch/<sha256>`, since a cache key cannot be the hash
+      of something not yet fetched. Only fetch caches: the pure stages recompute, so an adapter fix
+      cannot land while verification still runs against the output of the code it replaced
 - [ ] Structural chunking lives in the segment stage — WCF per numbered section, WLC/WSC per Q&A
       pair never split, BCO per numbered paragraph, WEB per verse, the *Institutes* per numbered
       section (`Inst. 4.17.10`), the 2000 report per numbered section with its recommendations
-      segmented separately from the expository body
+      segmented separately from the expository body. **WCF done** — 33 chapters, 171 sections,
+      `WCF <chapter>.<section>`. Its lists of canonical books are three-column tables read *down*
+      each column; row-major reading garbles them and nothing downstream would notice
 - [ ] The 2000 report's recommendations are independently addressable, so a profile's
       `ruling_source` resolves to the ruling and never to the expository body. The body argues
       four views the denomination did not adopt; tier is per corpus, not per chunk, so nothing
       else separates advocacy from ruling
-- [ ] `--bless` writes a new manifest after human edition verification; the default mode verifies
-      against the committed manifest and fails loudly, never silently, on any mismatch
-- [ ] `--from-file` accepts a local copy, so a dead or moved upstream does not block a deployer
-- [ ] `make corpus-verify` re-acquires every corpus and diffs against committed fingerprints —
-      this is how upstream drift gets noticed
+- [x] `--bless` writes a new manifest after human edition verification; the default mode verifies
+      against the committed manifest and fails loudly, never silently, on any mismatch. Bless aborts
+      on a non-TTY, blocks on a typed verifier name, demands a distinct confirmation when
+      re-blessing, and writes both files temp-then-rename
+- [x] `--from-file` accepts a local copy, so a dead or moved upstream does not block a deployer
+- [x] `make corpus-verify` re-acquires every corpus and diffs against committed fingerprints —
+      this is how upstream drift gets noticed. `--verify-only` always re-fetches and stages nothing;
+      the three classes (missing, unexpected, mismatched) report together, as counts plus a bounded
+      sample of locators and never text
 
 Provenance and licensing:
 
@@ -390,11 +407,18 @@ Provenance and licensing:
       deny. This no longer blocks acquisition. It does mean the manifest must record the terms
       **verbatim as found**, with the URL, in `license_terms`: a licence is evidence, not a label
 - [ ] Manifest per corpus: source URL, archive fallback URL, retrieval date, licence enum,
-      `license_terms` verbatim, attribution, edition diagnostic with its expected text, normalisation
-      contract version (`1`), chunk count
-- [ ] Fingerprints file: one `<locator>  <sha256-of-normalised-text>` per line, sorted
+      `license_terms` verbatim, attribution, the edition diagnostic's locator and the hash of the
+      text its verifier read — never the text (ADR-0021) — normalisation contract version (`1`),
+      chunk count
+- [x] Fingerprints file: one `<locator>  <sha256-of-normalised-text>` per line, sorted —
+      bytewise on the UTF-8 encoding of the locator, since "sorted by locator" is
+      underspecified and a numeric-aware sort needs a locator grammar the format does not have
 - [ ] **Verified as the 1788 American revision** — WCF ch. 23 checked by hand against the 1646
-      text, with the divergence recorded in the manifest as quoted text rather than a checkbox
+      text, read in full at bless and recorded as its hash rather than as a checkbox or as committed
+      text (ADR-0021). Blessed once on 2026-09-04 and superseded by the schema change; re-bless
+      with `--bless`, or read the diagnostic any time with `--show-diagnostic`. Chapter 31 having
+      four sections rather than the 1646 original's five is a second, structural confirmation the
+      adapter gets for free
 - [ ] Licence and attribution confirmed per source and recorded, never assumed. `public-domain` for
       WCF/WLC/WSC, WEB and the Beveridge *Institutes*; `local-only` for the two PCA-published corpora
 - [ ] The *Institutes* is taken in the Beveridge 1845 translation, not Battles (1960), which is in

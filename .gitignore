@@ -28,7 +28,7 @@ __pycache__/
 /data/
 
 # Acquisition manifests and fingerprints live in /corpora/ and contain no corpus text.
-# Acquisition scripts live in /tools/acquire/. Both are committed.
+# Per-corpus adapters live in services/catena/src/catena/acquire/corpora/. Both are committed.
 
 # Local model cache
 /models/
