@@ -30,6 +30,29 @@ The `excluded` tier is the point. "This view was examined and rejected by your d
 The system also models **contested** loci — where a denomination genuinely disagrees with itself —
 and declines to resolve them.
 
+## What this is not
+
+Berean is an educational and research tool. It reports what a tradition's own documents say. It
+does not adjudicate whether they are right.
+
+The authority tiers are descriptive, not evaluative. `binding`, `contrary`, and `excluded` record
+how the *selected denomination* classifies a corpus, sourced from that body's own confessional and
+judicial acts — not how this project rates it. Labelling the 2007 Federal Vision report `excluded`
+under a PCA profile is a claim about the PCA's judgement and nothing more. The same corpus can be
+`binding` in one profile and `contrary` in another; that is the design working, not a contradiction.
+
+Nothing here endorses any denomination, confession, or theological position, and nothing here
+should be read as the personal views of the project's author or its contributors. Which traditions
+are modelled first reflects what is publicly documented and tractable to implement — it is not a
+ranking. No denomination or church body has reviewed, endorsed, or is otherwise affiliated with
+this project.
+
+Answers are machine-generated and can be wrong even when every citation verifies. Verification
+proves a quotation is real, correctly attributed, and licensed — not that the argument built on it
+is sound. This is not pastoral counsel and it is no substitute for your officers, your presbytery,
+or your own reading of the sources. Examine them yourself; the name is a reminder to do exactly
+that.
+
 ## Architecture in one line
 
 **Go is the trust boundary. Python is the model layer.** Python produces claims; Go adjudicates
