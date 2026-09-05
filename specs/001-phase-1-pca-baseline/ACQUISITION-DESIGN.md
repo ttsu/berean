@@ -440,18 +440,17 @@ becomes `edition_check.expected_sha256`.
 The pipeline and the three Westminster Standards adapters have landed, and all three acquire
 cleanly and byte-identically across runs: `wcf-1788-american` against `opc.org/wcf.html`, 171
 sections across 33 chapters; `wlc-1788-american` against `opc.org/lc.html`, 196 Q&As;
-`wsc-1788-american` against `opc.org/sc.html`, 107. **None of the three is blessed.**
+`wsc-1788-american` against `opc.org/sc.html`, 107. **`wcf-1788-american` was blessed on
+2026-09-04 under the current schema and needs nothing further; the two catechisms have never
+been blessed.**
 
-It was blessed once, before review. ADR-0021 changed `edition_check.expected` to
-`expected_sha256`, and a manifest is written only by `--bless`, so the artefacts written under the
-old shape were removed rather than hand-edited. Re-blessing is:
+The confession was blessed once before review, under the `edition_check.expected` shape ADR-0021
+replaced; a manifest is written only by `--bless`, so those artefacts were removed rather than
+hand-edited, and it was re-blessed on 2026-09-04 under the current schema. **It is done.** Running
+`make bless` against it again only offers to discard a verification that is already correct, and the
+re-bless confirmation exists to make that hard to do by accident.
 
-```
-make bless CORPUS=wcf-1788-american
-```
-
-which prints WCF 23.3 in full — read it against the 1646 original at chapter 23 — and blocks on a
-typed name. The two catechisms have never been blessed at all and take the same step:
+The two catechisms have never been blessed and take the step it already took:
 
 ```
 make bless CORPUS=wlc-1788-american

@@ -364,13 +364,13 @@ that exercises `source_language` and the book/chapter/section locator.
 **No corpus text enters the repository** (ADR-0014). The repo carries manifests, fingerprints, and
 scripts; text lands in gitignored `/data/`.
 
-**Status: the pipeline has landed and all three Westminster Standards acquire cleanly; their
-blesses are outstanding.** Design, and the decisions implementation and review revised, are in
+**Status: the pipeline has landed and all three Westminster Standards acquire cleanly.
+`wcf-1788-american` is blessed under the current schema; the two catechisms are not.** Design, and the decisions implementation and review revised, are in
 [ACQUISITION-DESIGN.md](ACQUISITION-DESIGN.md). The corpus was blessed once and then ADR-0021
 changed the manifest schema — `edition_check` records the hash of the text the verifier read rather
 than the text — so it needs re-blessing at a terminal (`make bless CORPUS=wcf-1788-american`),
 which `--bless` requires and no flag overrides. `wlc-1788-american` and `wsc-1788-american` landed
-after it against the same interface and have never been blessed; both need the same terminal step.
+after it against the same interface and have never been blessed; both need that same terminal step.
 Then the remaining four corpora, each a module under `catena/acquire/corpora/`, an entry in that
 package's `CORPUS_IDS`, and a bless.
 
@@ -423,7 +423,8 @@ Provenance and licensing:
 - [ ] **Verified as the 1788 American revision** — WCF ch. 23 checked by hand against the 1646
       text, read in full at bless and recorded as its hash rather than as a checkbox or as committed
       text (ADR-0021). Blessed once on 2026-09-04 and superseded by the schema change; re-bless
-      with `--bless`, or read the diagnostic any time with `--show-diagnostic`. Chapter 31 having
+      with `--bless` — done on 2026-09-04, and the corpus needs nothing further — or read the
+      diagnostic any time with `--show-diagnostic`. Chapter 31 having
       four sections rather than the 1646 original's five is a second, structural confirmation the
       adapter gets for free. **WLC 109 is the catechism's share of the same revision** — the 1646
       text lists "tolerating a false religion" among the sins forbidden in the second commandment
