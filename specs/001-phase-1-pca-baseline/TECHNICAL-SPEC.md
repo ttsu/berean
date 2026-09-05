@@ -123,7 +123,7 @@ corpora:
     stance: binding
   - id: wsc-1788-american
     stance: binding
-  - id: pca-bco-2024
+  - id: pca-bco-2026
     stance: governing
   - id: wcf-1646-epcew-modernised
     stance: contrary

@@ -661,6 +661,83 @@ it before Task 11 rather than after.
 
 ---
 
+## The Book of Church Order, and the one corpus that costs a parser
+
+`pca-bco-2026`, 429 paragraphs across chapters 1–63. The `governing` corpus under a PCA profile,
+and the last of the eight.
+
+### A PDF, because there is nothing else
+
+`pcaac.org` serves the BCO through a JavaScript application — 230 KB of markup over 0.5% text, and
+that text is navigation. It is the same shape the confession's adapter records for the same
+publisher, and there is no bare-text edition of the BCO anywhere. What exists is the Office of the
+Stated Clerk's own 423-page PDF: 30 font objects, **zero images**, so real embedded text rather than
+a scan.
+
+**This is the one adapter that costs a dependency.** Extraction was stdlib everywhere else —
+`html.parser` for the OPC and EPCEW pages, `zipfile` for the WEB — and there is no stdlib route to a
+PDF. `pypdf` is BSD-3-Clause, pure Python, and has no runtime dependencies of its own, so the
+offline overlay stays honest and `docker compose up` still needs no account. ADR-0007's
+downstream-commercial-use rule is satisfied.
+
+The PDF read is deliberately a thin shim. `extract` opens the document and hands the page texts to
+`_document`, which does all the shape work; the parser is touched in one function and every failure
+below is testable without a PDF.
+
+### The edition is 2026, and that is the third time
+
+The specs said `pca-bco-2024`. The title page says the document "[i]ncludes all amendments approved
+up to and including the 53rd General Assembly, in Louisville, Kentucky, June 22-26, 2026". A BCO is
+amended most years, so those are different constitutions and a citation resolving against the wrong
+one is a correctness failure rather than a naming nit.
+
+That is now **three of eight** Phase 1 corpora whose spec ID named an edition the source does not
+serve — `wcf-1646-original`, `web-2000`, `pca-bco-2024`. In each case the ID was written before
+anyone had the document in hand. The pattern is worth stating plainly: **a corpus ID in a spec is a
+hypothesis until an adapter has checked it against the source.**
+
+### The appendices are excluded, and that is a correctness decision
+
+The constitutional BCO is Parts I–III — Form of Government, Rules of Discipline, Directory for
+Worship — running to chapter 63 and stopping where the appendices begin. The PCA says of Appendix I
+that it was approved "as a non-binding informational Appendix to the BCO" and "has no binding
+constitutional authority"; the rest are liturgical forms and advisory material.
+
+Tier is per corpus and not per chunk, so an appendix ingested here would be **served at
+`governing`** — the system telling a user that a funeral service form is constitutional law. Same
+shape as the 2000 report's advocacy-versus-ruling problem, solved by exclusion rather than by a
+second locator form, because unlike the recommendations the appendices are not something a profile
+ever needs to cite.
+
+### Four defects a PDF hides, none of which announces itself
+
+**The running header contains a paragraph number.** Every page carries
+`FORM OF GOVERNMENT 5-1` and `Chapter 5: The Organization of a Particular Church`. The header's tail
+matches a paragraph opener exactly, so leaving it in invents a chunk on every page and corrupts the
+numbering — and the corruption reads as a plausible locator. 86 header lines and 63 chapter lines in
+the body.
+
+**Chapter 44 is `(Vacated)`.** A real chapter removed by amendment, keeping its heading with no
+paragraphs under it. Chapter numbering is therefore **not** asserted contiguous — the source is
+correct and a contiguity check would fail on it. Instead the set of empty chapters is asserted to be
+exactly `(44,)`: a different set is a different edition, and an empty chapter that is not 44 is a
+parser losing paragraphs rather than the Assembly removing them.
+
+**The part-divider page is absorbed into the paragraph above it.** `PART II / THE RULES OF
+DISCIPLINE / The Rules of Discipline` sits between the parts, and left in it becomes the tail of
+`BCO 26-6` — the last paragraph of Part I ending with the title of Part II. Found only by grepping
+the finished chunks for the part names.
+
+**The front matter contains paragraph-shaped strings.** The amendment summary lists cross-references
+— `4-21.d.5; 11-5; 16-3.e.5 and renumber` — which match a paragraph opener exactly and abort the run
+before the constitution starts. The body opens at a bare `PART I` line, distinct from the contents
+page's `PART I -- FORM OF GOVERNMENT`.
+
+Also stripped: 60 amendment bullets, a private-use code point the publisher puts in the margin to
+mark what changed this year. Annotation, not text, and invisible in a diff.
+
+---
+
 ## Testing
 
 ADR-0014 bars corpus text from fixtures, which is not an inconvenience to work around — it decides

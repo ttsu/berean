@@ -22,6 +22,14 @@ dependencies = [
     # extraction is stdlib `html.parser`, so the offline overlay stays honest
     # and no acquisition pulls a parser at run time.
     "pyyaml>=6.0.2,<7",
+    # The BCO's only source is a 423-page PDF: pcaac.org serves the text
+    # through a JavaScript application (230 KB of markup over 0.5% text), and
+    # no bare-text edition exists. Extraction was stdlib until here --
+    # `html.parser` and `zipfile` -- and there is no stdlib route to a PDF, so
+    # this is the one corpus that costs a parser. pypdf is BSD-3-Clause, pure
+    # Python, and has no runtime dependencies of its own, so the offline
+    # overlay stays honest and `docker compose up` still needs no account.
+    "pypdf>=6.0,<7",
 ]
 
 [project.scripts]

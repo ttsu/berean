@@ -64,7 +64,9 @@ prefix is used where the work is denomination-specific, as a church order is.
 - `wcf-1646-epcew-modernised` — a different corpus, `contrary` under a PCA profile. Its ID
   names the renderer because the text is the 1646 recension in modernised English rather than
   the original wording; no faithful 1646 text was found in fetchable form
-- `pca-bco-2024`
+- `pca-bco-2026` — the year matters: a BCO is amended most years, so `pca-bco-2024` and
+  `pca-bco-2026` are different constitutions and a citation resolving against the wrong one is a
+  correctness failure
 - `web-2020` — the World English Bible's 2020 stable text, Protestant edition. Not `web-2000`:
   the translation was continuously revised until 2020 and no 2000 edition was ever published.
   The Classic edition is a different corpus — it carries the Deuterocanon and renders the

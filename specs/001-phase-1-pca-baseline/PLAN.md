@@ -385,8 +385,9 @@ Pipeline:
 - [ ] Structural chunking lives in the segment stage — WCF per numbered section, WLC/WSC per Q&A
       pair never split, BCO per numbered paragraph, WEB per verse, the *Institutes* per numbered
       section (`Inst. 4.17.10`), the 2000 report per numbered section with its recommendations
-      segmented separately from the expository body. **The three Westminster Standards, the
-      *Institutes* and the 2000 report are done.**
+      segmented separately from the expository body. **All eight corpora are done.** The BCO is
+      `BCO <chapter>-<paragraph>`, 429 paragraphs across chapters 1–63; chapter 44 is `(Vacated)`
+      and has none, so chapter numbering is deliberately not asserted contiguous
       WCF — 33 chapters, 171 sections, `WCF <chapter>.<section>`. Its lists of canonical books are
       three-column tables read *down* each column; row-major reading garbles them and nothing
       downstream would notice. WLC — 196 Q&As, `WLC Q&A <n>`; WSC — 107, `WSC Q&A <n>`. Chunk text
@@ -418,7 +419,7 @@ Pipeline:
 
 Provenance and licensing:
 
-- [ ] **Resolved (ADR-0017):** BCO and `pca-ga28-2000-creation-study` are ingested as `local-only`.
+- [x] **Resolved (ADR-0017):** BCO and `pca-ga28-2000-creation-study` are ingested as `local-only`.
       Ingestion and serving are separate acts — the repository distributes nothing (ADR-0014), and
       check 4 refuses to serve `local-only` chunks unless the deployer has opted in, defaulting to
       deny. This no longer blocks acquisition. It does mean the manifest must record the terms

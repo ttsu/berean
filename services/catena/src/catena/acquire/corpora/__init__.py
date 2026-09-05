@@ -33,6 +33,7 @@ CORPUS_IDS = (
     "wcf-1646-epcew-modernised",
     "pca-ga28-2000-creation-study",
     "web-2020",
+    "pca-bco-2026",
 )
 
 
