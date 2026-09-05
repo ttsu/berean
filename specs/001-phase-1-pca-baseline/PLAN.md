@@ -392,7 +392,7 @@ Pipeline:
       pair never split, BCO per numbered paragraph, WEB per verse, the *Institutes* per numbered
       section (`Inst. 4.17.10`), the 2000 report per numbered section with its recommendations
       segmented separately from the expository body. **All eight corpora are done.** The BCO is
-      `BCO <chapter>-<paragraph>`, 429 paragraphs across chapters 1–63; chapter 44 is `(Vacated)`
+      `BCO <chapter>-<paragraph>`, 430 paragraphs across chapters 1–63; chapter 44 is `(Vacated)`
       and has none, so chapter numbering is deliberately not asserted contiguous
       WCF — 33 chapters, 171 sections, `WCF <chapter>.<section>`. Its lists of canonical books are
       three-column tables read *down* each column; row-major reading garbles them and nothing

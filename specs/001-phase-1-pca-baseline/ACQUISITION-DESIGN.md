@@ -663,7 +663,7 @@ it before Task 11 rather than after.
 
 ## The Book of Church Order, and the one corpus that costs a parser
 
-`pca-bco-2026`, 429 paragraphs across chapters 1–63. The `governing` corpus under a PCA profile,
+`pca-bco-2026`, 430 paragraphs across chapters 1–63. The `governing` corpus under a PCA profile,
 and the last of the eight.
 
 ### A PDF, because there is nothing else
@@ -709,13 +709,23 @@ shape as the 2000 report's advocacy-versus-ruling problem, solved by exclusion r
 second locator form, because unlike the recommendations the appendices are not something a profile
 ever needs to cite.
 
-### Four defects a PDF hides, none of which announces itself
+### Eight defects a PDF hides, none of which announces itself
 
-**The running header contains a paragraph number.** Every page carries
-`FORM OF GOVERNMENT 5-1` and `Chapter 5: The Organization of a Particular Church`. The header's tail
-matches a paragraph opener exactly, so leaving it in invents a chunk on every page and corrupts the
-numbering — and the corruption reads as a plausible locator. 86 header lines and 63 chapter lines in
-the body.
+The first four were found while the adapter was written. The last four were found afterwards, from a
+report that a header was appearing mid-list in the finished text, and they are the more interesting
+half: three of them had been staged, read, and reviewed without anyone noticing, and one of them had
+silently dropped a chunk.
+
+**The running head contains a paragraph number, and it alternates by page side.** The recto carries
+`FORM OF GOVERNMENT 5-1`; the verso carries `5-9 THE BOOK OF CHURCH ORDER` — the same paragraph
+number, the book's title instead of the part's, and the two in the opposite order. Either tail
+matches a paragraph opener exactly, so leaving one in invents a chunk and corrupts the numbering,
+and the corruption reads as a plausible locator.
+
+**Only the recto form was filtered at first**, which is worse than filtering neither: the surviving
+half lands mid-sentence inside whichever paragraph spans the page break, and a chunk that is merely
+noisy raises no structural alarm. 49 of 430 paragraphs carried it. See below on why the suite
+agreed.
 
 **Chapter 44 is `(Vacated)`.** A real chapter removed by amendment, keeping its heading with no
 paragraphs under it. Chapter numbering is therefore **not** asserted contiguous — the source is
@@ -733,8 +743,51 @@ the finished chunks for the part names.
 before the constitution starts. The body opens at a bare `PART I` line, distinct from the contents
 page's `PART I -- FORM OF GOVERNMENT`.
 
+**The blank pages are not blank.** Each chapter opens on a recto, so the typesetter pads with an
+empty page carrying `This page intentionally left blank.` — furniture, which lands in whichever
+paragraph the padded break interrupts. 39 paragraphs carried it.
+
+**The third part's divider page is not shaped like the second's.** The Rules of Discipline divider is
+`PART II / THE RULES OF DISCIPLINE / The Rules of Discipline`, three lines a pattern can match. The
+Directory's spells its title in full and breaks it across two lines — `THE DIRECTORY FOR THE
+WORSHIP` / `OF GOD`, where the running head's short form is what `PARTS` carries — and then runs a
+preface of ordinary prose that no pattern could tell from the constitution. All of it became the
+tail of `BCO 46-8`, which ran to 1,073 characters where its own text is 227.
+
+So **a divider match now suspends the document until the next chapter heading** rather than dropping
+one line. A divider page holds no numbered paragraph, so the chapter heading after it is the next
+thing worth keeping, and the three dividers stop having to be matched line for line. If a divider
+pattern ever matched inside a chapter, the paragraphs it swallowed would break the segment stage's
+contiguity check rather than pass silently.
+
+**A paragraph opener is split across two lines by the page break.** `36-8.` is emitted as `36` and
+`-8. When members`, so no opener matches, and the paragraph is absorbed into `BCO 36-7`. This one
+did not corrupt a chunk, it **deleted** one: `BCO 36-8` resolved to nothing at all, and the corpus
+staged 429 paragraphs where the document has 430.
+
+It is also the defect that shows where the segment stage's guards stop. Contiguity is asserted
+*within* a chapter, so a paragraph dropped in the middle aborts the run — but 36-8 is the last
+paragraph of chapter 36, and nothing after a chapter's tail re-anchors the count. A truncated
+chapter is invisible until `chunk_count` in a blessed manifest pins the total, which is one more
+reason a corpus is not finished until it is blessed.
+
 Also stripped: 60 amendment bullets, a private-use code point the publisher puts in the margin to
 mark what changed this year. Annotation, not text, and invisible in a diff.
+
+### Why the suite agreed, which is the finding worth keeping
+
+The adapter had a test asserting the running head is not text, and it passed throughout. Its fixture
+built pages with `header(part, first, chapter, title)` — the recto form, the only form anyone had
+looked at. The adapter was written against that fixture and the fixture was written against that
+adapter, so the suite asserted, precisely and repeatedly, that the half of the problem it knew about
+was solved.
+
+A structural suite over invented text is the right shape for an ADR-0014 corpus and nothing here
+argues otherwise. But it tests the parser against the document the fixture describes, so a fixture
+that models the source wrongly buys a green suite and no coverage. The fixture now alternates page
+sides, and every existing assertion runs against both. **The question to ask of a fixture is not
+whether the parser passes it, but whether anyone has checked that it is what the source looks
+like** — and for a PDF, that means reading the pages, not the extracted text.
 
 ---
 

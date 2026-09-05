@@ -25,6 +25,16 @@ besides. Tier is per corpus and not per chunk, so an appendix ingested here
 would be served at `governing` — the system telling a user that a funeral
 service form is constitutional law.
 
+**The page furniture is a printed book's, so it alternates.** The running head
+carries the part's name on the recto and the book's title on the verso, with the
+paragraph number moving from one end of the line to the other; chapters open on
+a recto, so blank pages carry a notice; the three part dividers are not shaped
+alike; and one paragraph opener is split in two by the page break. Filtering
+the recto head alone left the verso half in 49 of 430 paragraphs and the split
+opener deleted `BCO 36-8` outright, both found after the corpus had been staged
+and reviewed. `_document` is where all of that is handled, and the suite's
+fixture now builds both page sides.
+
 `local-only` under ADR-0017, like the 2000 study report: acquired and ingested,
 refused at verification check 4 unless the deployer opts in.
 """
@@ -106,10 +116,32 @@ def fetch_plan() -> FetchPlan:
 #: appendices that follow chapter 63 are not among them.
 PARTS = ("FORM OF GOVERNMENT", "RULES OF DISCIPLINE", "DIRECTORY FOR WORSHIP")
 
-#: The typesetter's running header: the part's name and the first paragraph on
-#: the page. Its tail looks exactly like a paragraph opener, so leaving it in
-#: invents a chunk on every page and corrupts the numbering.
-_RUNNING_HEADER = re.compile(rf"^(?:{'|'.join(PARTS)})\s+\d{{1,2}}-\d{{1,3}}\s*$")
+#: The book's title, which heads the verso pages as the part's name heads the
+#: recto ones.
+TITLE = "THE BOOK OF CHURCH ORDER"
+
+#: The typesetter's running head, which alternates by page side as a printed
+#: book's does: on the recto the part's name and the first paragraph on the
+#: page, on the verso that same paragraph number and the book's title, in the
+#: opposite order. Either tail looks exactly like a paragraph opener, so leaving
+#: one in invents a chunk on every other page and corrupts the numbering.
+#: Filtering one side and not the other is worse than filtering neither, because
+#: the surviving half lands mid-sentence in whichever paragraph spans the break.
+_RUNNING_HEADER = re.compile(
+    rf"^(?:(?:{'|'.join(PARTS)})\s+\d{{1,2}}-\d{{1,3}}"
+    rf"|\d{{1,2}}-\d{{1,3}}\s+{TITLE})\s*$"
+)
+
+#: The notice on the empty page that keeps each chapter opening on a recto.
+_BLANK_PAGE = re.compile(r"^This page intentionally left blank\.?$", re.IGNORECASE)
+
+#: A paragraph opener the page break split in two: the chapter number alone at
+#: the foot of the text block and the rest at the head of the next line. It
+#: happens once in the 2026 edition, at `36-8.`, and the cost of missing it is
+#: not noise but a lost chunk -- no opener matches, so the paragraph is absorbed
+#: into the one before it and `BCO 36-8` resolves to nothing.
+_SPLIT_CHAPTER = re.compile(r"^\d{1,2}$")
+_SPLIT_TAIL = re.compile(r"^-\d{1,3}\.\s")
 
 #: The second running line, and the chapter heading proper.
 _RUNNING_CHAPTER = re.compile(r"^Chapter\s+\d{1,2}:\s")
@@ -119,6 +151,17 @@ _CHAPTER = re.compile(r"^CHAPTER\s+(\d{1,2})\s*$")
 #: name twice. Left in, it becomes the tail of the last paragraph of the part
 #: before it — `BCO 26-6` in the 2026 edition, which would then end with "PART
 #: II THE RULES OF DISCIPLINE".
+#:
+#: Matching a divider line suspends the document until the next chapter heading,
+#: because the three dividers are not shaped alike and a per-line pattern can
+#: only ever chase the differences. The Directory's spells its title in full and
+#: breaks it across two lines — `THE DIRECTORY FOR THE WORSHIP` / `OF GOD`,
+#: where `PARTS` carries the short form the running head uses — and then runs a
+#: preface of ordinary prose that no pattern could tell from the constitution.
+#: A divider page holds no numbered paragraph, so the chapter heading after it is
+#: the next thing worth keeping. If a divider pattern ever matched inside a
+#: chapter, the paragraphs it swallowed would break the segment stage's
+#: contiguity check rather than pass silently.
 _PART_DIVIDER = re.compile(
     rf"^(?:PART\s+[IVX]+|(?:THE\s+)?(?:{'|'.join(PARTS)})|"
     rf"(?:The\s+)?(?:{'|'.join(p.title() for p in PARTS)}))$",
@@ -151,6 +194,7 @@ def _document(pages: list[str]) -> str:
     """
     lines: list[str] = []
     started = False
+    dividing = False
     for page in pages:
         for raw in page.splitlines():
             line = " ".join(raw.replace(AMENDMENT_BULLET, " ").split())
@@ -161,11 +205,19 @@ def _document(pages: list[str]) -> str:
                 continue
             if _APPENDICES.match(line):
                 return "\n".join(lines) + "\n"
-            if (
-                _RUNNING_HEADER.match(line)
-                or _RUNNING_CHAPTER.match(line)
-                or _PART_DIVIDER.match(line)
-            ):
+            if dividing:
+                if not _CHAPTER.match(line):
+                    continue
+                dividing = False
+            if _RUNNING_HEADER.match(line) or _RUNNING_CHAPTER.match(line):
+                continue
+            if _BLANK_PAGE.match(line):
+                continue
+            if _PART_DIVIDER.match(line):
+                dividing = True
+                continue
+            if _SPLIT_TAIL.match(line) and lines and _SPLIT_CHAPTER.match(lines[-1]):
+                lines[-1] += line
                 continue
             lines.append(line)
     if not started:

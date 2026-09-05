@@ -11,9 +11,21 @@ tests drive. Nothing here reads a PDF, and nothing here touches the network.
 
 The document's hazards, each with a test:
 
-* **The running header contains a paragraph number.** `FORM OF GOVERNMENT 5-1`
-  sits at the top of every page and its tail looks exactly like a paragraph
-  opener, so leaving it in invents chunks and corrupts the numbering.
+* **The running head contains a paragraph number, and alternates by page side.**
+  `FORM OF GOVERNMENT 5-1` heads a recto and `5-9 THE BOOK OF CHURCH ORDER` the
+  facing verso. Either tail looks exactly like a paragraph opener, so leaving
+  one in invents chunks and corrupts the numbering. The fixture below builds
+  both sides, and did not until a verso head was reported showing up mid-list in
+  the finished text: the adapter and the fixture had been written against each
+  other, and the suite asserted that the half of the problem it knew about was
+  solved.
+* **The blank pages carry a notice**, because each chapter opens on a recto.
+* **The part dividers are not shaped alike.** The Directory's spells its title in
+  full across two lines and carries a preface of ordinary prose, so a divider
+  match suspends the document until the next chapter heading.
+* **A paragraph opener is split across two lines** by the page break, at `36-8.`
+  in the real document. No opener matches, so the paragraph is absorbed into the
+  one before it and a chunk is lost rather than merely dirtied.
 * **Chapter 44 is `(Vacated)`** -- a real chapter removed by amendment, leaving
   a heading and no paragraphs. Contiguity cannot be asserted across it.
 * **Paragraphs are line-wrapped** by the typesetter and must be rejoined.
@@ -37,9 +49,26 @@ LOCATOR = re.compile(r"^BCO (\d{1,2})-(\d{1,3})$")
 BULLET = ""
 
 
+#: The book's title, which heads every verso page where the part's name heads
+#: every recto one.
+TITLE = "THE BOOK OF CHURCH ORDER"
+
+#: The notice the typesetter puts on the empty page that keeps each chapter
+#: opening on a recto.
+BLANK_PAGE = "This page intentionally left blank."
+
+
 def header(part: str, first: str, chapter: int, title: str) -> str:
-    """The two lines the typesetter puts at the top of every page."""
+    """The two lines the typesetter puts at the top of a recto page."""
     return f"{part} {first}\nChapter {chapter}: {title}\n"
+
+
+def verso(first: str, chapter: int, title: str) -> str:
+    """The head on the facing page, which a printed book alternates: the book's
+    title rather than the part's, and the paragraph number first rather than
+    last. The tail of one is the head of the other, so a filter written against
+    a single page side leaves every other page's head in the text."""
+    return f"{first} {TITLE}\nChapter {chapter}: {title}\n"
 
 
 def chapter(number: int, paragraphs: int, *, part: str = "FORM OF GOVERNMENT") -> str:
@@ -51,6 +80,9 @@ def chapter(number: int, paragraphs: int, *, part: str = "FORM OF GOVERNMENT") -
         "",
     ]
     for n in range(1, paragraphs + 1):
+        if n > 1:
+            # A page break, and pages alternate sides.
+            lines.append(verso(f"{number}-{n}", number, "An Invented Chapter"))
         lines.append(f"{number}-{n}. An invented paragraph {n} of chapter {number}, which ")
         lines.append("wraps across a second typeset line and must be rejoined.")
         lines.append("")
@@ -136,6 +168,59 @@ class TestPageFurniture(unittest.TestCase):
         self.assertNotIn("RULES OF DISCIPLINE", found)
         self.assertNotIn("PART II", found)
 
+    def test_the_verso_running_head_is_not_text(self) -> None:
+        """The head alternates by page side. `FORM OF GOVERNMENT 5-9` on the
+        recto was filtered from the first day; `5-9 THE BOOK OF CHURCH ORDER` on
+        the facing page was not, and landed in the middle of whatever paragraph
+        spanned the break."""
+        self.assertNotIn(TITLE, " ".join(s.text for s in segments()))
+
+    def test_the_verso_running_head_does_not_invent_a_chunk(self) -> None:
+        found = [s.locator for s in segments()]
+        self.assertEqual(len(found), len(set(found)))
+
+    def test_a_blank_page_is_not_text(self) -> None:
+        """Chapters open on a recto, so the typesetter pads with an empty page
+        carrying a notice. It is furniture, and it lands in the paragraph that
+        the padded page break interrupts."""
+        padded = document(
+            "PART I\nFORM OF GOVERNMENT\n",
+            *(
+                vacated(n, part=part_of(n))
+                if n in bco.VACATED_CHAPTERS
+                else chapter(n, 3 if n % 2 else 2, part=part_of(n)) + f"{BLANK_PAGE}\n"
+                for n in range(1, 64)
+            ),
+        )
+        self.assertNotIn("intentionally left blank", " ".join(s.text for s in segments(padded)))
+
+    def test_the_worship_divider_is_not_absorbed_into_the_paragraph_above_it(self) -> None:
+        """The third part's divider page is not shaped like the second's. It
+        spells the title in full and breaks it across two lines --
+        `THE DIRECTORY FOR THE WORSHIP` / `OF GOD` -- where `PARTS` carries the
+        short form the running head uses, and it carries a preface the other two
+        dividers do not have. All of it lands in the last paragraph of the part
+        before, `BCO 46-8` in the real document."""
+        divided = document(
+            "PART I\nFORM OF GOVERNMENT\n",
+            *(
+                vacated(n, part=part_of(n))
+                if n in bco.VACATED_CHAPTERS
+                else chapter(n, 3 if n % 2 else 2, part=part_of(n))
+                for n in range(1, 47)
+            ),
+            "PART III\nTHE DIRECTORY FOR THE WORSHIP\nOF GOD\n"
+            "The Directory for the Worship of God\n"
+            "An invented preface the divider page carries and no paragraph owns.\n",
+            *(
+                chapter(n, 3 if n % 2 else 2, part=part_of(n))
+                for n in range(47, 64)
+            ),
+        )
+        last = next(s for s in bco.segment(divided) if s.locator == "BCO 46-2")
+        self.assertNotIn("DIRECTORY", last.text)
+        self.assertNotIn("invented preface", last.text)
+
     def test_the_amendment_bullet_is_not_text(self) -> None:
         """It is stripped in `_document`, so the bullet has to go into the page
         text the PDF yields rather than into the document that comes out."""
@@ -210,6 +295,27 @@ class TestParagraphs(unittest.TestCase):
     def test_every_locator_can_be_written_to_a_fingerprints_file(self) -> None:
         for segment in segments():
             stage(segment.locator, segment.text)
+
+    def test_an_opener_split_by_the_page_break_still_opens_a_chunk(self) -> None:
+        """`36-8.` in the real document is emitted as `36` and `-8. When members`
+        on two lines, so no opener matches and the paragraph is swallowed by the
+        one before it. Being the last paragraph of its chapter, nothing after it
+        re-anchors the count, and the contiguity check below cannot see it."""
+        opener = "2-2. An invented paragraph 2"
+        split = document(
+            "PART I\nFORM OF GOVERNMENT\n",
+            *(
+                vacated(n, part=part_of(n))
+                if n in bco.VACATED_CHAPTERS
+                else chapter(n, 3 if n % 2 else 2, part=part_of(n)).replace(
+                    opener, "2\n-2. An invented paragraph 2"
+                )
+                for n in range(1, 64)
+            ),
+        )
+        found = [s.locator for s in bco.segment(split)]
+        self.assertIn("BCO 2-2", found)
+        self.assertEqual(found, [s.locator for s in segments()])
 
     def test_paragraph_numbering_is_contiguous_within_a_chapter(self) -> None:
         broken = WHOLE.replace("1-2. An invented paragraph 2", "1-4. An invented paragraph 4")
