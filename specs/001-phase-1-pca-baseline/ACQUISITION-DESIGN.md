@@ -93,6 +93,16 @@ this project can least afford it. Extract, segment and normalise are pure and ch
 recompute every run; the files they leave behind are the seam and the inspection surface, not a
 cache.
 
+**The inspection surface is read by `make browse`.** Every check acquisition performs reports on text
+without showing it, deliberately — a fingerprint diff that printed the passage would put corpus text
+in CI logs. So the pipeline can say *that* something changed and never *what it looks like*, and the
+failures that matter most are exactly the ones that need an eye: a swallowed heading, a table
+flattened down the wrong axis, a normalisation step that ate something it should not have. The
+browser reads `stage/` for the text ingestion will load and `segment/` for the line structure
+normalisation erases, and serves them on loopback. It is the same answer ADR-0021 gave for the
+edition diagnostic — acquired text read locally on demand, never committed so it can be read —
+widened from one locator to a whole corpus.
+
 ---
 
 ## Committed artefacts

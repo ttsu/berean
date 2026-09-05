@@ -113,7 +113,11 @@ UC-5 is the acceptance case for the entire phase.
 
 ## Non-goals
 
-- Any user interface. CLI only.
+- Any user interface for asking a question and reading an answer. CLI only. The corpus
+  browser (`make browse`) is not an exception to this: it renders acquired text and its
+  segmentation for the developer who is this phase's one user, reaches no model and no
+  answer path, and is the same act as `make show-diagnostic` widened from one locator to a
+  whole corpus (ADR-0021). The answer surface remains Phase 4's.
 - Conversation memory. Single-turn.
 - Any translation display integration. Locators only.
 - Retrieval quality. Naive is correct here; Phase 2 measures it, Phase 3 improves it.
