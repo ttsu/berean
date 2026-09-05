@@ -365,15 +365,21 @@ that exercises `source_language` and the book/chapter/section locator.
 **No corpus text enters the repository** (ADR-0014). The repo carries manifests, fingerprints, and
 scripts; text lands in gitignored `/data/`.
 
-**Status: the pipeline has landed and all three Westminster Standards acquire cleanly.
-`wcf-1788-american` is blessed under the current schema; the two catechisms are not.** Design, and the decisions implementation and review revised, are in
-[ACQUISITION-DESIGN.md](ACQUISITION-DESIGN.md). The corpus was blessed once and then ADR-0021
-changed the manifest schema — `edition_check` records the hash of the text the verifier read rather
-than the text — so it needs re-blessing at a terminal (`make bless CORPUS=wcf-1788-american`),
-which `--bless` requires and no flag overrides. `wlc-1788-american` and `wsc-1788-american` landed
-after it against the same interface and have never been blessed; both need that same terminal step.
-Then the remaining four corpora, each a module under `catena/acquire/corpora/`, an entry in that
-package's `CORPUS_IDS`, and a bless.
+**Status: the pipeline has landed and all eight corpora acquire cleanly. Four are blessed
+under the current schema and four are not.** Design, and the decisions implementation and review
+revised, are in [ACQUISITION-DESIGN.md](ACQUISITION-DESIGN.md).
+
+Blessed: `wcf-1788-american` (WCF 23.3), `wlc-1788-american` (WLC Q&A 109),
+`wsc-1788-american` (WSC Q&A 6), `calvin-institutes-1559-beveridge` (Inst. 4.17.10). The
+confession was blessed once before ADR-0021 changed the manifest schema — `edition_check` now
+records the hash of the text the verifier read rather than the text — and was re-blessed under
+the new schema; the other three were blessed under it from the start.
+
+Unblessed: `wcf-1646-epcew-modernised`, `pca-ga28-2000-creation-study`, `web-2020` and
+`pca-bco-2026`. Each acquires and stages, and says it was not verified. Bless is a terminal step
+— `make bless CORPUS=<id>`, which `--bless` requires and no flag overrides — so these four are
+what stands between Task 4 and done, and Task 5 cannot re-verify their staged records against
+committed fingerprints until they are.
 
 Pipeline:
 
@@ -433,9 +439,9 @@ Provenance and licensing:
       underspecified and a numeric-aware sort needs a locator grammar the format does not have
 - [ ] **Verified as the 1788 American revision** — WCF ch. 23 checked by hand against the 1646
       text, read in full at bless and recorded as its hash rather than as a checkbox or as committed
-      text (ADR-0021). Blessed once on 2026-09-04 and superseded by the schema change; re-bless
-      with `--bless` — done on 2026-09-04, and the corpus needs nothing further — or read the
-      diagnostic any time with `--show-diagnostic`. Chapter 31 having
+      text (ADR-0021). Blessed once, superseded by the schema change, and re-blessed under the
+      current one on 2026-09-04; the confession needs nothing further. The diagnostic can be read
+      at any time with `--show-diagnostic`, blessed or not. Chapter 31 having
       four sections rather than the 1646 original's five is a second, structural confirmation the
       adapter gets for free. **WLC 109 is the catechism's share of the same revision** — the 1646
       text lists "tolerating a false religion" among the sins forbidden in the second commandment
