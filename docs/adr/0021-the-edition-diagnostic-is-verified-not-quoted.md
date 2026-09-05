@@ -102,6 +102,56 @@ Revisit if a corpus's edition turns out not to be diagnosable at a single locato
 assertions an adapter can make — the WCF's 33 chapters against the 1903 revision's 35 — already
 cover the case where the divergence has no single home, and they cost no text either.
 
+## Amendment, 2026-09-04: the verification may be performed in the local browser
+
+`--bless` refuses to run when stdin is not a terminal, and the message says why: "there is no flag
+that says a human did something they did not do." That check is sound and stays. But the TTY was
+always a *proxy* for the requirement, never the requirement itself. What this decision actually
+demands is that a human read the diagnostic passage and put their name to it. `bless()` has taken
+`prompt` and `interactive` as injectable seams since it was written, which is the same observation
+made in code.
+
+The proxy has a cost that shows up as soon as the text stops being quoted. What replaces the quoted
+text is a command that prints roughly 1,200 characters to a terminal — and a terminal is a poor
+place to read a paragraph of seventeenth-century prose with any care. A verification that is
+unpleasant to perform properly is one people perform improperly.
+
+**So `catena browse` may offer the verification, and the local browser is a legitimate place to
+perform it.** What it must preserve, and does:
+
+- The passage is shown in full, in the reading face, before anything is written. Not a summary, not
+  the locator, not a checkbox.
+- A name is typed per bless. A form field a person fills in is the same act as the prompt; a default,
+  a remembered value, or a name in a URL would not be.
+- **What was read is what gets blessed.** This condition is free at a terminal and is not free over
+  HTTP, because the GET that displays the passage and the POST that blesses it are separate
+  acquisitions — and an unblessed corpus has no `upstream_sha256`, so `fetch` has no
+  `expected_digest`, skips its cache, and re-downloads. The form therefore carries the sha256 of the
+  passage displayed, and the bless is refused unless the freshly acquired diagnostic still hashes to
+  it. Without this the manifest could record a hash of text nobody read, which is the failure this
+  whole decision exists to prevent.
+- Text that the licence gate withholds cannot be blessed. Approving an edition you are not permitted
+  to read verifies nothing.
+- The transcript `bless()` writes — which contains the passage — is captured and dropped rather than
+  logged. A server log is the worst place for corpus text.
+
+**What stays at the terminal: re-blessing, and therefore drift.** Re-blessing discards a
+verification someone already made, and demands a typed confirmation against a fingerprint diff.
+A diff is exactly the thing a browser invites you to skim, and "never bless your way past a mismatch
+you have not understood" is where that costs most. `catena browse` offers the panel only for a
+corpus with no committed manifest, and refuses the write if one appears between the GET and the POST.
+
+Rejected: **a bless button.** A control that blesses on click records that someone clicked, which is
+the checkbox this decision replaced — reintroduced at the other end of the same argument.
+
+Rejected: **relaxing the TTY check itself.** `interactive=True` is passed by a caller that has a
+human at the other end of the request and can say so; the default stays `sys.stdin.isatty()`, so an
+unattended CI run still cannot bless.
+
+The write path this creates is the tool's only one, and a localhost port is reachable from every
+page the browser has open. It is a POST, carrying a token issued when the server started, with the
+request's origin checked as well.
+
 ## Documents updated
 
 - **`docs/adr/0014-no-corpus-text-in-the-repository.md`** — status becomes
@@ -122,3 +172,10 @@ cover the case where the divergence has no single home, and they cost no text ei
 - **`services/catena/src/catena/acquire/cli.py`** — `--show-diagnostic`.
 - **`Makefile`** — `make bless CORPUS=<id>` and `make show-diagnostic CORPUS=<id>`, so the command
   this decision leans on is as reachable as the one that writes.
+
+Added by the 2026-09-04 amendment:
+
+- **`services/catena/src/catena/browse/verify.py`** — the browser verification and its conditions.
+- **`services/catena/src/catena/browse/server.py`** — the POST route, its token and origin checks.
+- **`.agents/skills/ingest-corpus/SKILL.md`** — the note that an agent cannot bless, which is still
+  true and now says why in terms of the human rather than the terminal.
