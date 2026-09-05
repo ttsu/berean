@@ -78,7 +78,9 @@ Canonical, per-work, resolvable, stable.
 - Confessional: `WCF 7.2`, `WSC Q&A 1`
 - Aquinas: `ST I-II q.94 a.2`
 - Church order: `BCO 21-4`
-- Calvin's *Institutes*: `Inst. 4.17.10` — book.chapter.section
+- Calvin's *Institutes*: `Inst. 4.17.10` — book.chapter.section. Calvin's prefatory address to
+  Francis I opens the work outside that scheme, so it takes a second form, `Inst. Pref.1`
+  through `Inst. Pref.7` — the only corpus in Phase 1 with two locator forms
 
 A locator that does not resolve is a verification failure, not a formatting nit.
 

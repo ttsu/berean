@@ -384,7 +384,8 @@ Pipeline:
 - [ ] Structural chunking lives in the segment stage — WCF per numbered section, WLC/WSC per Q&A
       pair never split, BCO per numbered paragraph, WEB per verse, the *Institutes* per numbered
       section (`Inst. 4.17.10`), the 2000 report per numbered section with its recommendations
-      segmented separately from the expository body. **The three Westminster Standards are done.**
+      segmented separately from the expository body. **The three Westminster Standards and the
+      *Institutes* are done.**
       WCF — 33 chapters, 171 sections, `WCF <chapter>.<section>`. Its lists of canonical books are
       three-column tables read *down* each column; row-major reading garbles them and nothing
       downstream would notice. WLC — 196 Q&As, `WLC Q&A <n>`; WSC — 107, `WSC Q&A <n>`. Chunk text
@@ -435,8 +436,13 @@ Provenance and licensing:
       infer from an ID whose date the document does not share
 - [ ] Licence and attribution confirmed per source and recorded, never assumed. `public-domain` for
       WCF/WLC/WSC, WEB and the Beveridge *Institutes*; `local-only` for the two PCA-published corpora
-- [ ] The *Institutes* is taken in the Beveridge 1845 translation, not Battles (1960), which is in
-      copyright. Note the practical consequence for Task 11: Battles is the translation a model is
+- [x] The *Institutes* is taken in the Beveridge 1845 translation, not Battles (1960), which is in
+      copyright. Acquired from CCEL as plain text: 4 books, 80 chapters, 1,277 sections plus the
+      seven of Calvin's prefatory address, 1,284 chunks. Three source hazards are handled and
+      tested — every chapter opens with a numbered synopsis of itself that must be discarded (six
+      carry none, so its presence cannot be assumed), Book IV chapter 18's number is missing from
+      the source and is recovered positionally, and 1,283 footnote anchors are stripped. Murray's
+      20th-century introduction is excluded as apparatus still in copyright. Note the practical consequence for Task 11: Battles is the translation a model is
       most likely to have memorised, so UC-6 may fail check 2 on passages the model genuinely knows.
       That is a finding about the generator, not a defect in the verifier
 - [ ] Bare text only, never a modern edition's apparatus — footnotes, cross-references, modernised

@@ -29,6 +29,7 @@ CORPUS_IDS = (
     "wcf-1788-american",
     "wlc-1788-american",
     "wsc-1788-american",
+    "calvin-institutes-1559-beveridge",
 )
 
 

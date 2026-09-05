@@ -334,6 +334,62 @@ reach is whoever reads the module before blessing it.
 
 ---
 
+## The *Institutes*
+
+`calvin-institutes-1559-beveridge` — the largest Phase 1 corpus, the only translated one, and the
+first that shares nothing with what came before. CCEL serves it as 4.6 MB of plain text, so `_opc`
+does not apply and `extract` decodes and trims regions rather than parsing markup.
+
+1,284 chunks: 1,277 body sections across four books of 18, 17, 25 and 20 chapters, plus the seven
+sections of Calvin's prefatory address.
+
+### Three hazards, none of which announces itself
+
+**Every chapter opens with a numbered synopsis of itself.** A list of one-line section titles
+numbered 1..N, followed by the same numbers again as the real body. Taken naively, a chapter yields
+2N chunks — half of them title fragments that would hash, bless, and verify clean forever, with
+nothing downstream able to notice. This is the *Institutes*' version of WCF 1.2's column-major
+tables, and it is worse, because it affects 74 of the 80 chapters rather than one.
+
+The rule is an invariant rather than a heuristic, which matters because a heuristic tuned until it
+fits is how garbage gets blessed. Take the greedy ascending run 1, 2, 3, … matching **only the next
+expected number**; then take a second run after it. When the two agree, the second is the body and
+the first was the synopsis. When they do not, the chapter carries no synopsis and the single run is
+the body — **six of the eighty carry none**, so its presence cannot be assumed. Matching only the
+next expected number is also what steps over the numbered lists that appear inside the prose, which
+defeated three earlier attempts at this.
+
+Validated before any adapter code was written: the rule reproduces the known section counts of every
+chapter, including the hard ones — 2.8 has 59, 3.20 has 52, 4.17 has 50, and the no-synopsis 3.21,
+4.1 and 4.20 have 7, 29 and 32.
+
+**Book IV chapter 18's number is missing from the source.** It reads `CHAPTER [653]` — a footnote
+anchor swallowed the number. Dropped, the parser loses a whole chapter; mishandled, it renumbers
+every chapter after it. It is recovered **positionally**: a chapter marker with no parseable number
+takes the next expected one, and the 18/17/25/20 shape is asserted. Recognising it by its title
+would commit corpus text, which ADR-0014 forbids.
+
+**1,283 footnote anchors inside the four books** are CCEL apparatus and are stripped in extraction.
+
+### What is not the corpus
+
+The file carries a great deal that is not the work, and excluding it is a licensing act rather than
+a tidiness one. **John Murray's introduction is 20th-century and in copyright** — the CCEL header's
+`Rights: Public Domain` covers Calvin and Beveridge, not the apparatus a later edition wraps around
+them, and `license_terms` records that distinction rather than leaving it to be inferred. Also
+dropped: Norton's 1581 translator's preface, the scripture and author indexes, each book's editorial
+`ARGUMENT`, and the One Hundred Aphorisms appended at the end.
+
+### Two locator forms, for one corpus
+
+Calvin's prefatory address to Francis I opens the work but sits outside the book/chapter scheme.
+Rather than exclude it or give it a fake book number, it takes `Inst. Pref.1` through `Inst. Pref.7`
+— recorded in GLOSSARY, and the only Phase 1 corpus with two locator forms. The alternative that was
+rejected, `Inst. 0.0.<n>`, keeps one shape at the cost of a locator that reads as a real address and
+is not one.
+
+---
+
 ## Testing
 
 ADR-0014 bars corpus text from fixtures, which is not an inconvenience to work around — it decides
