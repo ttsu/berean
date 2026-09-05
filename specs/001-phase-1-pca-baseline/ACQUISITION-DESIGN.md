@@ -99,7 +99,10 @@ in CI logs. So the pipeline can say *that* something changed and never *what it 
 failures that matter most are exactly the ones that need an eye: a swallowed heading, a table
 flattened down the wrong axis, a normalisation step that ate something it should not have. The
 browser reads `stage/` for the text ingestion will load and `segment/` for the line structure
-normalisation erases, and serves them on loopback. It is the same answer ADR-0021 gave for the
+normalisation erases, and serves them on loopback. It also offers the edition verification for a
+corpus that has never been blessed, on the conditions ADR-0021's amendment sets out — the passage in
+full, a typed name, and a refusal to write if the text moved between being read and being submitted.
+Re-blessing stays at the terminal. It is the same answer ADR-0021 gave for the
 edition diagnostic — acquired text read locally on demand, never committed so it can be read —
 widened from one locator to a whole corpus.
 

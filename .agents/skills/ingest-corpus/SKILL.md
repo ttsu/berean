@@ -55,9 +55,15 @@ make bless CORPUS=<corpus-id>
 ```
 
 `--bless` needs a terminal and there is no flag that says otherwise, so **an agent cannot do this
-step for you.** It prints the diagnostic locator's acquired text, the chunk counts, and — when the
-corpus has been blessed before — the full diff, and then blocks on your typed name. That name is
-the record.
+step for you** — not because of the terminal, but because the name records that a *person* read the
+text. It prints the diagnostic locator's acquired text, the chunk counts, and — when the corpus has
+been blessed before — the full diff, and then blocks on your typed name. That name is the record.
+
+The first bless of a corpus may instead be performed in `make browse`, which shows the same passage
+in a form that is easier to read carefully and takes the same typed name (ADR-0021). It refuses to
+write if the text changed between being shown and being submitted. Re-blessing stays here, at the
+terminal: it discards a verification someone already made, and its fingerprint diff is the thing a
+browser most invites you to skim.
 
 To read a diagnostic without blessing anything — before the first bless, or afterwards to see what
 a verifier saw — `make show-diagnostic CORPUS=<corpus-id>`.

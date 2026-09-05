@@ -199,7 +199,7 @@ def _facts(corpus: staged.Corpus) -> str:
     return f'<dl class="facts">{cells}</dl>{attribution}'
 
 
-def _banner(corpus: staged.Corpus) -> str:
+def _banner(corpus: staged.Corpus, offered: bool = False) -> str:
     status = corpus.fingerprint_status
     if status == staged.BLESSED:
         return (
@@ -214,6 +214,14 @@ def _banner(corpus: staged.Corpus) -> str:
             f'<p class="banner flag">Drifted. {len(drifted)} section(s) do not match the '
             f"committed fingerprints: {sample}{more}. What is on disk is not what was "
             "approved.</p>"
+        )
+    if offered:
+        # Don't send someone to the terminal past the panel that does the same
+        # thing three inches to the right.
+        return (
+            '<p class="banner warn">Unblessed. This corpus has been acquired but never '
+            "verified by hand, so there are no committed fingerprints to check it against. "
+            "Read the edition diagnostic to verify it.</p>"
         )
     return (
         '<p class="banner warn">Unblessed. This corpus has been acquired but never verified '
@@ -274,6 +282,39 @@ def _chunk(chunk: staged.Chunk) -> str:
     )
 
 
+def verify_panel(offer, token: str, error: str | None = None) -> str:
+    """The edition verification, put in front of a human before anything is written.
+
+    The passage is shown in full and in the reading face, because reading it is
+    the act. The form carries the hash of what is displayed so the bless can
+    refuse if the text moved underneath it (see `browse/verify.py`).
+    """
+    complaint = f'<p class="verify-error">{_e(error)}</p>' if error else ""
+    return (
+        '<section class="verify">'
+        "<h2>Verify this edition</h2>"
+        '<p class="verify-lede">This corpus has never been verified by hand. Read the passage '
+        "below in full. If it is the edition this corpus claims to be, record your name to "
+        "bless it; the manifest stores only the hash, never the text.</p>"
+        f"{complaint}"
+        f'<p class="verify-meta">Edition diagnostic <strong>{_e(offer.diagnostic)}</strong></p>'
+        f'<p class="text verify-text">{_e(offer.text)}</p>'
+        f'<dl class="meta"><dt>sha256</dt><dd><code>{_e(offer.content_hash)}</code></dd>'
+        f"<dt>source</dt><dd>{_e(offer.source_url)}</dd></dl>"
+        f'<form class="verify-form" method="post" action="/bless/{_e(offer.corpus_id)}">'
+        f'<input type="hidden" name="token" value="{_e(token)}">'
+        f'<input type="hidden" name="read_sha256" value="{_e(offer.content_hash)}">'
+        '<label for="verifier">Your name, recorded as having read the text above</label>'
+        '<input id="verifier" name="name" type="text" autocomplete="name" required>'
+        '<button type="submit">Bless this corpus</button>'
+        "</form>"
+        '<p class="verify-note">Submitting re-acquires the corpus from its source, which '
+        "reaches the network, and refuses to write if the passage has changed since it was "
+        "shown here.</p>"
+        "</section>"
+    )
+
+
 def _pager(corpus: staged.Corpus, page: int, pages: int) -> str:
     if pages <= 1:
         return ""
@@ -292,6 +333,9 @@ def corpus_page(
     page: int = 0,
     page_size: int = PAGE_SIZE,
     withheld: str | None = None,
+    offer=None,
+    token: str = "",
+    verify_error: str | None = None,
 ) -> str:
     """One corpus, read as a document.
 
@@ -313,13 +357,16 @@ def corpus_page(
         reading = f'<p class="withheld">{_e(withheld)}</p>'
         index = ""
     else:
-        reading = "".join(_chunk(chunk) for chunk in window) + _pager(corpus, page, pages)
+        verify = verify_panel(offer, token, verify_error) if offer is not None else ""
+        reading = (
+            verify + "".join(_chunk(chunk) for chunk in window) + _pager(corpus, page, pages)
+        )
         index = _index(corpus, window)
 
     body = (
         f"{masthead}"
         f'<div class="layout">'
-        f'<aside class="side">{_banner(corpus)}{_facts(corpus)}{index}</aside>'
+        f'<aside class="side">{_banner(corpus, offer is not None)}{_facts(corpus)}{index}</aside>'
         f'<main class="reading">{reading}</main>'
         f"</div>"
     )
@@ -477,6 +524,36 @@ a:hover { text-decoration-color: var(--apparatus); }
 .ok { color: var(--ok); }
 .flag { color: var(--flag); }
 .dim { color: var(--apparatus-dim); }
+
+.verify {
+  max-width: 42rem; margin: 0 0 3rem; padding: 1.4rem 1.5rem;
+  background: var(--panel); border-left: 3px solid var(--ok);
+}
+.verify h2 { margin: 0 0 0.6rem; font-size: 1.15rem; font-weight: 600; }
+.verify-lede, .verify-note, .verify-meta, .verify-error {
+  font-family: var(--mono); font-size: 0.78rem; line-height: 1.65; color: var(--apparatus);
+}
+.verify-lede { margin: 0 0 1rem; }
+.verify-meta { margin: 0 0 0.6rem; }
+.verify-error { margin: 0 0 1rem; padding: 0.6rem 0.8rem; border-left: 3px solid var(--flag); color: var(--flag); }
+.verify-text {
+  margin: 0 0 1rem; padding: 0 0 1rem;
+  border-bottom: 1px solid var(--rule); font-size: 1.0625rem;
+}
+.verify-form { display: grid; gap: 0.45rem; justify-items: start; margin: 1rem 0 0.9rem; }
+.verify-form label { font-family: var(--mono); font-size: 0.74rem; color: var(--apparatus-dim); }
+.verify-form input[type="text"] {
+  font-family: var(--mono); font-size: 0.85rem; padding: 0.45rem 0.6rem; width: min(22rem, 100%);
+  color: var(--ink); background: var(--paper);
+  border: 1px solid var(--rule); border-radius: 2px;
+}
+.verify-form button {
+  font-family: var(--mono); font-size: 0.8rem; padding: 0.5rem 1rem; cursor: pointer;
+  color: var(--paper); background: var(--ink);
+  border: 1px solid var(--ink); border-radius: 2px;
+}
+.verify-form button:hover { background: var(--apparatus); border-color: var(--apparatus); }
+.verify-note { margin: 0; color: var(--apparatus-dim); }
 
 .withheld {
   max-width: 42rem; padding: 1rem 1.1rem; border-left: 3px solid var(--flag);

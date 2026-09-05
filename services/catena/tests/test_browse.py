@@ -15,12 +15,13 @@ import json
 import pathlib
 import tempfile
 import unittest
+import unittest.mock
 
 from catena import normalise
 from catena.acquire import fingerprints as fp
 from catena.acquire import manifest as mf
 from catena.acquire.record import AcquisitionError, fingerprint, write_jsonl, write_text
-from catena.browse import render, server, staged
+from catena.browse import render, server, staged, verify
 
 CORPUS_ID = "testcorpus-0001-invented"
 
@@ -403,6 +404,324 @@ class TestRouting(TempCorpus):
         self.assertEqual(status, 200)
         self.assertIn(staged.SERVE_LOCAL_ONLY_ENV, body)
         self.assertNotIn(normalise.normalise(SEGMENTS["TC 1.1"]), body)
+
+
+class FakeAdapter:
+    """Stands in for a registered adapter. Invented text only (ADR-0014)."""
+
+    corpus_id = CORPUS_ID
+    diagnostic = "TC 1.2"
+
+    def __init__(self, segments: dict[str, str] | None = None) -> None:
+        self._segments = SEGMENTS if segments is None else segments
+        from catena.acquire.record import WorkFacts
+
+        self.work = WorkFacts(**WORK)
+        self.license_terms = "Invented terms."
+
+    def fetch_plan(self):
+        from catena.acquire.fetch import FetchPlan
+
+        return FetchPlan(
+            source_url="https://invented.example/source",
+            archive_url="https://invented.example/archive",
+        )
+
+    def extract(self, raw: bytes) -> str:
+        return raw.decode("utf-8")
+
+    def segment(self, document: str):
+        from catena.acquire.record import Segment
+
+        for locator, text in self._segments.items():
+            yield Segment(locator, text)
+
+
+class VerifyCase(TempCorpus):
+    """Blessing from the browser, with the adapter and the network both faked."""
+
+    def setUp(self) -> None:
+        self.adapter = FakeAdapter()
+        patched = unittest.mock.patch.object(
+            verify.corpora, "load", side_effect=self._load
+        )
+        patched.start()
+        self.addCleanup(patched.stop)
+        self.downloads = 0
+
+    def _load(self, corpus_id: str):
+        if corpus_id != CORPUS_ID:
+            raise KeyError(f"unknown corpus {corpus_id!r}")
+        return self.adapter
+
+    def fake_download(self, url: str) -> bytes:
+        self.downloads += 1
+        return b"invented source document"
+
+    def corpus(self, **kwargs) -> tuple[staged.Corpus, pathlib.Path, pathlib.Path]:
+        data_dir, corpora_dir = self.build(**kwargs)
+        return (
+            staged.load(CORPUS_ID, data_dir=data_dir, corpora_dir=corpora_dir),
+            data_dir,
+            corpora_dir,
+        )
+
+
+class TestVerifyOffer(VerifyCase):
+    def test_offered_for_an_unblessed_corpus(self) -> None:
+        corpus, _, _ = self.corpus(bless=False)
+        offer = verify.offer(corpus)
+
+        self.assertEqual(offer.diagnostic, "TC 1.2")
+        self.assertEqual(offer.text, normalise.normalise(SEGMENTS["TC 1.2"]))
+        self.assertEqual(offer.content_hash, corpus.chunks[1].content_hash)
+
+    def test_refused_for_a_blessed_corpus(self) -> None:
+        corpus, _, _ = self.corpus(bless=True)
+        with self.assertRaises(verify.NotVerifiable) as caught:
+            verify.offer(corpus)
+        self.assertIn("terminal", str(caught.exception))
+
+    def test_refused_for_a_drifted_corpus(self) -> None:
+        """Drift is where 'never bless past a mismatch' bites hardest."""
+        corpus, _, _ = self.corpus(drift=True)
+        with self.assertRaises(verify.NotVerifiable):
+            verify.offer(corpus)
+
+    def test_refused_when_the_diagnostic_is_not_staged(self) -> None:
+        corpus, _, _ = self.corpus(bless=False)
+        self.adapter.diagnostic = "TC 9.9"
+        with self.assertRaises(verify.NotVerifiable) as caught:
+            verify.offer(corpus)
+        self.assertIn("not among", str(caught.exception))
+
+
+class TestVerifyApply(VerifyCase):
+    def apply(self, data_dir, corpora_dir, *, name="A Verifier", read_hash=None, **kwargs):
+        if read_hash is None:
+            read_hash = fingerprint(normalise.normalise(SEGMENTS["TC 1.2"]))
+        return verify.apply(
+            CORPUS_ID,
+            name=name,
+            read_hash=read_hash,
+            data_dir=data_dir,
+            corpora_dir=corpora_dir,
+            downloader=self.fake_download,
+            **kwargs,
+        )
+
+    def test_blesses_and_writes_the_committed_evidence(self) -> None:
+        _, data_dir, corpora_dir = self.corpus(bless=False)
+        manifest = self.apply(data_dir, corpora_dir)
+
+        self.assertEqual(manifest.edition_check.verified_by, "A Verifier")
+        self.assertEqual(manifest.edition_check.diagnostic, "TC 1.2")
+        self.assertEqual(
+            manifest.edition_check.expected_sha256,
+            fingerprint(normalise.normalise(SEGMENTS["TC 1.2"])),
+            "the manifest records the hash of the text, never the text (ADR-0021)",
+        )
+        self.assertTrue((corpora_dir / CORPUS_ID / mf.FILENAME).is_file())
+        self.assertTrue((corpora_dir / CORPUS_ID / mf.FINGERPRINTS_FILENAME).is_file())
+
+        reread = staged.load(CORPUS_ID, data_dir=data_dir, corpora_dir=corpora_dir)
+        self.assertEqual(reread.fingerprint_status, staged.BLESSED)
+
+    def test_manifest_carries_no_corpus_text(self) -> None:
+        _, data_dir, corpora_dir = self.corpus(bless=False)
+        self.apply(data_dir, corpora_dir)
+        written = (corpora_dir / CORPUS_ID / mf.FILENAME).read_text(encoding="utf-8")
+        for text in SEGMENTS.values():
+            self.assertNotIn(normalise.normalise(text), written)
+
+    def test_refuses_an_empty_name(self) -> None:
+        _, data_dir, corpora_dir = self.corpus(bless=False)
+        for name in ("", "   ", "\t"):
+            with self.assertRaises(verify.NotVerifiable) as caught:
+                self.apply(data_dir, corpora_dir, name=name)
+            self.assertIn("name", str(caught.exception))
+        self.assertFalse((corpora_dir / CORPUS_ID / mf.FILENAME).exists())
+
+    def test_refuses_when_the_text_changed_since_it_was_read(self) -> None:
+        """The condition a terminal gets for free and a form does not."""
+        _, data_dir, corpora_dir = self.corpus(bless=False)
+        with self.assertRaises(verify.NotVerifiable) as caught:
+            self.apply(data_dir, corpora_dir, read_hash="b" * 64)
+
+        self.assertIn("read the text again", str(caught.exception))
+        self.assertFalse(
+            (corpora_dir / CORPUS_ID / mf.FILENAME).exists(), "nothing written"
+        )
+
+    def test_refuses_to_re_bless(self) -> None:
+        _, data_dir, corpora_dir = self.corpus(bless=True)
+        before = (corpora_dir / CORPUS_ID / mf.FILENAME).read_text(encoding="utf-8")
+
+        with self.assertRaises(verify.NotVerifiable) as caught:
+            self.apply(data_dir, corpora_dir, name="Someone Else")
+
+        self.assertIn("terminal", str(caught.exception))
+        self.assertEqual(
+            (corpora_dir / CORPUS_ID / mf.FILENAME).read_text(encoding="utf-8"),
+            before,
+            "an existing human verification is not replaced from a browser",
+        )
+
+    def test_refuses_a_corpus_with_no_adapter(self) -> None:
+        _, data_dir, corpora_dir = self.corpus(bless=False)
+        self.adapter.corpus_id = "testcorpus-0004-unregistered"
+        with self.assertRaises(verify.NotVerifiable) as caught:
+            verify.apply(
+                "testcorpus-0004-unregistered",
+                name="A Verifier",
+                read_hash="a" * 64,
+                data_dir=data_dir,
+                corpora_dir=corpora_dir,
+            )
+        self.assertIn("no registered adapter", str(caught.exception))
+
+
+class TestBlessRouting(VerifyCase):
+    TOKEN = "a-test-token"
+
+    def post(self, data_dir, corpora_dir, form, *, token=TOKEN, path=None):
+        return server.bless_route(
+            path or f"/bless/{CORPUS_ID}",
+            form,
+            data_dir=data_dir,
+            corpora_dir=corpora_dir,
+            serve_local_only=False,
+            token=token,
+            downloader=self.fake_download,
+        )
+
+    def good_form(self) -> dict[str, list[str]]:
+        return {
+            "token": [self.TOKEN],
+            "name": ["A Verifier"],
+            "read_sha256": [fingerprint(normalise.normalise(SEGMENTS["TC 1.2"]))],
+        }
+
+    def test_a_valid_submission_blesses_and_redirects(self) -> None:
+        _, data_dir, corpora_dir = self.corpus(bless=False)
+        status, _, redirect = self.post(data_dir, corpora_dir, self.good_form())
+
+        self.assertEqual(status, 303)
+        self.assertEqual(redirect, f"/c/{CORPUS_ID}")
+        self.assertTrue((corpora_dir / CORPUS_ID / mf.FILENAME).is_file())
+
+    def test_a_missing_token_is_refused(self) -> None:
+        _, data_dir, corpora_dir = self.corpus(bless=False)
+        form = self.good_form()
+        del form["token"]
+        status, _, _ = self.post(data_dir, corpora_dir, form)
+
+        self.assertEqual(status, 403)
+        self.assertFalse((corpora_dir / CORPUS_ID / mf.FILENAME).exists())
+
+    def test_a_wrong_token_is_refused(self) -> None:
+        _, data_dir, corpora_dir = self.corpus(bless=False)
+        form = dict(self.good_form(), token=["not-the-token"])
+        status, _, _ = self.post(data_dir, corpora_dir, form)
+
+        self.assertEqual(status, 403)
+        self.assertFalse((corpora_dir / CORPUS_ID / mf.FILENAME).exists())
+
+    def test_an_unset_server_token_refuses_everything(self) -> None:
+        """An empty configured token must not make an empty submitted one valid."""
+        _, data_dir, corpora_dir = self.corpus(bless=False)
+        form = dict(self.good_form(), token=[""])
+        status, _, _ = self.post(data_dir, corpora_dir, form, token="")
+
+        self.assertEqual(status, 403)
+        self.assertFalse((corpora_dir / CORPUS_ID / mf.FILENAME).exists())
+
+    def test_a_stale_hash_re_renders_the_passage(self) -> None:
+        _, data_dir, corpora_dir = self.corpus(bless=False)
+        form = dict(self.good_form(), read_sha256=["c" * 64])
+        status, body, redirect = self.post(data_dir, corpora_dir, form)
+
+        self.assertEqual(status, 409)
+        self.assertIsNone(redirect)
+        self.assertIn("read the text again", body)
+        self.assertIn(render._e(normalise.normalise(SEGMENTS["TC 1.2"])), body)
+        self.assertFalse((corpora_dir / CORPUS_ID / mf.FILENAME).exists())
+
+    def test_withheld_text_cannot_be_blessed(self) -> None:
+        """You cannot verify an edition you are not permitted to read."""
+        _, data_dir, corpora_dir = self.corpus(bless=False, license="local-only")
+        status, _, _ = self.post(data_dir, corpora_dir, self.good_form())
+
+        self.assertEqual(status, 403)
+        self.assertFalse((corpora_dir / CORPUS_ID / mf.FILENAME).exists())
+
+    def test_path_traversal_is_refused(self) -> None:
+        _, data_dir, corpora_dir = self.corpus(bless=False)
+        status, _, _ = self.post(
+            data_dir, corpora_dir, self.good_form(), path="/bless/../../etc/passwd"
+        )
+        self.assertEqual(status, 404)
+
+
+class TestOriginCheck(unittest.TestCase):
+    def test_same_origin_is_accepted(self) -> None:
+        for origin in ("http://127.0.0.1:8730", "http://localhost:8730"):
+            self.assertTrue(
+                server.origin_ok(origin, None, host="127.0.0.1", port=8730), origin
+            )
+
+    def test_cross_site_is_refused(self) -> None:
+        for origin in (
+            "http://evil.example",
+            "https://127.0.0.1:8730",
+            "http://127.0.0.1:9999",
+            "null",
+        ):
+            self.assertFalse(
+                server.origin_ok(origin, "cross-site", host="127.0.0.1", port=8730), origin
+            )
+
+    def test_absent_origin_needs_same_site_metadata(self) -> None:
+        self.assertTrue(server.origin_ok(None, "same-origin", host="127.0.0.1", port=8730))
+        for site in (None, "cross-site", "same-site"):
+            self.assertFalse(server.origin_ok(None, site, host="127.0.0.1", port=8730), site)
+
+
+class TestVerifyPanelMarkup(VerifyCase):
+    def panel(self, **kwargs) -> str:
+        corpus, _, _ = self.corpus(bless=False, **kwargs)
+        return render.corpus_page(
+            corpus, offer=verify.offer(corpus), token="tok-123"
+        )
+
+    def test_panel_shows_the_passage_and_carries_the_hash(self) -> None:
+        page = self.panel()
+        self.assertIn("Verify this edition", page)
+        self.assertIn(render._e(normalise.normalise(SEGMENTS["TC 1.2"])), page)
+        self.assertIn(
+            f'value="{fingerprint(normalise.normalise(SEGMENTS["TC 1.2"]))}"', page
+        )
+        self.assertIn('value="tok-123"', page)
+        self.assertIn(f'action="/bless/{CORPUS_ID}"', page)
+        self.assertIn('method="post"', page)
+
+    def test_panel_absent_without_an_offer(self) -> None:
+        corpus, _, _ = self.corpus(bless=True)
+        self.assertNotIn("Verify this edition", render.corpus_page(corpus))
+
+    def test_panel_still_needs_no_javascript(self) -> None:
+        self.assertNotIn("<script", self.panel().lower())
+
+    def test_banner_does_not_send_you_to_the_terminal_past_the_panel(self) -> None:
+        page = self.panel()
+        self.assertIn("Read the edition diagnostic to verify it", page)
+        self.assertNotIn("at a terminal", page)
+
+    def test_banner_names_the_terminal_when_no_panel_is_offered(self) -> None:
+        corpus, _, _ = self.corpus(bless=False)
+        page = render.corpus_page(corpus)
+        self.assertIn("at a terminal", page)
+        self.assertIn(f"make bless CORPUS={CORPUS_ID}", page)
 
 
 if __name__ == "__main__":
