@@ -365,21 +365,25 @@ that exercises `source_language` and the book/chapter/section locator.
 **No corpus text enters the repository** (ADR-0014). The repo carries manifests, fingerprints, and
 scripts; text lands in gitignored `/data/`.
 
-**Status: the pipeline has landed and all eight corpora acquire cleanly. Four are blessed
-under the current schema and four are not.** Design, and the decisions implementation and review
-revised, are in [ACQUISITION-DESIGN.md](ACQUISITION-DESIGN.md).
+**Status: the pipeline has landed and all eight corpora acquire cleanly. Seven are blessed
+under the current schema; `pca-bco-2026` is not.** Design, and the decisions implementation and
+review revised, are in [ACQUISITION-DESIGN.md](ACQUISITION-DESIGN.md).
 
 Blessed: `wcf-1788-american` (WCF 23.3), `wlc-1788-american` (WLC Q&A 109),
-`wsc-1788-american` (WSC Q&A 6), `calvin-institutes-1559-beveridge` (Inst. 4.17.10). The
-confession was blessed once before ADR-0021 changed the manifest schema — `edition_check` now
-records the hash of the text the verifier read rather than the text — and was re-blessed under
-the new schema; the other three were blessed under it from the start.
+`wsc-1788-american` (WSC Q&A 6), `calvin-institutes-1559-beveridge` (Inst. 4.17.10),
+`wcf-1646-epcew-modernised` (WCF 23.3), `pca-ga28-2000-creation-study` (GA28 Rec.2) and
+`web-2020` (Deut 6:4). The confession was blessed once before ADR-0021 changed the manifest
+schema — `edition_check` now records the hash of the text the verifier read rather than the text
+— and was re-blessed under the new schema; the rest were blessed under it from the start.
 
-Unblessed: `wcf-1646-epcew-modernised`, `pca-ga28-2000-creation-study`, `web-2020` and
-`pca-bco-2026`. Each acquires and stages, and says it was not verified. Bless is a terminal step
-— `make bless CORPUS=<id>`, which `--bless` requires and no flag overrides — so these four are
-what stands between Task 4 and done, and Task 5 cannot re-verify their staged records against
-committed fingerprints until they are.
+Unblessed: `pca-bco-2026`. It was blessed, and the bless is being redone rather than kept,
+because it captured the text a stale parser produced: 429 paragraphs with the verso running head
+in 49 of them, `BCO 46-8` carrying the Directory's divider page, and `BCO 36-8` absent
+altogether. 89 of 430 fingerprints differ under the corrected parser, the diagnostic `BCO 21-4`
+among them, so the reading that admitted the edition was a reading of furniture-bearing text and
+has to happen again. **A bless is only as good as the parser that ran under it** — worth stating
+because nothing in the pipeline can notice this, the manifest being the durable record precisely
+because nothing checks it afterwards.
 
 Pipeline:
 
