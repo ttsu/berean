@@ -1,6 +1,6 @@
 """The `catena` command.
 
-`acquire` is implemented (PLAN Task 4). The rest are planned and exit 69
+`acquire` and `browse` are implemented. The rest are planned and exit 69
 (EX_UNAVAILABLE) rather than 0, because a provisioning step that reports
 success while acquiring nothing is the failure this project can least afford.
 """
@@ -14,6 +14,7 @@ USAGE = """catena — Berean retrieval and citation service
 Usage:
   catena acquire (--corpus <id> | --all) [--bless] [--verify-only]
                  [--show-diagnostic] [--from-file PATH]
+  catena browse  [--port N] [--data-dir PATH] [--corpora-dir PATH]
   catena ingest  --corpus <id> --source PATH                  (Task 5)
   catena serve                                                (Task 7)
   catena version
@@ -46,6 +47,10 @@ def main(argv: list[str] | None = None) -> int:
         from catena.acquire import cli
 
         return cli.main(args[1:])
+    if command == "browse":
+        from catena.browse import cli as browse_cli
+
+        return browse_cli.main(args[1:])
     if command in NOT_IMPLEMENTED:
         print(f"catena: {NOT_IMPLEMENTED[command]}", file=sys.stderr)
         return EX_UNAVAILABLE

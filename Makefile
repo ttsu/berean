@@ -106,6 +106,21 @@ show-diagnostic: env dirs ## Print one corpus's edition diagnostic and its hash:
 	$(call require_corpus,show-diagnostic)
 	$(ACQUIRE_ONE) $(CORPUS) --show-diagnostic
 
+# The same act as `show-diagnostic`, widened from one locator to every corpus on
+# disk: acquired text read locally, on demand, rather than committed so it can be
+# read (ADR-0021). Read-only, and not the product's answer surface -- see
+# PRODUCT-SPEC's non-goals.
+#
+# On the host rather than through $(COMPOSE), and that is the decision rather
+# than a convenience. `make dev-offline` marks the default network internal, and
+# published ports do not survive that, so a containerised viewer would be
+# unreachable in exactly the run whose acquisition is most worth inspecting.
+# It reads ./data and ./corpora and opens no socket but the loopback one.
+.PHONY: browse
+browse: dirs ## Read the acquired corpora in a browser (loopback only)
+	@CATENA_DATA_DIR=$(CURDIR)/data CATENA_CORPORA_DIR=$(CURDIR)/corpora \
+	    $(UV) run --quiet --project services/catena catena browse $(if $(PORT),--port $(PORT),)
+
 # ---------------------------------------------------------------------------
 # The contract -- proto/ is normative, and its output is gitignored
 # ---------------------------------------------------------------------------
