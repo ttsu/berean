@@ -1,0 +1,34 @@
+corpus_id: wcf-1646-epcew-modernised
+source_url: https://www.epcew.org.uk/westminster-confession-of-faith/
+archive_url: https://web.archive.org/web/2id_/https://www.epcew.org.uk/westminster-confession-of-faith/
+retrieved: '2026-09-05'
+upstream_sha256: 8b9f47b1fdf5e61b2a10d9b35bb6149af6cce741316c9e572c6525d2d17a92e6
+license: public-domain
+license_terms: |
+  Public domain by age: the work is a 1646 document and no copyright term reaches
+  it.
+
+  This rendering modernises the confession's English — "has" for "hath", "depends"
+  for "dependeth" — and a modernisation involves more editorial choice than a
+  transcription does. The corpus is recorded as public domain on the age of the
+  work, and the ID and `edition` field say plainly that the wording is not the
+  original's, so nothing downstream can mistake this for the 1646 text.
+
+  The source, https://www.epcew.org.uk/westminster-confession-of-faith/, makes no
+  statement of terms about the confession's text, and none was found elsewhere on
+  the site. There is no copyright notice on the chapter pages; the only footer
+  credit they carry concerns the site's design rather than the text:
+
+      Website design & development by Conor Tomkins Creative
+
+  That absence is recorded rather than treated as permission. What admits this
+  corpus is the age of the work, not anything the publisher says about it, and the
+  next person to ask should be able to see that nothing was said.
+attribution: The Westminster Confession of Faith, 1646 recension in modernised English. Public domain. Text obtained from the Evangelical Presbyterian Church in England and Wales, https://www.epcew.org.uk/westminster-confession-of-faith/.
+normalisation_version: 1
+chunk_count: 172
+edition_check:
+  diagnostic: WCF 23.3
+  expected_sha256: 290eff5b9cb925a45e62f34dae30493ec48e9feeb8673dbcbd0adf8239126ad0
+  verified_by: tim
+  verified: '2026-09-05'

@@ -193,6 +193,32 @@ longer produces, and the corpus needs re-blessing.
 
 ---
 
+### An unblessed corpus stages, and says it was not verified
+
+Corrected 2026-09-05. Acquisition used to refuse a corpus with no committed manifest — "nothing to
+verify against, run `--bless`" — which was reasonable in isolation and wrong in context.
+
+It made the browser's first-bless flow **unreachable by construction**. `browse` discovers corpora by
+their staged output; staging happened only after a successful verify; verifying required a committed
+manifest; and a manifest is written only by a bless. So the one state the browser's `offer()` accepts
+— `UNBLESSED`, which it checks for explicitly — was the one state no corpus could reach there. A
+documented, implemented feature that nothing could ever exercise.
+
+It also made `make provision-corpus` fail on any clean clone the moment one corpus was unblessed, and
+fail *after* the blessed corpora had already staged, so the run was both broken and half-done.
+
+A plain acquisition of an unblessed corpus now stages, and reports `UNVERIFIED — never blessed`
+with the count and where the records went. There is no committed record to drift from, so
+verification has nothing to do rather than something it is skipping; the guarantees that matter are
+untouched, since text still lands only in gitignored local storage, nothing renders unverified, and
+no bless happens without a human typing a name.
+
+`--verify-only` still refuses. Drift detection against no committed record is not a check that
+passes, it is a check with nothing to evaluate, and `make corpus-verify` reporting success there
+would be exactly the "reports success while evaluating nothing" failure the fetch cache rules were
+written to avoid.
+
+
 ## `--bless`
 
 The one action in the process that discards a human verification, so it is the one action that
@@ -247,6 +273,524 @@ have noticed. Extraction reads tables column-major, and the suite asserts it.
 
 ---
 
+## The catechism adapters
+
+`wlc-1788-american` and `wsc-1788-american` landed against the interface above without changing it,
+which is the first thing worth recording: the adapter boundary held for a second document shape.
+
+### Shared helpers, and where the seam falls
+
+Three of the seven corpora are documents on one publisher's site in one markup shape. Two helper
+modules now sit under `corpora/`, both underscore-prefixed so the `corpus_id` → module mapping can
+never produce them:
+
+- **`_opc.py`** — the OPC page. Container capture on `div.mainBlock`, the dropped-subtree set, block
+  flushing tolerant of unbalanced markup, and column-major table flattening. Lifted from the WCF
+  adapter unchanged, which its suite proves: `test_acquire_wcf.py` passes untouched, and that is the
+  only evidence that a refactor did not move a fingerprint.
+- **`_catechism.py`** — Q&A segmentation, shared by the two catechisms.
+
+The split between them is the same one the pipeline draws between `extract` and `segment`, drawn one
+level down and for the same reason: `_opc` describes the shape of a publisher's markup and fails as
+garbage text, `_catechism` describes the structure of a catechism and fails as a wrong locator set.
+One module that did both could fail either way and would report both the same.
+
+`_opc`'s rules are deliberately **not** parameterised per corpus. A catechism page carries no table
+of contents, no tables and no proof-text apparatus, so the confession's rules are inert there — and
+load-bearing the day the OPC adds proof-texts to a catechism, which would otherwise be segmented as
+text.
+
+**This is a contract change.** The acquisition contract lists three committed artefacts per corpus,
+one of which is the adapter module; it did not anticipate shared code inside that package. The rule
+added to INTEGRATION-SPEC is that an underscore-prefixed module there is a helper and not an
+adapter, and that a helper may not do what the adapter interface forbids — normalisation stays with
+the pipeline.
+
+### Chunk text carries neither marker
+
+Decided during implementation; the contract was silent. A chunk is `<question> <answer>` with
+`Q. n.` and `A.` both dropped.
+
+Check 2 substring-matches a quote against exactly this text, so a marker left sitting on the
+boundary fails any quote that spans it — and a model quotes prose, not markers. Dropping the number
+also follows the confession's adapter, which puts the section number in the locator and not in the
+text. Nothing is lost: every question in both catechisms ends in a question mark, so the boundary
+survives its marker.
+
+### Division headings are matched structurally, because the text cannot be committed
+
+The Larger Catechism carries two all-caps headings that divide it and belong to no Q&A. They are
+dropped, counted, and the count asserted — `EXPECTED_DIVISIONS`, 2 for the WLC and **0 for the WSC**,
+which is what makes a heading appearing there a failure rather than a silent drop.
+
+They are matched as "an all-caps line between Q&As" rather than by their text, and that is forced
+rather than chosen: hard-coding the two strings would commit corpus text to this repository, which
+ADR-0014 forbids without a per-corpus exemption. The rule was checked against both sources before it
+was relied on — those two are the only all-caps lines in either document, and every continuation
+line inside WLC 99 and WLC 151 carries lowercase.
+
+A line *after* an answer is deliberately indistinguishable from a continuation of it, and must be:
+WLC 99's eight rules and WLC 151's four aggravations are exactly that. The stray-text check
+therefore catches prose *before* the first question, which is the case that can actually lose a
+chunk.
+
+### What the sources turned out to be
+
+- `opc.org/lc.html` and `opc.org/sc.html`. Not `wlc.html`/`wsc.html`, which 404.
+- 196 and 107 Q&As, contiguous from 1, each a single `<p>` of `Q. n. <i>…</i><br />A. …`.
+- **WLC 196's paragraph is never closed** — it runs straight into the container's `</div>`. The
+  extractor flushes at the container close, so the last chunk survives; a tree builder or a regex
+  over `<p>…</p>` loses it, and loses it silently. It has a test.
+- Neither page carries a table of contents, a table, or a `<sup>`.
+
+### The Shorter Catechism's diagnostic guards something else
+
+The 1788 revision altered the confession's chapters on the civil magistrate and WLC 109. **It left
+the Shorter Catechism unchanged**, so `wsc-1788-american` has no 1646-versus-1788 divergence for a
+diagnostic to point at.
+
+The ID stays as it is: a corpus ID is edition-specific by rule, the PCA's standards are one set, and
+an ID asserting a different date would invent a distinction the document does not have. What changes
+is what the diagnostic is *for*. The confusion this corpus is exposed to is a modernised printing,
+and the first thing a modernised printing changes is "Holy Ghost" to "Holy Spirit". WSC 6 is one
+short answer containing it — cheap to read at bless and impossible to be uncertain about.
+
+This is recorded in the adapter's own docstring rather than only here, because the person it needs to
+reach is whoever reads the module before blessing it.
+
+---
+
+## The *Institutes*
+
+`calvin-institutes-1559-beveridge` — the largest Phase 1 corpus, the only translated one, and the
+first that shares nothing with what came before. CCEL serves it as 4.6 MB of plain text, so `_opc`
+does not apply and `extract` decodes and trims regions rather than parsing markup.
+
+1,284 chunks: 1,277 body sections across four books of 18, 17, 25 and 20 chapters, plus the seven
+sections of Calvin's prefatory address.
+
+### Three hazards, none of which announces itself
+
+**Every chapter opens with a numbered synopsis of itself.** A list of one-line section titles
+numbered 1..N, followed by the same numbers again as the real body. Taken naively, a chapter yields
+2N chunks — half of them title fragments that would hash, bless, and verify clean forever, with
+nothing downstream able to notice. This is the *Institutes*' version of WCF 1.2's column-major
+tables, and it is worse, because it affects 74 of the 80 chapters rather than one.
+
+The rule is an invariant rather than a heuristic, which matters because a heuristic tuned until it
+fits is how garbage gets blessed. Take the greedy ascending run 1, 2, 3, … matching **only the next
+expected number**; then take a second run after it. When the two agree, the second is the body and
+the first was the synopsis. When they do not, the chapter carries no synopsis and the single run is
+the body — **six of the eighty carry none**, so its presence cannot be assumed. Matching only the
+next expected number is also what steps over the numbered lists that appear inside the prose, which
+defeated three earlier attempts at this.
+
+Validated before any adapter code was written: the rule reproduces the known section counts of every
+chapter, including the hard ones — 2.8 has 59, 3.20 has 52, 4.17 has 50, and the no-synopsis 3.21,
+4.1 and 4.20 have 7, 29 and 32.
+
+**Book IV chapter 18's number is missing from the source.** It reads `CHAPTER [653]` — a footnote
+anchor swallowed the number. Dropped, the parser loses a whole chapter; mishandled, it renumbers
+every chapter after it. It is recovered **positionally**: a chapter marker with no parseable number
+takes the next expected one, and the 18/17/25/20 shape is asserted. Recognising it by its title
+would commit corpus text, which ADR-0014 forbids.
+
+**1,283 footnote anchors inside the four books** are CCEL apparatus and are stripped in extraction.
+
+### What is not the corpus
+
+The file carries a great deal that is not the work, and excluding it is a licensing act rather than
+a tidiness one. **John Murray's introduction is 20th-century and in copyright** — the CCEL header's
+`Rights: Public Domain` covers Calvin and Beveridge, not the apparatus a later edition wraps around
+them, and `license_terms` records that distinction rather than leaving it to be inferred. Also
+dropped: Norton's 1581 translator's preface, the scripture and author indexes, each book's editorial
+`ARGUMENT`, and the One Hundred Aphorisms appended at the end.
+
+### Two locator forms, for one corpus
+
+Calvin's prefatory address to Francis I opens the work but sits outside the book/chapter scheme.
+Rather than exclude it or give it a fake book number, it takes `Inst. Pref.1` through `Inst. Pref.7`
+— recorded in GLOSSARY, and the only Phase 1 corpus with two locator forms. The alternative that was
+rejected, `Inst. 0.0.<n>`, keeps one shape at the cost of a locator that reads as a real address and
+is not one.
+
+---
+
+## The 1646 confession, and the check that a diagnostic cannot make
+
+`wcf-1646-epcew-modernised`, 172 chunks. The corpus ID is the finding.
+
+### No faithful 1646 text exists in fetchable form
+
+Every candidate was checked against the divergence the edition turns on — 23.3, where the original
+gives the civil magistrate authority to call synods and the American revision has "nursing fathers":
+
+| Source | Verdict |
+| --- | --- |
+| OPC `wcf.html` | 1788 American — already held |
+| CCEL `westminster3.txt` | 1788 American, published under the original's title |
+| CCEL `westminster1` / `westminster2` | Shorter and Larger Catechisms, mislabelled |
+| Wikisource, *The Humble Advice of the Assembly of Divines* | the genuine 1646 text, but only 9 of 33 chapters transcribed |
+| Internet Archive, 1647 printing | page images, no OCR text at all |
+| EEBO | 403; a licensed database |
+| six denominational sites | 404 or 410 |
+
+What remains is the EPCEW, which publishes the 1646 recension a chapter to a page.
+
+### A modernised rendering passes every check this pipeline has
+
+The EPCEW text has the original's substance. 23.3 gives the magistrate authority to call synods,
+chapter 31 has five sections against the American revision's four, and `WCF 31.5` exists there and
+in no other corpus here. The edition diagnostic passes. The 33-chapter assertion passes. The
+chapter-31 assertion passes. The fingerprints are stable run to run.
+
+**Its English has been modernised throughout**, and only a diff against the 1788 corpus exposed it:
+151 of 171 shared locators differ, where the two editions should differ in a handful of places.
+
+| form | EPCEW | OPC 1788 |
+| --- | --- | --- |
+| `hath` | 1 | 38 |
+| `doth` | 0 | 23 |
+| `-eth` verbs | 1 | 52 |
+| `has` | 37 | 0 |
+| `does` | 23 | 0 |
+
+`dependeth` becomes `depends`; `he hath` becomes `He has`. That is a difference of diction rather
+than doctrine, which is why the corpus is kept — for showing what a tradition repudiated, the
+argument survives the rewording. What it may not do is claim to be the 1646 text, because every
+citation would verify against words no seventeenth-century document contains. Hence
+**`wcf-1646-epcew-modernised`** rather than `wcf-1646-original`, with `edition` saying the same
+thing in prose.
+
+**The general lesson: an edition diagnostic catches the wrong recension, not a modernised rendering
+of the right one.** ADR-0021 made the diagnostic a locator whose text a human reads, and that is
+exactly the right instrument for "is this the 1788 or the 1646 confession". It is the wrong
+instrument for "is this the 1646 confession or somebody's 1646 confession in today's English",
+because the passage reads correctly in both.
+
+So `--bless` now prints a **register profile** beside the diagnostic: counts of `hath`, `doth`,
+`-eth`, `has` and `does` across the whole corpus. It asserts nothing. "Old text, modern words" is a
+judgement, and a threshold would need one per corpus, which is the per-corpus reasoning this project
+keeps removing. It counts a grammatical pattern rather than quoting anything, so it says something
+about the text while the repository carries none of it. The two confessions side by side are why it
+earns its place — 38/23/52 against 1/0/1 is not a subtle signal.
+
+### `FetchPlan.follow`, for a corpus that is not one document
+
+The source is 33 pages. `FetchPlan` gains `follow`: the adapter is handed the index's bytes and
+returns the page URLs in reading order, and fetch downloads them into one blob. Every later stage is
+unchanged — the concatenation is content-addressed, cached and `--from-file`-able like any single
+document, and the index itself is dropped as the table of contents it is.
+
+The seam is in fetch rather than in an adapter's `extract` for the reason the stages are separate at
+all: fetch is the only stage that touches the network, and an adapter downloading its own pages
+would put network access behind a function the cache cannot see. `follow` reads bytes and returns
+strings; it performs no I/O.
+
+The URLs are **discovered rather than listed** because they carry the confession's chapter titles,
+and thirty-three of those written into an adapter is the document's table of contents committed to a
+public repository (ADR-0014).
+
+**A page set is fetched politely, one second apart.** Not a nicety: 33 back-to-back requests earned
+an HTTP 429 from a small denominational server during development, which fails the whole
+acquisition. Acquisition is one-time and human-supervised, so a minute spread over a corpus costs
+nothing.
+
+A per-page archive fallback was rejected. A set of archived snapshots is a second source to keep
+current, and a corpus that quietly acquired 32 of 33 pages would stage and bless as though complete;
+the fallback for a page set is `--from-file`.
+
+### Two source defects worth recording
+
+**Chapter 12, *Of Adoption*, is a single unnumbered paragraph.** The chapter has one section and the
+source omits the numeral, so a segmenter requiring one loses `WCF 12.1` entirely. A chapter opening
+with unnumbered text takes section 1, and the number of such chapters is asserted at exactly one —
+one is a feature of the document, two would be stray text being absorbed into a chunk.
+
+**Proof-text markers are linked in two styles.** The current one puts `footnotes` in the path; an
+older one is `/wcf/I_fn.html#fn10`. Matching the path caught only the first and left markers in
+eight chunks — a fingerprint of text-plus-apparatus, which blesses and verifies clean forever. Both
+styles carry an `fn<n>` fragment and name, which is the marker's real signature, and extraction now
+**refuses** rather than emitting a document with a marker still in it.
+
+---
+
+## The 2000 creation study report
+
+`pca-ga28-2000-creation-study`, 513 chunks. The corpus that makes UC-4 answerable: without it the
+corpus says only "in the space of six days" (WCF 4.1), and the denomination's actual ruling appears
+nowhere.
+
+### The recommendations are addressable, and unmistakably so
+
+`GA28 Rec.1` through `GA28 Rec.3`, a form deliberately unlike the body's `GA28 IV.B.2.4`. A
+profile's `ruling_source` resolves to the first and must never resolve to the second, because the
+body argues four interpretations the denomination did not adopt and tier is per corpus rather than
+per chunk (ADR-0015). The locator is the only thing separating advocacy from ruling, so it should
+not take a careful reader to tell them apart: `VI.B.2` and `IV.B.2` differ by one character and mean
+opposite things, which is why the hierarchical form was rejected.
+
+`Rec.2` is the ruling — the Assembly affirming a diversity of views on the creation days — and it is
+the **edition diagnostic**. A committee draft has recommendations; only the adopted report records
+that they carried, which the source does, in italics: *Adopted*, *Adopted as amended*.
+
+### PLAN's chunking rule did not survive the document
+
+The spec says "per numbered section". Section IV.A, the Calendar-Day Interpretation, is **40,659
+characters with no subsections** — about 10,000 tokens, past BGE-M3's 8,192 limit. It could not be
+embedded, let alone retrieved. The deepest headings run from 1 KB to 40 KB.
+
+Chunks are paragraphs, and the section path moves into the locator: 513 chunks, median 376
+characters, none above 2,016. Seventeen fall under ADR-0020's 40-character quote floor, so they can
+be cited and never quoted, which is the right direction to fail in.
+
+### On the date, because the source disagrees with the corpus ID
+
+The PCA Historical Center files this under "[27th General Assembly (1999)]" while the ID says the
+28th and 2000. The document settles it: it contains "PROPOSAL FOR REPORTING TO THE 28TH GENERAL
+ASSEMBLY" and records each recommendation's outcome, and an outcome is something only an Assembly
+produces. The 1999 label is the committee's work filed under the year it was written.
+
+### Four source defects, each of which silently corrupts the corpus
+
+**The body marker appears twice.** "REPORT OF THE CREATION STUDY COMMITTEE" is both the page's title
+above the contents table and the body's heading below it. Starting at the first swallows the
+Historical Center's filing label and the entire index. The last occurrence wins.
+
+**Bold does not mean heading.** Headings are bold, but so is emphasis mid-sentence and so are whole
+paragraphs the source chose to set in bold. A heading is a paragraph that is *entirely* bold **and**
+no longer than 120 characters; the report has 36 fully-bold paragraphs carrying no number, most of
+them short sub-headings (`Conclusion`, `Strengths:`) and some of them body text. No heading in the
+document approaches the threshold and every bold body paragraph exceeds it.
+
+**Footnote bodies are not the report.** Dropping the marker leaves the note's text, and all 173
+endnotes sit after the appendices in their own `div id="ftnN"` — chunked, they produced 184
+paragraphs like `[35]Ibid.` under locators claiming to be the appendix on General Revelation. The
+`div` is dropped whole.
+
+**A bracketed number is not always a footnote.** The 1646 adapter refuses any surviving `[n]`, which
+would be wrong here: this document cites `Works [1822]` and `God Made visible in His Workes [1641]`
+in its own prose. Footnote numbers run to 173 and years are four digits, so the two are separable —
+but the general rule is that a marker-shaped string is only apparatus in a source that uses it that
+way, and the check belongs per adapter rather than in the pipeline.
+
+---
+
+## The World English Bible
+
+`web-2020`, 31,098 verses — an order of magnitude past anything else acquired here, and the corpus
+whose ID had to change.
+
+### The edition is 2020, and `web-2000` named one nobody published
+
+PLAN, TECHNICAL-SPEC and INTEGRATION-SPEC all said `web-2000`. eBible.org is unambiguous that no
+such edition exists. Its FAQ: the translation "started out as just one Bible translation that was
+**continuously revised until 2020**", and "The World English Bible was **completed in 2020**. A few
+minor typos have been corrected since then." The VPL archive's own about file ends "**2020 stable
+text edition**". The Sword modules are named `engweb2025eb`, and the files on the server were
+rebuilt three days before acquisition.
+
+So `web-2000` asserted an edition that was never a published artefact — the same failure as
+`wcf-1646-original`, caught the same way, by reading the source instead of the spec. Renamed, and
+the three specs corrected in the same change.
+
+### Which WEB, and why it is a canon question rather than a spelling one
+
+eBible publishes two that matter here. `eng-web` is the **Classic**: it carries the
+Deuterocanon and renders the Tetragrammaton "Yahweh". `engwebp` is the **Updated** text restricted
+to the 66 books — exactly the canon WCF 1.2 enumerates — and renders it "LORD" (6,576 times;
+"Yahweh" appears nowhere in it). Both the canon and the divine name make the Protestant edition the
+right text under a Westminster profile, and the two are different corpora rather than two spellings
+of one. Taking the wrong one would put the Apocrypha into a corpus a PCA profile treats as
+`binding`.
+
+### `text_form` is `majority`, on the publisher's statement
+
+The enum is closed and the answer is not guessable from the abbreviation. eBible's FAQ: the WEB
+"has been edited to conform to the **Greek Majority Text** New Testament where there are significant
+differences in manuscripts", using "the Biblia Hebraica Stuttgartensia in the Old Testament, and the
+**Byzantine Majority Text**… Robinson-Pierpont and Hodges-Farstad". The text bears it out —
+Matthew 17:21, Mark 9:44 and John 5:4 are present where critical texts omit them, and the Comma
+Johanneum is absent where the Textus Receptus has it. Recorded from the statement, corroborated by
+the text, rather than either alone.
+
+### Five verses are blank, and *which* five is the evidence
+
+Luke 17:36, Acts 8:37, Acts 15:34, Acts 24:7 and Romans 16:25 are absent from that base text, and
+the source emits the verse marker with no text after it. `record.stage` refuses an empty normalised
+string, so acquiring them aborts the run — a loud failure, but the wrong one.
+
+They are skipped, and the adapter asserts the **exact set** rather than the count. Which verses a
+translation omits is evidence about its Greek text: a source blanking a different five would be a
+different textual base wearing this one's name, and the edition diagnostic could not see it, because
+every remaining verse reads identically. That is the `wcf-1646-epcew-modernised` lesson applied
+before it cost anything — a diagnostic locator catches the wrong recension, not a different text
+that agrees at the locator you happened to pick.
+
+**Skipping them leaves real gaps**, so verse numbering is deliberately *not* asserted contiguous,
+unlike chapter and section numbering everywhere else in this package. Acts runs 8:36 then 8:38, and
+that is correct.
+
+### A zip is the right shape, and the locator table is the source's dialect
+
+`extract` opens the archive in memory and reads one member. eBible's VPL form is "BIBLE TEXT ONLY.
+All formatting, paragraph breaks, notes, introductions, noncanonical section titles, etc., have been
+removed" — the bare text this project wants, with the apparatus already gone. The alternative
+single-document forms are HTML per book, which would need `FetchPlan.follow` and a parser to arrive
+at exactly the lines this member already contains.
+
+The source's book codes are the older BibleWorks-style forms rather than USFM — `SOL` not `SNG`,
+`JOH` not `JHN`, `JAM` not `JAS` — so the adapter's 66-entry table is not decoration: it pins the
+dialect the source actually speaks, and an unrecognised code fails rather than inventing a locator.
+Book names are identifiers, not text (ADR-0014).
+
+### Scale, measured
+
+| | |
+| --- | --- |
+| chunks | 31,098 (31,103 verses less the five blanks) |
+| extract + segment + normalise + stage | 0.39 s |
+| verse length | median 119 characters, max 491 |
+| `make browse` | paginates at 500, so 63 pages; loads in 0.44 s and renders one page in 0.02 s |
+
+**482 verses (1.5%) fall below ADR-0020's 40-character quote floor** — including John 11:35, "Jesus
+wept." They can be retrieved and cited and never quoted, which is exactly the case ADR-0020
+anticipated when it said the floor "will occasionally reject a legitimately short citation… Revisit
+the number if it fires on real Westminster content during Task 11." It now has a number attached to
+it before Task 11 rather than after.
+
+---
+
+## The Book of Church Order, and the one corpus that costs a parser
+
+`pca-bco-2026`, 430 paragraphs across chapters 1–63. The `governing` corpus under a PCA profile,
+and the last of the eight.
+
+### A PDF, because there is nothing else
+
+`pcaac.org` serves the BCO through a JavaScript application — 230 KB of markup over 0.5% text, and
+that text is navigation. It is the same shape the confession's adapter records for the same
+publisher, and there is no bare-text edition of the BCO anywhere. What exists is the Office of the
+Stated Clerk's own 423-page PDF: 30 font objects, **zero images**, so real embedded text rather than
+a scan.
+
+**This is the one adapter that costs a dependency.** Extraction was stdlib everywhere else —
+`html.parser` for the OPC and EPCEW pages, `zipfile` for the WEB — and there is no stdlib route to a
+PDF. `pypdf` is BSD-3-Clause, pure Python, and has no runtime dependencies of its own, so the
+offline overlay stays honest and `docker compose up` still needs no account. ADR-0007's
+downstream-commercial-use rule is satisfied.
+
+The PDF read is deliberately a thin shim. `extract` opens the document and hands the page texts to
+`_document`, which does all the shape work; the parser is touched in one function and every failure
+below is testable without a PDF.
+
+### The edition is 2026, and that is the third time
+
+The specs said `pca-bco-2024`. The title page says the document "[i]ncludes all amendments approved
+up to and including the 53rd General Assembly, in Louisville, Kentucky, June 22-26, 2026". A BCO is
+amended most years, so those are different constitutions and a citation resolving against the wrong
+one is a correctness failure rather than a naming nit.
+
+That is now **three of eight** Phase 1 corpora whose spec ID named an edition the source does not
+serve — `wcf-1646-original`, `web-2000`, `pca-bco-2024`. In each case the ID was written before
+anyone had the document in hand. The pattern is worth stating plainly: **a corpus ID in a spec is a
+hypothesis until an adapter has checked it against the source.**
+
+### The appendices are excluded, and that is a correctness decision
+
+The constitutional BCO is Parts I–III — Form of Government, Rules of Discipline, Directory for
+Worship — running to chapter 63 and stopping where the appendices begin. The PCA says of Appendix I
+that it was approved "as a non-binding informational Appendix to the BCO" and "has no binding
+constitutional authority"; the rest are liturgical forms and advisory material.
+
+Tier is per corpus and not per chunk, so an appendix ingested here would be **served at
+`governing`** — the system telling a user that a funeral service form is constitutional law. Same
+shape as the 2000 report's advocacy-versus-ruling problem, solved by exclusion rather than by a
+second locator form, because unlike the recommendations the appendices are not something a profile
+ever needs to cite.
+
+### Eight defects a PDF hides, none of which announces itself
+
+The first four were found while the adapter was written. The last four were found afterwards, from a
+report that a header was appearing mid-list in the finished text, and they are the more interesting
+half: three of them had been staged, read, and reviewed without anyone noticing, and one of them had
+silently dropped a chunk.
+
+**The running head contains a paragraph number, and it alternates by page side.** The recto carries
+`FORM OF GOVERNMENT 5-1`; the verso carries `5-9 THE BOOK OF CHURCH ORDER` — the same paragraph
+number, the book's title instead of the part's, and the two in the opposite order. Either tail
+matches a paragraph opener exactly, so leaving one in invents a chunk and corrupts the numbering,
+and the corruption reads as a plausible locator.
+
+**Only the recto form was filtered at first**, which is worse than filtering neither: the surviving
+half lands mid-sentence inside whichever paragraph spans the page break, and a chunk that is merely
+noisy raises no structural alarm. 49 of 430 paragraphs carried it. See below on why the suite
+agreed.
+
+**Chapter 44 is `(Vacated)`.** A real chapter removed by amendment, keeping its heading with no
+paragraphs under it. Chapter numbering is therefore **not** asserted contiguous — the source is
+correct and a contiguity check would fail on it. Instead the set of empty chapters is asserted to be
+exactly `(44,)`: a different set is a different edition, and an empty chapter that is not 44 is a
+parser losing paragraphs rather than the Assembly removing them.
+
+**The part-divider page is absorbed into the paragraph above it.** `PART II / THE RULES OF
+DISCIPLINE / The Rules of Discipline` sits between the parts, and left in it becomes the tail of
+`BCO 26-6` — the last paragraph of Part I ending with the title of Part II. Found only by grepping
+the finished chunks for the part names.
+
+**The front matter contains paragraph-shaped strings.** The amendment summary lists cross-references
+— `4-21.d.5; 11-5; 16-3.e.5 and renumber` — which match a paragraph opener exactly and abort the run
+before the constitution starts. The body opens at a bare `PART I` line, distinct from the contents
+page's `PART I -- FORM OF GOVERNMENT`.
+
+**The blank pages are not blank.** Each chapter opens on a recto, so the typesetter pads with an
+empty page carrying `This page intentionally left blank.` — furniture, which lands in whichever
+paragraph the padded break interrupts. 39 paragraphs carried it.
+
+**The third part's divider page is not shaped like the second's.** The Rules of Discipline divider is
+`PART II / THE RULES OF DISCIPLINE / The Rules of Discipline`, three lines a pattern can match. The
+Directory's spells its title in full and breaks it across two lines — `THE DIRECTORY FOR THE
+WORSHIP` / `OF GOD`, where the running head's short form is what `PARTS` carries — and then runs a
+preface of ordinary prose that no pattern could tell from the constitution. All of it became the
+tail of `BCO 46-8`, which ran to 1,073 characters where its own text is 227.
+
+So **a divider match now suspends the document until the next chapter heading** rather than dropping
+one line. A divider page holds no numbered paragraph, so the chapter heading after it is the next
+thing worth keeping, and the three dividers stop having to be matched line for line. If a divider
+pattern ever matched inside a chapter, the paragraphs it swallowed would break the segment stage's
+contiguity check rather than pass silently.
+
+**A paragraph opener is split across two lines by the page break.** `36-8.` is emitted as `36` and
+`-8. When members`, so no opener matches, and the paragraph is absorbed into `BCO 36-7`. This one
+did not corrupt a chunk, it **deleted** one: `BCO 36-8` resolved to nothing at all, and the corpus
+staged 429 paragraphs where the document has 430.
+
+It is also the defect that shows where the segment stage's guards stop. Contiguity is asserted
+*within* a chapter, so a paragraph dropped in the middle aborts the run — but 36-8 is the last
+paragraph of chapter 36, and nothing after a chapter's tail re-anchors the count. A truncated
+chapter is invisible until `chunk_count` in a blessed manifest pins the total, which is one more
+reason a corpus is not finished until it is blessed.
+
+Also stripped: 60 amendment bullets, a private-use code point the publisher puts in the margin to
+mark what changed this year. Annotation, not text, and invisible in a diff.
+
+### Why the suite agreed, which is the finding worth keeping
+
+The adapter had a test asserting the running head is not text, and it passed throughout. Its fixture
+built pages with `header(part, first, chapter, title)` — the recto form, the only form anyone had
+looked at. The adapter was written against that fixture and the fixture was written against that
+adapter, so the suite asserted, precisely and repeatedly, that the half of the problem it knew about
+was solved.
+
+A structural suite over invented text is the right shape for an ADR-0014 corpus and nothing here
+argues otherwise. But it tests the parser against the document the fixture describes, so a fixture
+that models the source wrongly buys a green suite and no coverage. The fixture now alternates page
+sides, and every existing assertion runs against both. **The question to ask of a fixture is not
+whether the parser passes it, but whether anyone has checked that it is what the source looks
+like** — and for a PDF, that means reading the pages, not the extracted text.
+
+---
+
 ## Testing
 
 ADR-0014 bars corpus text from fixtures, which is not an inconvenience to work around — it decides
@@ -257,10 +801,17 @@ module, with invented text. Every generic stage — cache, verify, bless, stagin
 validation — is exercised there, because none of them care what the text says. No test touches the
 network.
 
-**The WCF adapter is tested structurally.** That extraction yields 33 chapters; that every locator
+**The adapters are tested structurally.** That extraction yields 33 chapters; that every locator
 matches `WCF <chapter>.<section>`; that the chapter numbering is contiguous from 1; that no
 proof-text markers survive extraction. All of that is assertable without committing a byte of the
 confession, and it is what would actually catch a broken parser.
+
+The catechisms are tested the same way, and the shared helpers get their own suites:
+`test_acquire_opc.py` covers the page shape once for all three corpora, and
+`test_acquire_catechisms.py` covers Q&A pairing, the division rule, and each adapter's constants
+against a page built in the source's layout from invented text. What is **not** a test is that
+WLC 109 omits the 1646 clause or that WSC 6 says "Holy Ghost" — asserting either would commit the
+phrase, so both are the human's job at bless, which is what the diagnostic exists for.
 
 The 33 is checked, not assumed. The 1903 PCUSA revision added chapters 34 and 35, and a source
 carrying them would be the wrong edition in a way WCF 23.3 does not detect — the divergence is
@@ -291,13 +842,31 @@ network.
 ## What lands
 
 - `services/catena/src/catena/acquire/` — `pipeline`, `fetch`, `record`, `manifest`,
-  `fingerprints`, `cli`, and `corpora/wcf_1788_american.py`
+  `fingerprints`, `cli`, the three Westminster adapters under `corpora/`, and the `_opc` and
+  `_catechism` helpers they share
 - `catena acquire` with real argument parsing, replacing the exit-69 stub
 - `corpora/wcf-1788-american/manifest.yaml` and `fingerprints.txt`, blessed by hand
 - One new dependency: **PyYAML**. Fetch is stdlib `urllib`, extraction stdlib `html.parser`. The
   offline overlay stays honest and the adapter is per-corpus regardless
 - No new Makefile targets — `provision-corpus` and `corpus-verify` already pass the flags, and
   `test-catena` globs new suites up
+
+### Every acquisition target depends on `build`
+
+Added 2026-09-04, after `make bless CORPUS=wlc-1788-american` reported `unknown corpus` against a
+freshly written adapter. The catena image `COPY`s `services/catena/src` at build time and mounts no
+source, so a container started against a stale image runs the adapters the image was built with.
+
+The visible failure — a new corpus reported unknown — is the harmless half. The dangerous half is an
+*edited* adapter, where the stale image acquires through the old code and nothing says so: a bless
+would then record a human verification against text the working tree no longer produces, which is
+precisely the class of silent divergence the fingerprints exist to catch and could not catch here,
+because the fingerprints would be written by the same stale code that produced them.
+
+So `provision-corpus`, `corpus-verify`, `bless` and `show-diagnostic` all take `build` as a
+prerequisite. A warm no-op build is under two seconds, which is the cheaper side of that trade.
+`show-diagnostic` is included for consistency with `bless`, which prints the same text: a stale
+diagnostic read is a human reading the wrong text and concluding the edition is right.
 
 ### Spec changes in the same change
 
@@ -325,24 +894,35 @@ becomes `edition_check.expected_sha256`.
 
 ## Status
 
-The pipeline and the WCF adapter have landed. `wcf-1788-american` acquires cleanly against
-`opc.org/wcf.html` — 171 sections across 33 chapters, byte-identical across runs — and is **not yet
-blessed under the current schema**.
+The pipeline and the three Westminster Standards adapters have landed, and all three acquire
+cleanly and byte-identically across runs: `wcf-1788-american` against `opc.org/wcf.html`, 171
+sections across 33 chapters; `wlc-1788-american` against `opc.org/lc.html`, 196 Q&As;
+`wsc-1788-american` against `opc.org/sc.html`, 107. **`wcf-1788-american` was blessed on
+2026-09-04 under the current schema and needs nothing further; the two catechisms have never
+been blessed.**
 
-It was blessed once, before review. ADR-0021 changed `edition_check.expected` to
-`expected_sha256`, and a manifest is written only by `--bless`, so the artefacts written under the
-old shape were removed rather than hand-edited. Re-blessing is:
+The confession was blessed once before review, under the `edition_check.expected` shape ADR-0021
+replaced; a manifest is written only by `--bless`, so those artefacts were removed rather than
+hand-edited, and it was re-blessed on 2026-09-04 under the current schema. **It is done.** Running
+`make bless` against it again only offers to discard a verification that is already correct, and the
+re-bless confirmation exists to make that hard to do by accident.
+
+The two catechisms have never been blessed and take the step it already took:
 
 ```
-make bless CORPUS=wcf-1788-american
+make bless CORPUS=wlc-1788-american
+make bless CORPUS=wsc-1788-american
 ```
 
-which prints WCF 23.3 in full — read it against the 1646 original at chapter 23 — and blocks on a
-typed name. To read the diagnostic without blessing anything, at any time:
+Each prints one locator to read. **WLC 109 is confirmed by an absence** — "tolerating a false
+religion" must not appear among the sins forbidden in the second commandment, because the 1788
+revision deleted it. **WSC 6 is confirmed by a presence** — "the Holy Ghost", not "the Holy
+Spirit", which is what a modernised printing substitutes. To read any diagnostic without blessing
+anything, at any time:
 
 ```
-make show-diagnostic CORPUS=wcf-1788-american
+make show-diagnostic CORPUS=<corpus-id>
 ```
 
-The remaining six corpora are follow-on work against this same interface: a module under
+The remaining four corpora are follow-on work against this same interface: a module under
 `catena/acquire/corpora/`, an entry in that package's `CORPUS_IDS`, and a bless.

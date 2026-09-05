@@ -161,11 +161,12 @@ def run_one(
     manifest = mf.read(committed_dir / mf.FILENAME)
     committed = fp.read(committed_dir / mf.FINGERPRINTS_FILENAME)
 
-    if manifest is None and not (bless or show_diagnostic):
+    if manifest is None and verify_only:
         raise AcquisitionError(
-            "no committed manifest. This corpus has never been blessed, so there is "
-            "nothing to verify against — run `catena acquire --corpus "
-            f"{adapter.corpus_id} --bless` at a terminal and verify the edition by hand."
+            "no committed manifest. `--verify-only` compares an acquisition against a "
+            "blessed record and this corpus has none, so there is nothing to compare. "
+            "Drift detection over a corpus nobody has verified is a check with nothing "
+            f"to evaluate — bless it first: `make bless CORPUS={adapter.corpus_id}`."
         )
 
     acquired = pipeline.acquire(
@@ -202,7 +203,25 @@ def run_one(
         pipeline.write_stage(acquired, data_dir=data_dir)
         return True
 
-    assert manifest is not None  # guarded above
+    if manifest is None:
+        # Never blessed. Stage it anyway: there is no committed record to drift
+        # from, so verification has nothing to do, and refusing here made the
+        # browser's first-bless flow unreachable by construction — a corpus
+        # reaches `make browse` by being staged, staging required a successful
+        # verify, and verifying required the blessing the browser exists to
+        # perform. Text still lands only in gitignored local storage, nothing
+        # renders unverified, and no bless happens without a human typing a name.
+        out = pipeline.write_stage(acquired, data_dir=data_dir)
+        print(f"{adapter.corpus_id}: UNVERIFIED — never blessed", file=stream)
+        print(f"  staged {len(acquired.records)} records in {out}", file=stream)
+        print(
+            "  nothing was checked: there is no committed record to check against. "
+            "Read it and bless it — `make browse`, or "
+            f"`make bless CORPUS={adapter.corpus_id}`.",
+            file=stream,
+        )
+        return True
+
     if committed is None:
         raise AcquisitionError(
             f"{committed_dir / mf.FINGERPRINTS_FILENAME} is missing while the manifest "

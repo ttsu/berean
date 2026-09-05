@@ -350,7 +350,8 @@ TECHNICAL-SPEC and SHARED in the same change:
 **Depends on:** —
 
 Build the acquisition pipeline, then use it to acquire the 1788 American revision of WCF/WLC/WSC,
-the current BCO, the 1646 original (needed for the edition check, and the profile's only `contrary`
+the current BCO, the 1646 recension (the profile's only `contrary` corpus; see below on why no
+faithful 1646 text could be found and what was taken instead) (needed for the edition check, and the profile's only `contrary`
 corpus), the WEB text, the 28th General Assembly (2000) creation study committee report
 (`pca-ga28-2000-creation-study`) — the document that establishes the contested status of
 `creation-days`, without which the corpus says only "in the space of six days" (WCF 4.1) and UC-4
@@ -364,13 +365,25 @@ that exercises `source_language` and the book/chapter/section locator.
 **No corpus text enters the repository** (ADR-0014). The repo carries manifests, fingerprints, and
 scripts; text lands in gitignored `/data/`.
 
-**Status: the pipeline has landed and `wcf-1788-american` acquires cleanly; the bless is
-outstanding.** Design, and the decisions implementation and review revised, are in
-[ACQUISITION-DESIGN.md](ACQUISITION-DESIGN.md). The corpus was blessed once and then ADR-0021
-changed the manifest schema — `edition_check` records the hash of the text the verifier read rather
-than the text — so it needs re-blessing at a terminal (`make bless CORPUS=wcf-1788-american`),
-which `--bless` requires and no flag overrides. Then the other six corpora, each a module under `catena/acquire/corpora/`, an entry in
-that package's `CORPUS_IDS`, and a bless.
+**Status: the pipeline has landed and all eight corpora acquire cleanly. Seven are blessed
+under the current schema; `pca-bco-2026` is not.** Design, and the decisions implementation and
+review revised, are in [ACQUISITION-DESIGN.md](ACQUISITION-DESIGN.md).
+
+Blessed: `wcf-1788-american` (WCF 23.3), `wlc-1788-american` (WLC Q&A 109),
+`wsc-1788-american` (WSC Q&A 6), `calvin-institutes-1559-beveridge` (Inst. 4.17.10),
+`wcf-1646-epcew-modernised` (WCF 23.3), `pca-ga28-2000-creation-study` (GA28 Rec.2) and
+`web-2020` (Deut 6:4). The confession was blessed once before ADR-0021 changed the manifest
+schema — `edition_check` now records the hash of the text the verifier read rather than the text
+— and was re-blessed under the new schema; the rest were blessed under it from the start.
+
+Unblessed: `pca-bco-2026`. It was blessed, and the bless is being redone rather than kept,
+because it captured the text a stale parser produced: 429 paragraphs with the verso running head
+in 49 of them, `BCO 46-8` carrying the Directory's divider page, and `BCO 36-8` absent
+altogether. 89 of 430 fingerprints differ under the corrected parser, the diagnostic `BCO 21-4`
+among them, so the reading that admitted the edition was a reading of furniture-bearing text and
+has to happen again. **A bless is only as good as the parser that ran under it** — worth stating
+because nothing in the pipeline can notice this, the manifest being the durable record precisely
+because nothing checks it afterwards.
 
 Pipeline:
 
@@ -382,13 +395,28 @@ Pipeline:
 - [ ] Structural chunking lives in the segment stage — WCF per numbered section, WLC/WSC per Q&A
       pair never split, BCO per numbered paragraph, WEB per verse, the *Institutes* per numbered
       section (`Inst. 4.17.10`), the 2000 report per numbered section with its recommendations
-      segmented separately from the expository body. **WCF done** — 33 chapters, 171 sections,
-      `WCF <chapter>.<section>`. Its lists of canonical books are three-column tables read *down*
-      each column; row-major reading garbles them and nothing downstream would notice
-- [ ] The 2000 report's recommendations are independently addressable, so a profile's
+      segmented separately from the expository body. **All eight corpora are done.** The BCO is
+      `BCO <chapter>-<paragraph>`, 430 paragraphs across chapters 1–63; chapter 44 is `(Vacated)`
+      and has none, so chapter numbering is deliberately not asserted contiguous
+      WCF — 33 chapters, 171 sections, `WCF <chapter>.<section>`. Its lists of canonical books are
+      three-column tables read *down* each column; row-major reading garbles them and nothing
+      downstream would notice. WLC — 196 Q&As, `WLC Q&A <n>`; WSC — 107, `WSC Q&A <n>`. Chunk text
+      carries neither the `Q. n.` nor the `A.` marker, because check 2 substring-matches against it
+      and a marker on the boundary fails any quote spanning it. The catechisms' answers are
+      multi-line (WLC 99's eight rules, WLC 151's four aggravations) and WLC 196's paragraph is
+      never closed in the source, so the last chunk depends on flushing at the container's close
+- [x] The 2000 report's recommendations are independently addressable, so a profile's
       `ruling_source` resolves to the ruling and never to the expository body. The body argues
       four views the denomination did not adopt; tier is per corpus, not per chunk, so nothing
-      else separates advocacy from ruling
+      else separates advocacy from ruling. Done: `GA28 Rec.1`–`Rec.3`, a form deliberately unlike
+      the body's `GA28 IV.B.2.4`. **`Rec.2` is the ruling** — the Assembly affirming that a
+      diversity of views on the creation days is acceptable — and it is the edition diagnostic,
+      because only the adopted report records that its recommendations carried
+- [x] **Chunked per paragraph, not per numbered section, and the spec is corrected rather than
+      quietly departed from.** Section IV.A is 40,659 characters with no subsections — past
+      BGE-M3's 8,192-token limit, so it could not be embedded at all. 513 chunks, median 376
+      characters, none over 2,016. The section path lives in the locator instead, which is what
+      keeps a citation's place in the argument visible
 - [x] `--bless` writes a new manifest after human edition verification; the default mode verifies
       against the committed manifest and fails loudly, never silently, on any mismatch. Bless aborts
       on a non-TTY, blocks on a typed verifier name, demands a distinct confirmation when
@@ -401,7 +429,7 @@ Pipeline:
 
 Provenance and licensing:
 
-- [ ] **Resolved (ADR-0017):** BCO and `pca-ga28-2000-creation-study` are ingested as `local-only`.
+- [x] **Resolved (ADR-0017):** BCO and `pca-ga28-2000-creation-study` are ingested as `local-only`.
       Ingestion and serving are separate acts — the repository distributes nothing (ADR-0014), and
       check 4 refuses to serve `local-only` chunks unless the deployer has opted in, defaulting to
       deny. This no longer blocks acquisition. It does mean the manifest must record the terms
@@ -415,14 +443,26 @@ Provenance and licensing:
       underspecified and a numeric-aware sort needs a locator grammar the format does not have
 - [ ] **Verified as the 1788 American revision** — WCF ch. 23 checked by hand against the 1646
       text, read in full at bless and recorded as its hash rather than as a checkbox or as committed
-      text (ADR-0021). Blessed once on 2026-09-04 and superseded by the schema change; re-bless
-      with `--bless`, or read the diagnostic any time with `--show-diagnostic`. Chapter 31 having
+      text (ADR-0021). Blessed once, superseded by the schema change, and re-blessed under the
+      current one on 2026-09-04; the confession needs nothing further. The diagnostic can be read
+      at any time with `--show-diagnostic`, blessed or not. Chapter 31 having
       four sections rather than the 1646 original's five is a second, structural confirmation the
-      adapter gets for free
+      adapter gets for free. **WLC 109 is the catechism's share of the same revision** — the 1646
+      text lists "tolerating a false religion" among the sins forbidden in the second commandment
+      and the American revision deletes it, so the diagnostic is confirmed by an absence.
+      **WSC has no such divergence**: the 1788 Synod left the Shorter Catechism unaltered, so its
+      diagnostic guards the register instead — WSC 6 names the Holy Ghost, which is the first thing
+      a modernised printing rewrites. Recorded in the adapter rather than left for a reader to
+      infer from an ID whose date the document does not share
 - [ ] Licence and attribution confirmed per source and recorded, never assumed. `public-domain` for
       WCF/WLC/WSC, WEB and the Beveridge *Institutes*; `local-only` for the two PCA-published corpora
-- [ ] The *Institutes* is taken in the Beveridge 1845 translation, not Battles (1960), which is in
-      copyright. Note the practical consequence for Task 11: Battles is the translation a model is
+- [x] The *Institutes* is taken in the Beveridge 1845 translation, not Battles (1960), which is in
+      copyright. Acquired from CCEL as plain text: 4 books, 80 chapters, 1,277 sections plus the
+      seven of Calvin's prefatory address, 1,284 chunks. Three source hazards are handled and
+      tested — every chapter opens with a numbered synopsis of itself that must be discarded (six
+      carry none, so its presence cannot be assumed), Book IV chapter 18's number is missing from
+      the source and is recovered positionally, and 1,283 footnote anchors are stripped. Murray's
+      20th-century introduction is excluded as apparatus still in copyright. Note the practical consequence for Task 11: Battles is the translation a model is
       most likely to have memorised, so UC-6 may fail check 2 on passages the model genuinely knows.
       That is a finding about the generator, not a defect in the verifier
 - [ ] Bare text only, never a modern edition's apparatus — footnotes, cross-references, modernised
@@ -442,10 +482,15 @@ never touches the network. It reads staged records, enriches, embeds, and loads.
 - [ ] Reads staged records from gitignored `/data/staged/<corpus-id>/`; no network in this path
 - [ ] Records re-verified against committed fingerprints before insert — ingestion refuses text
       that does not match what was blessed
-- [ ] WEB ingested as `web-2000`, the corpus ID the PCA profile names
+- [ ] WEB ingested as `web-2020`, the corpus ID the PCA profile names. **Renamed from `web-2000`,
+      which named an edition nobody published.** eBible.org's FAQ says the translation "started out
+      as just one Bible translation that was continuously revised until 2020" and that "The World
+      English Bible was completed in 2020"; the archive's own about file ends "2020 stable text
+      edition". The Protestant edition (`engwebp`) is taken rather than the Classic (`eng-web`):
+      66 books, the canon WCF 1.2 enumerates, and "LORD" rather than "Yahweh"
 - [ ] `calvin-institutes-1559-beveridge` ingested at `advisory`, so UC-6 has a source that carries
       no binding authority. Roughly 1,700 section chunks, and the largest embedding job after WEB
-- [ ] `wcf-1646-original` ingested, so the profile's `contrary` entry resolves and UC-3 has a
+- [ ] `wcf-1646-epcew-modernised` ingested, so the profile's `contrary` entry resolves and UC-3 has a
       counterpart to contrast against
 - [ ] Every metadata field populated on every chunk, including `source_language` (`la` for
       the *Institutes*, equal to `language` elsewhere) and `text_form` (`majority` for WEB, whose NT
@@ -618,7 +663,7 @@ Tables come from Task 3; this task is the persistence path that writes them.
       ADR rather than quietly adding a quota
 - [ ] UC-2 (silent corpus) returns `VERIFIED` with `no_answer_reason` set and every content slot
       empty — **not** `DEGRADED`, and rendered differently
-- [ ] UC-3 (civil magistrate) cites `wcf-1788-american` and **no** `wcf-1646-original` citation
+- [ ] UC-3 (civil magistrate) cites `wcf-1788-american` and **no** `wcf-1646-epcew-modernised` citation
 - [ ] UC-4 (creation days) flags contested, cites the 2000 report's ruling, carries **no**
       `arguments`, and does not resolve
 - [ ] UC-5 (fabricated citation) — the fabrication is prompt-induced, so the assertion is the
