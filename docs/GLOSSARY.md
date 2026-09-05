@@ -84,6 +84,12 @@ Canonical, per-work, resolvable, stable.
   Francis I opens the work outside that scheme, so it takes a second form, `Inst. Pref.1`
   through `Inst. Pref.7` — the only corpus in Phase 1 with two locator forms
 
+- PCA 2000 creation study report: `GA28 IV.B.2.4` — section.subsection.sub-subsection.paragraph,
+  with the depth the document actually has at that point (`GA28 I.3`, `GA28 IV.A.7`). Its
+  recommendations take a second, deliberately unlike form, `GA28 Rec.1` through `GA28 Rec.3`:
+  a profile's `ruling_source` resolves there and must never resolve to the body, which argues
+  four interpretations the denomination did not adopt
+
 A locator that does not resolve is a verification failure, not a formatting nit.
 
 ## Chunk metadata

@@ -385,8 +385,8 @@ Pipeline:
 - [ ] Structural chunking lives in the segment stage — WCF per numbered section, WLC/WSC per Q&A
       pair never split, BCO per numbered paragraph, WEB per verse, the *Institutes* per numbered
       section (`Inst. 4.17.10`), the 2000 report per numbered section with its recommendations
-      segmented separately from the expository body. **The three Westminster Standards and the
-      *Institutes* are done.**
+      segmented separately from the expository body. **The three Westminster Standards, the
+      *Institutes* and the 2000 report are done.**
       WCF — 33 chapters, 171 sections, `WCF <chapter>.<section>`. Its lists of canonical books are
       three-column tables read *down* each column; row-major reading garbles them and nothing
       downstream would notice. WLC — 196 Q&As, `WLC Q&A <n>`; WSC — 107, `WSC Q&A <n>`. Chunk text
@@ -394,10 +394,18 @@ Pipeline:
       and a marker on the boundary fails any quote spanning it. The catechisms' answers are
       multi-line (WLC 99's eight rules, WLC 151's four aggravations) and WLC 196's paragraph is
       never closed in the source, so the last chunk depends on flushing at the container's close
-- [ ] The 2000 report's recommendations are independently addressable, so a profile's
+- [x] The 2000 report's recommendations are independently addressable, so a profile's
       `ruling_source` resolves to the ruling and never to the expository body. The body argues
       four views the denomination did not adopt; tier is per corpus, not per chunk, so nothing
-      else separates advocacy from ruling
+      else separates advocacy from ruling. Done: `GA28 Rec.1`–`Rec.3`, a form deliberately unlike
+      the body's `GA28 IV.B.2.4`. **`Rec.2` is the ruling** — the Assembly affirming that a
+      diversity of views on the creation days is acceptable — and it is the edition diagnostic,
+      because only the adopted report records that its recommendations carried
+- [x] **Chunked per paragraph, not per numbered section, and the spec is corrected rather than
+      quietly departed from.** Section IV.A is 40,659 characters with no subsections — past
+      BGE-M3's 8,192-token limit, so it could not be embedded at all. 513 chunks, median 376
+      characters, none over 2,016. The section path lives in the locator instead, which is what
+      keeps a citation's place in the argument visible
 - [x] `--bless` writes a new manifest after human edition verification; the default mode verifies
       against the committed manifest and fails loudly, never silently, on any mismatch. Bless aborts
       on a non-TTY, blocks on a typed verifier name, demands a distinct confirmation when

@@ -515,6 +515,67 @@ styles carry an `fn<n>` fragment and name, which is the marker's real signature,
 
 ---
 
+## The 2000 creation study report
+
+`pca-ga28-2000-creation-study`, 513 chunks. The corpus that makes UC-4 answerable: without it the
+corpus says only "in the space of six days" (WCF 4.1), and the denomination's actual ruling appears
+nowhere.
+
+### The recommendations are addressable, and unmistakably so
+
+`GA28 Rec.1` through `GA28 Rec.3`, a form deliberately unlike the body's `GA28 IV.B.2.4`. A
+profile's `ruling_source` resolves to the first and must never resolve to the second, because the
+body argues four interpretations the denomination did not adopt and tier is per corpus rather than
+per chunk (ADR-0015). The locator is the only thing separating advocacy from ruling, so it should
+not take a careful reader to tell them apart: `VI.B.2` and `IV.B.2` differ by one character and mean
+opposite things, which is why the hierarchical form was rejected.
+
+`Rec.2` is the ruling — the Assembly affirming a diversity of views on the creation days — and it is
+the **edition diagnostic**. A committee draft has recommendations; only the adopted report records
+that they carried, which the source does, in italics: *Adopted*, *Adopted as amended*.
+
+### PLAN's chunking rule did not survive the document
+
+The spec says "per numbered section". Section IV.A, the Calendar-Day Interpretation, is **40,659
+characters with no subsections** — about 10,000 tokens, past BGE-M3's 8,192 limit. It could not be
+embedded, let alone retrieved. The deepest headings run from 1 KB to 40 KB.
+
+Chunks are paragraphs, and the section path moves into the locator: 513 chunks, median 376
+characters, none above 2,016. Seventeen fall under ADR-0020's 40-character quote floor, so they can
+be cited and never quoted, which is the right direction to fail in.
+
+### On the date, because the source disagrees with the corpus ID
+
+The PCA Historical Center files this under "[27th General Assembly (1999)]" while the ID says the
+28th and 2000. The document settles it: it contains "PROPOSAL FOR REPORTING TO THE 28TH GENERAL
+ASSEMBLY" and records each recommendation's outcome, and an outcome is something only an Assembly
+produces. The 1999 label is the committee's work filed under the year it was written.
+
+### Four source defects, each of which silently corrupts the corpus
+
+**The body marker appears twice.** "REPORT OF THE CREATION STUDY COMMITTEE" is both the page's title
+above the contents table and the body's heading below it. Starting at the first swallows the
+Historical Center's filing label and the entire index. The last occurrence wins.
+
+**Bold does not mean heading.** Headings are bold, but so is emphasis mid-sentence and so are whole
+paragraphs the source chose to set in bold. A heading is a paragraph that is *entirely* bold **and**
+no longer than 120 characters; the report has 36 fully-bold paragraphs carrying no number, most of
+them short sub-headings (`Conclusion`, `Strengths:`) and some of them body text. No heading in the
+document approaches the threshold and every bold body paragraph exceeds it.
+
+**Footnote bodies are not the report.** Dropping the marker leaves the note's text, and all 173
+endnotes sit after the appendices in their own `div id="ftnN"` — chunked, they produced 184
+paragraphs like `[35]Ibid.` under locators claiming to be the appendix on General Revelation. The
+`div` is dropped whole.
+
+**A bracketed number is not always a footnote.** The 1646 adapter refuses any surviving `[n]`, which
+would be wrong here: this document cites `Works [1822]` and `God Made visible in His Workes [1641]`
+in its own prose. Footnote numbers run to 173 and years are four digits, so the two are separable —
+but the general rule is that a marker-shaped string is only apparatus in a source that uses it that
+way, and the check belongs per adapter rather than in the pipeline.
+
+---
+
 ## Testing
 
 ADR-0014 bars corpus text from fixtures, which is not an inconvenience to work around — it decides
