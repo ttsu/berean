@@ -656,10 +656,11 @@ Reranking, BM25, query rewriting, LangGraph, HTTP, SSE, auth, sessions, web UI, 
 memory, translation display, additional traditions, original languages.
 
 "Web UI" and "HTTP" here mean the product's answer surface: routing, auth, sessions, SSE, and
-rendering a verified answer to an end user. They do not reach read-only local developer tooling over
+rendering a verified answer to an end user. They do not reach local developer tooling over
 gitignored acquired data, which is what `make browse` is — the same act as `make show-diagnostic`,
-widened from one locator to a whole corpus (ADR-0021). The test is whether the thing touches the
-answer path: `browse` reaches no model, no proto, no database and neither service, and binds
-loopback only.
+widened from one locator to a whole corpus (ADR-0021). It writes in one place only: the first bless
+of a corpus, which ADR-0021's amendment moves to the page that shows the diagnostic. The test is
+whether the thing touches the answer path: `browse` reaches no model, no proto, no database and
+neither service, and binds loopback only.
 
 If a task starts to require one of these, stop and revise the spec instead.
