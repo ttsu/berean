@@ -193,6 +193,32 @@ longer produces, and the corpus needs re-blessing.
 
 ---
 
+### An unblessed corpus stages, and says it was not verified
+
+Corrected 2026-09-05. Acquisition used to refuse a corpus with no committed manifest — "nothing to
+verify against, run `--bless`" — which was reasonable in isolation and wrong in context.
+
+It made the browser's first-bless flow **unreachable by construction**. `browse` discovers corpora by
+their staged output; staging happened only after a successful verify; verifying required a committed
+manifest; and a manifest is written only by a bless. So the one state the browser's `offer()` accepts
+— `UNBLESSED`, which it checks for explicitly — was the one state no corpus could reach there. A
+documented, implemented feature that nothing could ever exercise.
+
+It also made `make provision-corpus` fail on any clean clone the moment one corpus was unblessed, and
+fail *after* the blessed corpora had already staged, so the run was both broken and half-done.
+
+A plain acquisition of an unblessed corpus now stages, and reports `UNVERIFIED — never blessed`
+with the count and where the records went. There is no committed record to drift from, so
+verification has nothing to do rather than something it is skipping; the guarantees that matter are
+untouched, since text still lands only in gitignored local storage, nothing renders unverified, and
+no bless happens without a human typing a name.
+
+`--verify-only` still refuses. Drift detection against no committed record is not a check that
+passes, it is a check with nothing to evaluate, and `make corpus-verify` reporting success there
+would be exactly the "reports success while evaluating nothing" failure the fetch cache rules were
+written to avoid.
+
+
 ## `--bless`
 
 The one action in the process that discards a human verification, so it is the one action that

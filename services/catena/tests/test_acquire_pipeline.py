@@ -660,19 +660,60 @@ class CommandLine(Workspace):
         self.assertEqual(code, cli.EX_USAGE)
         self.assertIn("unknown corpus", out)
 
-    def test_an_unblessed_corpus_says_so_rather_than_verifying_nothing(self) -> None:
+    def test_an_unblessed_corpus_stages_so_it_can_be_read_before_blessing(self) -> None:
+        """The browser hosts the first bless, and can only show what is staged.
+
+        Refusing to stage an unblessed corpus made that feature unreachable: a
+        corpus reaches `make browse` by being staged, staging required a
+        successful verify, and verifying required the blessing the browser
+        exists to perform. There is no committed record to drift from, so
+        verification has nothing to do and staging is safe.
+        """
+        stream = io.StringIO()
+        ok = cli.run_one(
+            self.adapter,
+            data_dir=self.data_dir,
+            corpora_dir=self.corpora_dir,
+            bless=False,
+            verify_only=False,
+            from_file=None,
+            stream=stream,
+            downloader=CountingDownloader(),
+        )
+        self.assertTrue(ok)
+        staged = pipeline.corpus_dir(self.data_dir, CORPUS_ID) / "stage" / pipeline.RECORDS
+        self.assertTrue(staged.is_file(), "an unblessed corpus must still stage")
+
+    def test_staging_an_unblessed_corpus_says_nothing_was_verified(self) -> None:
+        """Loudly, because a staged corpus otherwise looks like a checked one."""
+        stream = io.StringIO()
+        cli.run_one(
+            self.adapter,
+            data_dir=self.data_dir,
+            corpora_dir=self.corpora_dir,
+            bless=False,
+            verify_only=False,
+            from_file=None,
+            stream=stream,
+            downloader=CountingDownloader(),
+        )
+        self.assertIn("UNVERIFIED", stream.getvalue())
+
+    def test_verify_only_refuses_an_unblessed_corpus(self) -> None:
+        """Drift detection against no committed record is not a check that
+        passes -- it is a check with nothing to evaluate."""
         with self.assertRaises(AcquisitionError) as caught:
             cli.run_one(
                 self.adapter,
                 data_dir=self.data_dir,
                 corpora_dir=self.corpora_dir,
                 bless=False,
-                verify_only=False,
+                verify_only=True,
                 from_file=None,
                 stream=io.StringIO(),
                 downloader=CountingDownloader(),
             )
-        self.assertIn("--bless", str(caught.exception))
+        self.assertIn("nothing to compare", str(caught.exception))
 
     def test_a_manifest_without_fingerprints_is_half_a_blessing(self) -> None:
         manifest = self.bless()
