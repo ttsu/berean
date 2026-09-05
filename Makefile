@@ -108,17 +108,25 @@ show-diagnostic: env dirs ## Print one corpus's edition diagnostic and its hash:
 
 # The same act as `show-diagnostic`, widened from one locator to every corpus on
 # disk: acquired text read locally, on demand, rather than committed so it can be
-# read (ADR-0021). Read-only, and not the product's answer surface -- see
-# PRODUCT-SPEC's non-goals.
+# read (ADR-0021). Reading, plus the one write ADR-0021's amendment allows -- an
+# unblessed corpus can be blessed from the page that shows its diagnostic. Not
+# the product's answer surface -- see PRODUCT-SPEC's non-goals.
 #
 # On the host rather than through $(COMPOSE), and that is the decision rather
 # than a convenience. `make dev-offline` marks the default network internal, and
 # published ports do not survive that, so a containerised viewer would be
 # unreachable in exactly the run whose acquisition is most worth inspecting.
 # It reads ./data and ./corpora and opens no socket but the loopback one.
+#
+# `docker compose` reads .env by itself; a host-side target does not. The
+# local-only opt-in has to be lifted out of the file here or the gate the README
+# documents is unreachable through this target -- it fails closed (ADR-0017), so
+# the deployer who did exactly what the README says sees a corpus that refuses to
+# render and no reason why. An exported value wins, the way it does for compose.
 .PHONY: browse
-browse: dirs ## Read the acquired corpora in a browser (loopback only)
+browse: env dirs ## Read the acquired corpora in a browser (loopback only)
 	@CATENA_DATA_DIR=$(CURDIR)/data CATENA_CORPORA_DIR=$(CURDIR)/corpora \
+	    BEREAN_SERVE_LOCAL_ONLY="$${BEREAN_SERVE_LOCAL_ONLY:-$$(sed -n 's/^BEREAN_SERVE_LOCAL_ONLY=//p' .env | tail -1)}" \
 	    $(UV) run --quiet --project services/catena catena browse $(if $(PORT),--port $(PORT),)
 
 # ---------------------------------------------------------------------------

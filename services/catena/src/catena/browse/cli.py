@@ -24,7 +24,9 @@ def build_parser() -> argparse.ArgumentParser:
         prog="catena browse",
         description=(
             "Read acquired corpora in a browser: the staged text, its segmentation, "
-            "and its metadata. Local, read-only, loopback only."
+            "and its metadata. Local and loopback only. Reading, plus one write: an "
+            "unblessed corpus can be blessed from the page that shows its edition "
+            "diagnostic."
         ),
     )
     parser.add_argument(

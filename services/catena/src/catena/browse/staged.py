@@ -27,6 +27,7 @@ import os
 import pathlib
 from dataclasses import dataclass
 
+from catena import normalise as normalisation
 from catena.acquire import fingerprints as fp
 from catena.acquire import manifest as mf
 from catena.acquire.record import AcquisitionError, WorkFacts, read_jsonl
@@ -57,9 +58,10 @@ class Chunk:
     """One staged record, with what is known about it.
 
     `text` is post-normalisation text -- the same rule `corpus.chunks.text`
-    follows. `raw` is the pre-normalisation segment when `segment/` is readable,
-    and `None` when it is not; it exists to show what normalisation did, never
-    to be served as an alternative reading text.
+    follows. `raw` is the pre-normalisation segment when `segment/` is readable
+    *and* is from the same acquisition, and `None` when it is not; it exists to
+    show what normalisation did, never to be served as an alternative reading
+    text.
 
     `blessed` is `None` rather than `False` when the corpus carries no committed
     fingerprints. "Nobody has checked" and "the check failed" are different
@@ -79,7 +81,17 @@ class Chunk:
 
 @dataclass(frozen=True)
 class Corpus:
-    """A staged corpus, with its provenance overlay when there is one."""
+    """A staged corpus, with its provenance overlay when there is one.
+
+    `missing` is the committed locators with no staged record at all. They carry
+    no chunk and so cannot carry a flag, which is why they are held here: a
+    section the segmenter stopped producing leaves every surviving chunk
+    matching, and without this the corpus renders as blessed.
+
+    `overlay_error` is why the committed evidence could not be read, when there
+    is one. An unreadable overlay is not the same as an absent one and must not
+    render as it.
+    """
 
     corpus_id: str
     work: WorkFacts
@@ -88,6 +100,8 @@ class Corpus:
     chunks: list[Chunk]
     manifest: mf.Manifest | None
     fingerprint_status: str
+    missing: list[str]
+    overlay_error: str | None
 
     @property
     def drifted(self) -> list[Chunk]:
@@ -156,15 +170,17 @@ def load(corpus_id: str, *, data_dir: pathlib.Path, corpora_dir: pathlib.Path) -
     raw_by_locator = _read_segments(data_dir / "acquire" / corpus_id / SEGMENT / SEGMENTS)
 
     committed_dir = corpora_dir / corpus_id
-    manifest = _read_manifest(committed_dir / mf.FILENAME)
-    committed = _read_fingerprints(committed_dir / mf.FINGERPRINTS_FILENAME)
+    manifest, manifest_problem = _read_manifest(committed_dir / mf.FILENAME)
+    committed, fingerprints_problem = _read_fingerprints(
+        committed_dir / mf.FINGERPRINTS_FILENAME
+    )
 
     chunks = [
         Chunk(
             locator=record["locator"],
             text=record["text"],
             content_hash=record["content_hash"],
-            raw=raw_by_locator.get(record["locator"]),
+            raw=_raw_for(raw_by_locator, record),
             blessed=(
                 None
                 if committed is None
@@ -175,11 +191,18 @@ def load(corpus_id: str, *, data_dir: pathlib.Path, corpora_dir: pathlib.Path) -
     ]
 
     if committed is None:
+        missing: list[str] = []
         status = UNBLESSED
-    elif any(chunk.blessed is False for chunk in chunks):
-        status = DRIFTED
     else:
-        status = BLESSED
+        # The whole diff, not a per-chunk comparison. A locator the segmenter
+        # stopped producing leaves nothing behind to mismatch, so walking the
+        # staged records alone reports a swallowed section as clean -- and a
+        # swallowed section is the failure this viewer exists to reveal.
+        # `unexpected` needs no separate handling: a staged locator the committed
+        # file does not carry is already a chunk whose `blessed` is False.
+        diff = fp.compare(committed, {chunk.locator: chunk.content_hash for chunk in chunks})
+        missing = diff.missing
+        status = BLESSED if diff.clean else DRIFTED
 
     return Corpus(
         corpus_id=corpus_id,
@@ -189,6 +212,8 @@ def load(corpus_id: str, *, data_dir: pathlib.Path, corpora_dir: pathlib.Path) -
         chunks=chunks,
         manifest=manifest,
         fingerprint_status=status,
+        missing=missing,
+        overlay_error=_overlay_error(manifest_problem, fingerprints_problem),
     )
 
 
@@ -213,34 +238,67 @@ def _read_work(path: pathlib.Path) -> _Declared:
 def _read_segments(path: pathlib.Path) -> dict[str, str]:
     """Pre-normalisation text by locator, empty when the stage is absent.
 
-    Absent is not an error. `--verify-only` stages nothing, and a `<data>` tree
-    restored from elsewhere may carry `stage/` alone. The viewer degrades to
-    normalised text rather than refusing to open the corpus.
+    Absent is not an error: a `<data>` tree restored from elsewhere may carry
+    `stage/` alone. The viewer degrades to normalised text rather than refusing
+    to open the corpus.
     """
     if not path.is_file():
         return {}
     return {record["locator"]: record["text"] for record in read_jsonl(path)}
 
 
-def _read_manifest(path: pathlib.Path) -> mf.Manifest | None:
-    """The committed manifest, or None. A malformed one is reported, not fatal.
+def _raw_for(raw_by_locator: dict[str, str], record: dict) -> str | None:
+    """The pre-normalisation segment, but only when it is the same acquisition.
+
+    `stage/` and `segment/` are written by different steps. `pipeline.acquire`
+    rewrites `segment/segments.jsonl` on every run; only `write_stage` writes
+    `stage/`. So a run that acquired without staging -- `--verify-only` -- leaves
+    the two describing different fetches, and a normalisation panel reporting on
+    text the reader is not looking at is worse than no panel at all.
+
+    The test is the invariant the panel asserts rather than a run identifier the
+    files do not carry: what is shown as "before" must normalise to what is
+    shown as "after".
+    """
+    raw = raw_by_locator.get(record["locator"])
+    if raw is None or normalisation.normalise(raw) != record["text"]:
+        return None
+    return raw
+
+
+def _read_manifest(path: pathlib.Path) -> tuple[mf.Manifest | None, str | None]:
+    """The committed manifest, or None and why it could not be read.
 
     `mf.read` raises on a manifest it cannot parse, which is right for
     acquisition -- verifying against a manifest nobody can read is not
     verification. Here it would take away the reader's only view of the text
-    over a defect in an optional overlay.
+    over a defect in an optional overlay, so it is caught. It is then *reported*,
+    because a page that silently drops the provenance rows is indistinguishable
+    from a corpus that was never blessed.
     """
     try:
-        return mf.read(path)
-    except AcquisitionError:
-        return None
+        return mf.read(path), None
+    except AcquisitionError as error:
+        return None, f"The committed manifest cannot be read: {error}"
 
 
-def _read_fingerprints(path: pathlib.Path) -> dict[str, str] | None:
+def _read_fingerprints(path: pathlib.Path) -> tuple[dict[str, str] | None, str | None]:
+    """The committed fingerprints, or None and why they could not be read.
+
+    The more dangerous of the two to swallow: with nothing to check against,
+    every chunk falls back to "not checked" and the corpus reads as unblessed.
+    Silence would turn a corrupt file into a downgrade nobody was told about.
+    """
     try:
-        return fp.read(path)
-    except AcquisitionError:
-        return None
+        return fp.read(path), None
+    except AcquisitionError as error:
+        return None, f"The committed fingerprints cannot be read: {error}"
+
+
+def _overlay_error(*problems: str | None) -> str | None:
+    """Both overlay problems in one line, or None when there are none."""
+    reported = [problem for problem in problems if problem]
+    return " ".join(reported) if reported else None
 
 
 def text_withheld_reason(work: WorkFacts, *, serve_local_only: bool) -> str | None:

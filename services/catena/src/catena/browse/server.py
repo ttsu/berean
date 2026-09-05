@@ -1,10 +1,15 @@
 """The HTTP surface: two routes, no state, loopback only.
 
-This is not the Phase 4 web UI and must not grow into it. It is a read-only
-developer affordance over gitignored local files, on the same footing as
+This is not the Phase 4 web UI and must not grow into it. It is a developer
+affordance over gitignored local files, on the same footing as
 `make show-diagnostic` -- which is what ADR-0021 chose over committing text so a
 human could check an edition. It touches no database, no model, no proto, and
 does not cross the Go/Python seam.
+
+Reading is the whole of it bar one deliberate exception: `POST /bless/<id>`
+writes `manifest.yaml` and `fingerprints.txt` for a corpus that has none. That
+is the amendment ADR-0021 records, and it is why this file carries a token, an
+origin check and a body cap -- none of which a read-only server would need.
 
 **Loopback only, never 0.0.0.0.** The pages carry corpus text. `local-only`
 corpora are servable solely under a deployer opt-in and `refused` corpora never
@@ -79,21 +84,39 @@ def route(
         # No verification offer when the text is withheld: approving an edition
         # you are not permitted to read is not a verification of anything.
         offer = None
+        offer_refusal = None
         if withheld is None and corpus.fingerprint_status == staged.UNBLESSED:
             try:
                 offer = verify.offer(corpus)
-            except verify.NotVerifiable:
-                offer = None
+            except verify.NotVerifiable as error:
+                # Kept, not swallowed. A corpus with staged output and no
+                # registered adapter cannot be blessed anywhere -- and the
+                # generic banner sends the reader to `make bless`, which fails
+                # for exactly the reason being discarded here.
+                offer_refusal = str(error)
         return 200, render.corpus_page(
             corpus,
             page=page,
             withheld=withheld,
             offer=offer,
+            offer_refusal=offer_refusal,
             token=token,
             verify_error=verify_error,
         )
 
     return 404, render.error_page(404, f"No such page: {path}")
+
+
+def _token_ok(submitted: str, token: str) -> bool:
+    """Constant-time, and safe on anything a request can carry.
+
+    `secrets.compare_digest` raises TypeError on `str` operands that are not
+    ASCII, and the request body is decoded with errors="replace" -- so a garbled
+    or hostile submission reliably arrives holding U+FFFD. Comparing the UTF-8
+    encodings keeps the timing property and refuses instead of crashing the very
+    first check on the only write path.
+    """
+    return secrets.compare_digest(submitted.encode("utf-8"), token.encode("utf-8"))
 
 
 def bless_route(
@@ -116,7 +139,7 @@ def bless_route(
         return 404, render.error_page(404, f"No such corpus: {corpus_id!r}"), None
 
     submitted = (form.get("token") or [""])[0]
-    if not token or not secrets.compare_digest(submitted, token):
+    if not token or not _token_ok(submitted, token):
         # Deliberately terse. A localhost write endpoint is reachable from any
         # page the browser has open, and a detailed rejection is a hint.
         return 403, render.error_page(
@@ -130,6 +153,14 @@ def bless_route(
         corpus = staged.load(corpus_id, data_dir=data_dir, corpora_dir=corpora_dir)
     except AcquisitionError as error:
         return 404, render.error_page(404, str(error)), None
+    except (OSError, ValueError, KeyError) as error:
+        # The same classes `route` catches. A truncated `records.jsonl` that
+        # renders a 500 page on GET must not crash the handler on POST.
+        return (
+            500,
+            render.error_page(500, f"{corpus_id}: staged output unreadable — {error}"),
+            None,
+        )
 
     withheld = staged.text_withheld_reason(corpus.work, serve_local_only=serve_local_only)
     if withheld is not None:
@@ -212,6 +243,7 @@ def make_handler(
         def do_POST(self) -> None:  # noqa: N802 - the stdlib's spelling
             parsed = urllib.parse.urlparse(self.path)
             if not parsed.path.startswith("/bless/"):
+                self._discard_body()
                 self._respond(404, render.error_page(404, f"No such page: {parsed.path}"))
                 return
 
@@ -221,6 +253,7 @@ def make_handler(
                 host=host,
                 port=port,
             ):
+                self._discard_body()
                 self._respond(
                     403,
                     render.error_page(
@@ -234,6 +267,7 @@ def make_handler(
             except ValueError:
                 length = -1
             if not 0 < length <= MAX_FORM_BYTES:
+                self._discard_body()
                 self._respond(400, render.error_page(400, "Malformed submission."))
                 return
 
@@ -247,6 +281,30 @@ def make_handler(
                 token=token,
             )
             self._respond(status, body, redirect=redirect)
+
+        def _discard_body(self) -> None:
+            """Read and drop the request body before answering without reading it.
+
+            `protocol_version` is HTTP/1.1, so the connection is kept alive and
+            whatever is left unread is parsed as the next request line on it. A
+            refusal that skipped the body would answer the following request on
+            that connection with a garbage 400 -- the refusal would land, and the
+            next thing the browser asked for would break instead.
+            """
+            try:
+                length = int(self.headers.get("Content-Length", "0"))
+            except ValueError:
+                length = -1
+            if not 0 <= length <= MAX_FORM_BYTES:
+                # Unparseable, or too large to drain for the sake of a refusal.
+                # A body that size is not this form; end the connection instead.
+                self.close_connection = True
+                return
+            while length > 0:
+                chunk = self.rfile.read(min(length, 8192))
+                if not chunk:
+                    break
+                length -= len(chunk)
 
         def _respond(self, status: int, body: str, *, redirect: str | None = None) -> None:
             payload = body.encode("utf-8")

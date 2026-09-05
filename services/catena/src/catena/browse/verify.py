@@ -20,7 +20,10 @@ What is preserved, and why each one matters:
   there is no `expected_digest` and `fetch` re-downloads rather than reading its
   cache -- meaning the acquisition behind the POST is not the one behind the GET.
   The form carries the sha256 of the passage that was displayed, and the bless
-  is refused unless the freshly acquired diagnostic still hashes to it.
+  is refused unless the freshly acquired diagnostic still hashes to it. A refusal
+  stages what it just acquired, so the reload the refusal asks for shows the text
+  that is upstream *now* rather than the one whose hash was rejected -- otherwise
+  the refusal is permanent and the corpus can only be blessed from a terminal.
 
 **Unblessed corpora only.** Re-blessing replaces a verification someone already
 made and demands a typed confirmation against a fingerprint diff nobody should
@@ -78,6 +81,16 @@ def offer(corpus: staged.Corpus) -> Verification:
     so displaying the page costs no network. `apply` re-checks the hash, which is
     what makes that safe.
     """
+    if corpus.overlay_error is not None:
+        # An unreadable overlay leaves `fingerprint_status` at UNBLESSED, which
+        # is the one status this path accepts. Blessing over it would overwrite
+        # committed evidence nobody has been able to read.
+        raise NotVerifiable(
+            f"{corpus.corpus_id}: {corpus.overlay_error} Until that is understood there is "
+            "no way to tell an unblessed corpus from one whose blessing cannot be read, and "
+            "blessing would overwrite it. Nothing is offered here."
+        )
+
     if corpus.fingerprint_status != staged.UNBLESSED:
         raise NotVerifiable(
             f"{corpus.corpus_id} is already blessed. Re-blessing replaces a verification "
@@ -127,9 +140,29 @@ def apply(
             "text, so there is no default and no anonymous bless."
         )
 
+    # Before the network, and before any comparison. `secrets.compare_digest`
+    # raises on non-ASCII `str` operands, and the request body is decoded with
+    # errors="replace" -- so a garbled submission arrives holding U+FFFD and
+    # would crash the handler after a pointless re-fetch rather than be refused.
+    if not fp.HASH.match(read_hash):
+        raise NotVerifiable(
+            "The submitted hash is not a sha256 as this project writes one (64 lower-case "
+            "hex digits), so it cannot be the hash of the passage the page displayed. "
+            "Nothing written — reload the corpus page and submit the form there."
+        )
+
     adapter = _adapter(corpus_id)
     committed_dir = corpora_dir / corpus_id
-    if mf.read(committed_dir / mf.FILENAME) is not None:
+    try:
+        committed = mf.read(committed_dir / mf.FILENAME)
+    except AcquisitionError as error:
+        # `mf.read` raises on a manifest it cannot parse. Reaching past that to
+        # bless would overwrite a provenance record nobody has read.
+        raise NotVerifiable(
+            f"{corpus_id}: the committed manifest cannot be read — {error}. Nothing "
+            "written; repair or remove it at a terminal before blessing over it."
+        )
+    if committed is not None:
         raise NotVerifiable(
             f"{corpus_id} acquired a manifest since the page was rendered. Re-blessing "
             "is a terminal act; nothing written."
@@ -157,11 +190,20 @@ def apply(
             f"{len(acquired.records)} locators acquired. Nothing written."
         )
     if not secrets.compare_digest(record.content_hash, read_hash):
+        # Stage what was just acquired before refusing. `acquire` has already
+        # rewritten segment/ and normalise/ from this fetch; leaving stage/ on
+        # the previous one makes the refusal permanent, because the page would go
+        # on rendering the passage whose hash was just rejected and every
+        # resubmission would carry that same stale hash. Staging is what makes
+        # "read the text again" a thing the reader can actually do -- and the
+        # corpus is unblessed, so there are no committed records to disturb.
+        pipeline.write_stage(acquired, data_dir=data_dir)
         raise NotVerifiable(
             f"{corpus_id}: {adapter.diagnostic} now hashes to {record.content_hash}, not to "
             f"the {read_hash} shown on the page you submitted. An unblessed corpus carries "
             "no upstream digest, so acquisition re-fetched and the source has changed since "
-            "you read it. Nothing written — reload and read the text again."
+            "you read it. Nothing written — the passage below is the one that is upstream "
+            "now, so read the text again and resubmit if it is the right edition."
         )
 
     day = (today or datetime.date.today()).isoformat()

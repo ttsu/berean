@@ -24,7 +24,10 @@ from catena.acquire.record import AcquisitionError, write_text
 #: hashes contain none, so the last whitespace run is the separator on read.
 SEPARATOR = "  "
 
-_HASH = re.compile(r"^[0-9a-f]{64}$")
+#: A sha256 as this project writes one: lower-case hex, exactly 64 digits.
+#: Public because anything comparing a submitted hash against a committed one
+#: has to agree on the shape before it compares -- see `browse/verify.py`.
+HASH = re.compile(r"^[0-9a-f]{64}$")
 
 #: Verify reports counts in full and locators by sample. A corpus whose every
 #: locator moved would otherwise print thousands of lines, and the first ten say
@@ -60,7 +63,7 @@ def parse(text: str) -> dict[str, str]:
         locator, _, digest = line.rpartition(SEPARATOR)
         locator = locator.strip()
         digest = digest.strip()
-        if not locator or not _HASH.match(digest):
+        if not locator or not HASH.match(digest):
             raise AcquisitionError(
                 f"fingerprints line {number}: expected '<locator>{SEPARATOR}<sha256>'"
             )

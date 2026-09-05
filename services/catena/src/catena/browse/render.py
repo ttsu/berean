@@ -181,7 +181,12 @@ def _facts(corpus: staged.Corpus) -> str:
         ("Licence", work.license),
         ("Corpus ID", corpus.corpus_id),
         ("Normalisation", f"version {corpus.normalisation_version}"),
-        ("Sections", str(len(corpus.chunks))),
+        (
+            "Sections",
+            str(len(corpus.chunks))
+            if corpus.count_matches
+            else f"{len(corpus.chunks)} staged, {corpus.chunk_count} declared",
+        ),
     ]
     manifest = corpus.manifest
     if manifest is not None:
@@ -199,7 +204,52 @@ def _facts(corpus: staged.Corpus) -> str:
     return f'<dl class="facts">{cells}</dl>{attribution}'
 
 
-def _banner(corpus: staged.Corpus, offered: bool = False) -> str:
+#: Locators named in a banner before it stops naming them and starts counting.
+BANNER_SAMPLE = 5
+
+
+def _sample(locators: list[str]) -> str:
+    shown = ", ".join(_e(locator) for locator in locators[:BANNER_SAMPLE])
+    if len(locators) > BANNER_SAMPLE:
+        shown += f" and {len(locators) - BANNER_SAMPLE} more"
+    return shown
+
+
+def _count_note(corpus: staged.Corpus) -> str:
+    """The declared-versus-staged section count, when the two disagree.
+
+    `work.json` and `records.jsonl` are written by the same call, so a
+    disagreement is not drift -- it is a staged tree one of whose halves is from
+    a run that did not finish. Separate from the fingerprint banner because the
+    remedy is different: re-acquire, rather than work out what upstream changed.
+    """
+    if corpus.count_matches:
+        return ""
+    return (
+        f'<p class="banner flag">Staged output is inconsistent: <code>work.json</code> '
+        f"declares {corpus.chunk_count} section(s) and <code>records.jsonl</code> holds "
+        f"{len(corpus.chunks)}. They are written by the same run, so one of them is left "
+        "over from another. Re-acquire before reading this as the corpus.</p>"
+    )
+
+
+def _overlay_note(corpus: staged.Corpus) -> str:
+    """Why the committed evidence could not be read, when it could not.
+
+    Without this the failure is invisible in the direction that matters: absent
+    fingerprints and unreadable fingerprints both leave every chunk unchecked,
+    and only one of them means nobody has ever verified this corpus.
+    """
+    if corpus.overlay_error is None:
+        return ""
+    return (
+        f'<p class="banner flag">{_e(corpus.overlay_error)} Nothing below has been checked '
+        "against the committed evidence, and the status above is what is knowable without "
+        "it -- not a verdict on the text.</p>"
+    )
+
+
+def _banner(corpus: staged.Corpus, offered: bool = False, refusal: str | None = None) -> str:
     status = corpus.fingerprint_status
     if status == staged.BLESSED:
         return (
@@ -208,12 +258,22 @@ def _banner(corpus: staged.Corpus, offered: bool = False) -> str:
         )
     if status == staged.DRIFTED:
         drifted = corpus.drifted
-        sample = ", ".join(_e(chunk.locator) for chunk in drifted[:5])
-        more = f" and {len(drifted) - 5} more" if len(drifted) > 5 else ""
+        clauses = []
+        if drifted:
+            clauses.append(
+                f"{len(drifted)} section(s) do not match the committed fingerprints: "
+                f"{_sample([chunk.locator for chunk in drifted])}"
+            )
+        if corpus.missing:
+            # The class a per-chunk check cannot see. A committed locator with no
+            # staged record did not change -- it stopped being produced at all.
+            clauses.append(
+                f"{len(corpus.missing)} committed section(s) are not in the staged output "
+                f"at all: {_sample(corpus.missing)}"
+            )
         return (
-            f'<p class="banner flag">Drifted. {len(drifted)} section(s) do not match the '
-            f"committed fingerprints: {sample}{more}. What is on disk is not what was "
-            "approved.</p>"
+            f'<p class="banner flag">Drifted. {". ".join(clauses)}. What is on disk is not '
+            "what was approved.</p>"
         )
     if offered:
         # Don't send someone to the terminal past the panel that does the same
@@ -222,6 +282,16 @@ def _banner(corpus: staged.Corpus, offered: bool = False) -> str:
             '<p class="banner warn">Unblessed. This corpus has been acquired but never '
             "verified by hand, so there are no committed fingerprints to check it against. "
             "Read the edition diagnostic to verify it.</p>"
+        )
+    if refusal:
+        # Why there is no panel, rather than advice that does not apply. Each
+        # reason this corpus cannot be verified here -- no registered adapter,
+        # no staged diagnostic, unreadable committed evidence -- is a reason
+        # `catena acquire --bless` fails too, so sending the reader to a terminal
+        # would send them to the same wall with none of the explanation.
+        return (
+            '<p class="banner warn">Unblessed, and the verification cannot be offered: '
+            f"{_e(refusal)}</p>"
         )
     return (
         '<p class="banner warn">Unblessed. This corpus has been acquired but never verified '
@@ -254,8 +324,10 @@ def _apparatus(chunk: staged.Chunk) -> str:
 
     if chunk.raw is None:
         raw_view = (
-            '<p class="dim">No segment output on disk, so what normalisation did '
-            "cannot be shown for this section.</p>"
+            '<p class="dim">No usable segment output for this section: either '
+            "<code>segment/</code> is absent, or what is there no longer normalises to "
+            "the text above, which means the two stages are from different acquisition "
+            "runs. Re-acquire to see what normalisation did.</p>"
         )
     else:
         steps = "".join(f"<li>{_e(line)}</li>" for line in normalisation_report(chunk.raw))
@@ -334,6 +406,7 @@ def corpus_page(
     page_size: int = PAGE_SIZE,
     withheld: str | None = None,
     offer=None,
+    offer_refusal: str | None = None,
     token: str = "",
     verify_error: str | None = None,
 ) -> str:
@@ -357,7 +430,16 @@ def corpus_page(
         reading = f'<p class="withheld">{_e(withheld)}</p>'
         index = ""
     else:
-        verify = verify_panel(offer, token, verify_error) if offer is not None else ""
+        if offer is not None:
+            verify = verify_panel(offer, token, verify_error)
+        elif verify_error:
+            # A refusal can be the very thing that withdraws the offer -- an
+            # unreadable overlay, a manifest that appeared underneath the page.
+            # Dropping the complaint with the panel would answer a submission
+            # with a page that says nothing about what happened to it.
+            verify = f'<p class="banner flag">{_e(verify_error)}</p>'
+        else:
+            verify = ""
         reading = (
             verify + "".join(_chunk(chunk) for chunk in window) + _pager(corpus, page, pages)
         )
@@ -366,7 +448,8 @@ def corpus_page(
     body = (
         f"{masthead}"
         f'<div class="layout">'
-        f'<aside class="side">{_banner(corpus, offer is not None)}{_facts(corpus)}{index}</aside>'
+        f'<aside class="side">{_banner(corpus, offer is not None, offer_refusal)}'
+        f"{_overlay_note(corpus)}{_count_note(corpus)}{_facts(corpus)}{index}</aside>"
         f'<main class="reading">{reading}</main>'
         f"</div>"
     )

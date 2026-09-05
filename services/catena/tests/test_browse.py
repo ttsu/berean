@@ -11,6 +11,7 @@ so the routing can be exercised without one.
 
 from __future__ import annotations
 
+import io
 import json
 import pathlib
 import tempfile
@@ -20,7 +21,7 @@ import unittest.mock
 from catena import normalise
 from catena.acquire import fingerprints as fp
 from catena.acquire import manifest as mf
-from catena.acquire.record import AcquisitionError, fingerprint, write_jsonl, write_text
+from catena.acquire.record import AcquisitionError, fingerprint, write_text
 from catena.browse import render, server, staged, verify
 
 CORPUS_ID = "testcorpus-0001-invented"
@@ -56,8 +57,16 @@ def build(
     bless: bool = True,
     drift: bool = False,
     write_segment_stage: bool = True,
+    drop_from_stage: tuple[str, ...] = (),
+    declared_count: int | None = None,
+    corrupt_manifest: bool = False,
+    corrupt_fingerprints: bool = False,
 ) -> tuple[pathlib.Path, pathlib.Path]:
-    """Lay out a staged corpus on disk, and optionally its committed evidence."""
+    """Lay out a staged corpus on disk, and optionally its committed evidence.
+
+    `drop_from_stage` blesses every locator and stages all but those, which is
+    what a segmenter that stopped producing a section leaves behind.
+    """
     segments = SEGMENTS if segments is None else segments
     data_dir = root / "data"
     corpora_dir = root / "corpora"
@@ -71,10 +80,13 @@ def build(
         }
         for locator, text in segments.items()
     ]
+    staged_records = [row for row in records if row["locator"] not in drop_from_stage]
 
     write_text(
         acquire / "stage" / "records.jsonl",
-        "".join(json.dumps(row, ensure_ascii=False, sort_keys=True) + "\n" for row in records),
+        "".join(
+            json.dumps(row, ensure_ascii=False, sort_keys=True) + "\n" for row in staged_records
+        ),
     )
     work = dict(WORK, license=license)
     write_text(
@@ -83,7 +95,9 @@ def build(
             {
                 "corpus_id": corpus_id,
                 "normalisation_version": normalise.NORMALISATION_VERSION,
-                "chunk_count": len(records),
+                "chunk_count": (
+                    len(staged_records) if declared_count is None else declared_count
+                ),
                 "work": work,
             },
             ensure_ascii=False,
@@ -127,6 +141,13 @@ def build(
             ),
         )
         mf.write(corpora_dir / corpus_id / mf.FILENAME, manifest)
+
+    if corrupt_manifest:
+        write_text(corpora_dir / corpus_id / mf.FILENAME, "corpus_id: [unclosed\n")
+    if corrupt_fingerprints:
+        write_text(
+            corpora_dir / corpus_id / mf.FINGERPRINTS_FILENAME, "TC 1.1  not-a-sha256\n"
+        )
 
     return data_dir, corpora_dir
 
@@ -190,6 +211,88 @@ class TestReading(TempCorpus):
 
         self.assertEqual(corpus.fingerprint_status, staged.DRIFTED)
         self.assertEqual([chunk.locator for chunk in corpus.drifted], [list(SEGMENTS)[0]])
+
+    def test_a_committed_section_missing_from_the_stage_is_drift(self) -> None:
+        """The class a per-chunk check cannot see: a section that stopped existing.
+
+        Every surviving chunk still matches its fingerprint, so a comparison that
+        walks the staged records reports the corpus as blessed. What is on disk
+        is one section short of what was approved.
+        """
+        dropped = "TC 2.1"
+        data_dir, corpora_dir = self.build(drop_from_stage=(dropped,))
+        corpus = staged.load(CORPUS_ID, data_dir=data_dir, corpora_dir=corpora_dir)
+
+        self.assertEqual(len(corpus.chunks), len(SEGMENTS) - 1)
+        self.assertTrue(all(chunk.blessed for chunk in corpus.chunks))
+        self.assertEqual(corpus.missing, [dropped])
+        self.assertEqual(corpus.fingerprint_status, staged.DRIFTED)
+
+    def test_a_staged_section_that_was_never_committed_is_drift(self) -> None:
+        """The mirror case, already covered per chunk. Both stay reported."""
+        data_dir, corpora_dir = self.build(bless=False)
+        fp.write(
+            corpora_dir / CORPUS_ID / mf.FINGERPRINTS_FILENAME,
+            {"TC 1.1": fingerprint(normalise.normalise(SEGMENTS["TC 1.1"]))},
+        )
+        corpus = staged.load(CORPUS_ID, data_dir=data_dir, corpora_dir=corpora_dir)
+
+        self.assertEqual(corpus.missing, [])
+        self.assertEqual(
+            [chunk.locator for chunk in corpus.drifted], ["TC 1.2", "TC 2.1"]
+        )
+        self.assertEqual(corpus.fingerprint_status, staged.DRIFTED)
+
+    def test_a_declared_count_that_does_not_match_the_stage(self) -> None:
+        data_dir, corpora_dir = self.build(declared_count=99)
+        corpus = staged.load(CORPUS_ID, data_dir=data_dir, corpora_dir=corpora_dir)
+        self.assertFalse(corpus.count_matches)
+
+    def test_an_unreadable_manifest_is_reported_not_swallowed(self) -> None:
+        """Silently dropping the provenance rows looks exactly like never blessed."""
+        data_dir, corpora_dir = self.build(corrupt_manifest=True)
+        corpus = staged.load(CORPUS_ID, data_dir=data_dir, corpora_dir=corpora_dir)
+
+        self.assertIsNone(corpus.manifest)
+        self.assertIsNotNone(corpus.overlay_error)
+        self.assertIn("manifest", corpus.overlay_error)
+        self.assertEqual(
+            corpus.fingerprint_status,
+            staged.BLESSED,
+            "the fingerprints are still readable, and they are what checks the text",
+        )
+
+    def test_unreadable_fingerprints_do_not_read_as_never_checked(self) -> None:
+        data_dir, corpora_dir = self.build(corrupt_fingerprints=True)
+        corpus = staged.load(CORPUS_ID, data_dir=data_dir, corpora_dir=corpora_dir)
+
+        self.assertEqual(corpus.fingerprint_status, staged.UNBLESSED)
+        self.assertIsNotNone(corpus.overlay_error)
+        self.assertIn("fingerprints", corpus.overlay_error)
+
+    def test_raw_is_dropped_when_the_two_stages_disagree(self) -> None:
+        """`pipeline.acquire` rewrites segment/ every run; only write_stage writes stage/.
+
+        A panel reporting on a different run's segmentation than the text above
+        it is worse than no panel: it is wrong and says nothing about being wrong.
+        """
+        data_dir, corpora_dir = self.build()
+        write_text(
+            data_dir / "acquire" / CORPUS_ID / "segment" / "segments.jsonl",
+            "".join(
+                json.dumps(
+                    {"locator": locator, "text": text + " Revised by a later run."},
+                    ensure_ascii=False,
+                    sort_keys=True,
+                )
+                + "\n"
+                for locator, text in SEGMENTS.items()
+            ),
+        )
+        corpus = staged.load(CORPUS_ID, data_dir=data_dir, corpora_dir=corpora_dir)
+
+        self.assertTrue(all(chunk.raw is None for chunk in corpus.chunks))
+        self.assertTrue(all(chunk.text for chunk in corpus.chunks), "the text still renders")
 
     def test_missing_segment_stage_degrades(self) -> None:
         """`--verify-only` stages nothing, so segment output can legitimately be absent."""
@@ -289,6 +392,32 @@ class TestRendering(TempCorpus):
     def test_drift_flag_appears_only_when_drifted(self) -> None:
         self.assertNotIn("does not match fingerprint", self.page())
         self.assertIn("does not match fingerprint", self.page(drift=True))
+
+    def test_a_missing_section_is_named_in_the_banner(self) -> None:
+        page = self.page(drop_from_stage=("TC 2.1",))
+        self.assertIn("Drifted", page)
+        self.assertIn("not in the staged output", page)
+        self.assertIn("TC 2.1", page)
+
+    def test_a_count_mismatch_is_shown(self) -> None:
+        page = self.page(declared_count=99)
+        self.assertIn("Staged output is inconsistent", page)
+        self.assertIn("99", page)
+        self.assertIn("3 staged, 99 declared", page)
+
+    def test_a_clean_count_says_nothing_about_counts(self) -> None:
+        self.assertNotIn("Staged output is inconsistent", self.page())
+
+    def test_an_unreadable_overlay_is_shown(self) -> None:
+        page = self.page(corrupt_fingerprints=True)
+        self.assertIn("committed fingerprints cannot be read", page)
+        self.assertNotIn(
+            "Blessed. All", page, "an unreadable overlay is not a verdict on the text"
+        )
+
+    def test_the_raw_panel_says_why_it_is_absent(self) -> None:
+        page = self.page(write_segment_stage=False)
+        self.assertIn("No usable segment output", page)
 
     def test_unblessed_banner(self) -> None:
         page = self.page(bless=False)
@@ -488,6 +617,18 @@ class TestVerifyOffer(VerifyCase):
         with self.assertRaises(verify.NotVerifiable):
             verify.offer(corpus)
 
+    def test_refused_when_the_committed_evidence_cannot_be_read(self) -> None:
+        """Unreadable fingerprints leave the status at UNBLESSED, which this path accepts.
+
+        Offering a bless there would invite someone to overwrite committed
+        evidence nobody has managed to read.
+        """
+        corpus, _, _ = self.corpus(corrupt_fingerprints=True)
+        self.assertEqual(corpus.fingerprint_status, staged.UNBLESSED)
+        with self.assertRaises(verify.NotVerifiable) as caught:
+            verify.offer(corpus)
+        self.assertIn("cannot be read", str(caught.exception))
+
     def test_refused_when_the_diagnostic_is_not_staged(self) -> None:
         corpus, _, _ = self.corpus(bless=False)
         self.adapter.diagnostic = "TC 9.9"
@@ -552,6 +693,69 @@ class TestVerifyApply(VerifyCase):
         self.assertFalse(
             (corpora_dir / CORPUS_ID / mf.FILENAME).exists(), "nothing written"
         )
+
+    def test_refuses_a_malformed_hash_before_reaching_the_network(self) -> None:
+        """The body is decoded with errors="replace", so U+FFFD arrives here.
+
+        `secrets.compare_digest` raises on non-ASCII str, and the comparison is
+        downstream of a re-fetch — so an unvalidated hash costs a network round
+        trip and then crashes the handler instead of being refused.
+        """
+        _, data_dir, corpora_dir = self.corpus(bless=False)
+        for read_hash in ("caf\ufffds", "", "A" * 64, "a" * 63, "z" * 64, "caf\u00e9"):
+            with self.assertRaises(verify.NotVerifiable) as caught:
+                self.apply(data_dir, corpora_dir, read_hash=read_hash)
+            self.assertIn("sha256", str(caught.exception))
+        self.assertEqual(self.downloads, 0, "refused before the fetch, not after it")
+        self.assertFalse((corpora_dir / CORPUS_ID / mf.FILENAME).exists())
+
+    def test_refuses_when_the_committed_manifest_cannot_be_read(self) -> None:
+        """`mf.read` raises on a manifest it cannot parse. Blessing past that overwrites it."""
+        _, data_dir, corpora_dir = self.corpus(corrupt_manifest=True)
+        with self.assertRaises(verify.NotVerifiable) as caught:
+            self.apply(data_dir, corpora_dir)
+        self.assertIn("cannot be read", str(caught.exception))
+        self.assertEqual(
+            (corpora_dir / CORPUS_ID / mf.FILENAME).read_text(encoding="utf-8"),
+            "corpus_id: [unclosed\n",
+            "the unreadable manifest is left exactly as it was found",
+        )
+
+    def test_a_stale_hash_is_not_a_dead_end(self) -> None:
+        """The refusal asks the reader to read the text again, so it has to stage it.
+
+        An unblessed corpus carries no upstream digest, so every submission
+        re-fetches. Leaving `stage/` on the previous run would mean the page went
+        on showing the passage whose hash was just rejected, and every
+        resubmission carried that same rejected hash — a permanent 409.
+        """
+        _, data_dir, corpora_dir = self.corpus(bless=False)
+        stale = fingerprint(normalise.normalise(SEGMENTS["TC 1.2"]))
+
+        # Upstream moves between the page being rendered and the form arriving.
+        self.adapter._segments = dict(
+            SEGMENTS, **{"TC 1.2": "A second section, revised upstream."}
+        )
+
+        with self.assertRaises(verify.NotVerifiable) as caught:
+            self.apply(data_dir, corpora_dir, read_hash=stale)
+        self.assertIn("read the text again", str(caught.exception))
+        self.assertFalse((corpora_dir / CORPUS_ID / mf.FILENAME).exists(), "nothing written")
+
+        reread = staged.load(CORPUS_ID, data_dir=data_dir, corpora_dir=corpora_dir)
+        offer = verify.offer(reread)
+        self.assertEqual(
+            offer.text,
+            normalise.normalise("A second section, revised upstream."),
+            "the reload shows the passage that is upstream now",
+        )
+        self.assertNotEqual(offer.content_hash, stale)
+        self.assertIsNotNone(
+            reread.chunks[1].raw, "stage/ and segment/ are from the same run again"
+        )
+
+        manifest = self.apply(data_dir, corpora_dir, read_hash=offer.content_hash)
+        self.assertEqual(manifest.edition_check.expected_sha256, offer.content_hash)
 
     def test_refuses_to_re_bless(self) -> None:
         _, data_dir, corpora_dir = self.corpus(bless=True)
@@ -647,6 +851,38 @@ class TestBlessRouting(VerifyCase):
         self.assertIn(render._e(normalise.normalise(SEGMENTS["TC 1.2"])), body)
         self.assertFalse((corpora_dir / CORPUS_ID / mf.FILENAME).exists())
 
+    def test_a_non_ascii_token_is_refused_rather_than_raising(self) -> None:
+        """`secrets.compare_digest` raises TypeError on non-ASCII str operands.
+
+        The body is decoded with errors="replace", so a garbled or hostile
+        submission reliably arrives holding U+FFFD — at the first check on the
+        only write path, where the intended answer is a terse 403.
+        """
+        _, data_dir, corpora_dir = self.corpus(bless=False)
+        for submitted in ("caf\u00e9s", "\ufffd" * 8, "t\u00f6ken"):
+            form = dict(self.good_form(), token=[submitted])
+            status, _, _ = self.post(data_dir, corpora_dir, form)
+            self.assertEqual(status, 403, submitted)
+        self.assertFalse((corpora_dir / CORPUS_ID / mf.FILENAME).exists())
+
+    def test_a_non_ascii_hash_is_refused_rather_than_raising(self) -> None:
+        _, data_dir, corpora_dir = self.corpus(bless=False)
+        form = dict(self.good_form(), read_sha256=["caf\u00e9" + "a" * 59])
+        status, body, _ = self.post(data_dir, corpora_dir, form)
+
+        self.assertEqual(status, 409)
+        self.assertIn("sha256", body)
+        self.assertEqual(self.downloads, 0)
+
+    def test_unreadable_staged_output_answers_rather_than_crashing(self) -> None:
+        """GET renders a 500 page for this; POST must not be the one that raises."""
+        _, data_dir, corpora_dir = self.corpus(bless=False)
+        write_text(
+            data_dir / "acquire" / CORPUS_ID / "stage" / "records.jsonl", "{not json\n"
+        )
+        status, _, _ = self.post(data_dir, corpora_dir, self.good_form())
+        self.assertEqual(status, 500)
+
     def test_withheld_text_cannot_be_blessed(self) -> None:
         """You cannot verify an edition you are not permitted to read."""
         _, data_dir, corpora_dir = self.corpus(bless=False, license="local-only")
@@ -661,6 +897,66 @@ class TestBlessRouting(VerifyCase):
             data_dir, corpora_dir, self.good_form(), path="/bless/../../etc/passwd"
         )
         self.assertEqual(status, 404)
+
+
+class TestBodyDraining(unittest.TestCase):
+    """`protocol_version` is HTTP/1.1, so an unread body desyncs the connection.
+
+    No socket: the handler is instantiated without one and given the two
+    attributes the drain touches, which is the whole of what it needs.
+    """
+
+    def handler(self, headers: dict[str, str], body: bytes, path: str = "/bless/x"):
+        cls = server.make_handler(
+            data_dir=pathlib.Path("/nonexistent"),
+            corpora_dir=pathlib.Path("/nonexistent"),
+            serve_local_only=False,
+        )
+        instance = cls.__new__(cls)
+        instance.headers = headers
+        instance.rfile = io.BytesIO(body)
+        instance.close_connection = False
+        instance.path = path
+        return instance
+
+    def test_the_body_is_drained_and_the_next_request_survives(self) -> None:
+        instance = self.handler({"Content-Length": "5"}, b"helloGET / HTTP/1.1\r\n")
+        instance._discard_body()
+
+        self.assertEqual(
+            instance.rfile.read(),
+            b"GET / HTTP/1.1\r\n",
+            "the next request line is what is left on the connection",
+        )
+        self.assertFalse(instance.close_connection)
+
+    def test_an_oversized_or_unparseable_length_ends_the_connection(self) -> None:
+        for headers in (
+            {"Content-Length": str(server.MAX_FORM_BYTES + 1)},
+            {"Content-Length": "not-a-number"},
+            {},  # chunked, or no body at all: nothing to drain against
+        ):
+            instance = self.handler(headers, b"")
+            instance._discard_body()
+            if headers.get("Content-Length") is None:
+                self.assertFalse(instance.close_connection, "an empty body is drained")
+            else:
+                self.assertTrue(instance.close_connection, headers)
+
+    def test_an_early_refusal_drains_before_answering(self) -> None:
+        """Every early return in do_POST, exercised through the real method."""
+        for path, expected in (("/nope", 404), ("/bless/x", 403)):
+            with self.subTest(path=path):
+                instance = self.handler({"Content-Length": "5"}, b"tokenLEFTOVER", path=path)
+                answered: list[int] = []
+                instance._respond = (
+                    lambda status, body, _out=answered, **kwargs: _out.append(status)
+                )
+
+                instance.do_POST()
+
+                self.assertEqual(answered, [expected])
+                self.assertEqual(instance.rfile.read(), b"LEFTOVER")
 
 
 class TestOriginCheck(unittest.TestCase):
@@ -722,6 +1018,58 @@ class TestVerifyPanelMarkup(VerifyCase):
         page = render.corpus_page(corpus)
         self.assertIn("at a terminal", page)
         self.assertIn(f"make bless CORPUS={CORPUS_ID}", page)
+
+    def test_banner_gives_the_reason_rather_than_advice_that_cannot_work(self) -> None:
+        """A corpus with staged output and no adapter cannot be blessed anywhere.
+
+        `data/` is gitignored, so an acquisition survives a branch switch that
+        takes its adapter away -- and the browser lists what is on disk. Sending
+        the reader to `make bless` points them at the same wall with none of the
+        explanation: it exits 64 with the very message being discarded.
+        """
+        unregistered = "testcorpus-0005-noadapter"
+        data_dir, corpora_dir = self.build(corpus_id=unregistered, bless=False)
+        status, body = server.route(
+            f"/c/{unregistered}",
+            {},
+            data_dir=data_dir,
+            corpora_dir=corpora_dir,
+            serve_local_only=False,
+        )
+
+        self.assertEqual(status, 200)
+        self.assertIn("no registered adapter", body)
+        self.assertNotIn("at a terminal", body)
+        self.assertNotIn("make bless", body)
+
+    def test_banner_gives_the_reason_when_the_diagnostic_is_not_staged(self) -> None:
+        corpus, data_dir, corpora_dir = self.corpus(bless=False)
+        self.adapter.diagnostic = "TC 9.9"
+        status, body = server.route(
+            f"/c/{CORPUS_ID}",
+            {},
+            data_dir=data_dir,
+            corpora_dir=corpora_dir,
+            serve_local_only=False,
+        )
+
+        self.assertEqual(status, 200)
+        self.assertIn("not among", body)
+        self.assertNotIn("make bless", body)
+
+    def test_a_withheld_corpus_still_names_the_terminal(self) -> None:
+        """The licence gate stops the panel, not the bless. The CLI can still do it."""
+        _, data_dir, corpora_dir = self.corpus(bless=False, license="local-only")
+        status, body = server.route(
+            f"/c/{CORPUS_ID}",
+            {},
+            data_dir=data_dir,
+            corpora_dir=corpora_dir,
+            serve_local_only=False,
+        )
+
+        self.assertEqual(status, 200)
+        self.assertIn(f"make bless CORPUS={CORPUS_ID}", body)
 
 
 if __name__ == "__main__":
