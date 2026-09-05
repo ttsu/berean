@@ -364,13 +364,15 @@ that exercises `source_language` and the book/chapter/section locator.
 **No corpus text enters the repository** (ADR-0014). The repo carries manifests, fingerprints, and
 scripts; text lands in gitignored `/data/`.
 
-**Status: the pipeline has landed and `wcf-1788-american` acquires cleanly; the bless is
-outstanding.** Design, and the decisions implementation and review revised, are in
+**Status: the pipeline has landed and all three Westminster Standards acquire cleanly; their
+blesses are outstanding.** Design, and the decisions implementation and review revised, are in
 [ACQUISITION-DESIGN.md](ACQUISITION-DESIGN.md). The corpus was blessed once and then ADR-0021
 changed the manifest schema — `edition_check` records the hash of the text the verifier read rather
 than the text — so it needs re-blessing at a terminal (`make bless CORPUS=wcf-1788-american`),
-which `--bless` requires and no flag overrides. Then the other six corpora, each a module under `catena/acquire/corpora/`, an entry in
-that package's `CORPUS_IDS`, and a bless.
+which `--bless` requires and no flag overrides. `wlc-1788-american` and `wsc-1788-american` landed
+after it against the same interface and have never been blessed; both need the same terminal step.
+Then the remaining four corpora, each a module under `catena/acquire/corpora/`, an entry in that
+package's `CORPUS_IDS`, and a bless.
 
 Pipeline:
 
@@ -382,9 +384,14 @@ Pipeline:
 - [ ] Structural chunking lives in the segment stage — WCF per numbered section, WLC/WSC per Q&A
       pair never split, BCO per numbered paragraph, WEB per verse, the *Institutes* per numbered
       section (`Inst. 4.17.10`), the 2000 report per numbered section with its recommendations
-      segmented separately from the expository body. **WCF done** — 33 chapters, 171 sections,
-      `WCF <chapter>.<section>`. Its lists of canonical books are three-column tables read *down*
-      each column; row-major reading garbles them and nothing downstream would notice
+      segmented separately from the expository body. **The three Westminster Standards are done.**
+      WCF — 33 chapters, 171 sections, `WCF <chapter>.<section>`. Its lists of canonical books are
+      three-column tables read *down* each column; row-major reading garbles them and nothing
+      downstream would notice. WLC — 196 Q&As, `WLC Q&A <n>`; WSC — 107, `WSC Q&A <n>`. Chunk text
+      carries neither the `Q. n.` nor the `A.` marker, because check 2 substring-matches against it
+      and a marker on the boundary fails any quote spanning it. The catechisms' answers are
+      multi-line (WLC 99's eight rules, WLC 151's four aggravations) and WLC 196's paragraph is
+      never closed in the source, so the last chunk depends on flushing at the container's close
 - [ ] The 2000 report's recommendations are independently addressable, so a profile's
       `ruling_source` resolves to the ruling and never to the expository body. The body argues
       four views the denomination did not adopt; tier is per corpus, not per chunk, so nothing
@@ -418,7 +425,13 @@ Provenance and licensing:
       text (ADR-0021). Blessed once on 2026-09-04 and superseded by the schema change; re-bless
       with `--bless`, or read the diagnostic any time with `--show-diagnostic`. Chapter 31 having
       four sections rather than the 1646 original's five is a second, structural confirmation the
-      adapter gets for free
+      adapter gets for free. **WLC 109 is the catechism's share of the same revision** — the 1646
+      text lists "tolerating a false religion" among the sins forbidden in the second commandment
+      and the American revision deletes it, so the diagnostic is confirmed by an absence.
+      **WSC has no such divergence**: the 1788 Synod left the Shorter Catechism unaltered, so its
+      diagnostic guards the register instead — WSC 6 names the Holy Ghost, which is the first thing
+      a modernised printing rewrites. Recorded in the adapter rather than left for a reader to
+      infer from an ID whose date the document does not share
 - [ ] Licence and attribution confirmed per source and recorded, never assumed. `public-domain` for
       WCF/WLC/WSC, WEB and the Beveridge *Institutes*; `local-only` for the two PCA-published corpora
 - [ ] The *Institutes* is taken in the Beveridge 1845 translation, not Battles (1960), which is in

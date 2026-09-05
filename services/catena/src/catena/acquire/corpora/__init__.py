@@ -25,7 +25,11 @@ if TYPE_CHECKING:  # pragma: no cover
 #: by scanning the package: `--all` is what `make provision-corpus` runs, and a
 #: corpus that appears in the set because a file was dropped in a directory is a
 #: corpus nobody reviewed.
-CORPUS_IDS = ("wcf-1788-american",)
+CORPUS_IDS = (
+    "wcf-1788-american",
+    "wlc-1788-american",
+    "wsc-1788-american",
+)
 
 
 def module_name(corpus_id: str) -> str:

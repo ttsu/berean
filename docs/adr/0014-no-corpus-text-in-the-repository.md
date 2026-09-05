@@ -34,6 +34,20 @@ The repository carries, per corpus:
 - a **fingerprints file** — one `<locator>  <sha256-of-normalised-text>` per line;
 - an **acquisition script**.
 
+**What the rule does not reach: naming a phrase.** Clarified 2026-09-04, when the catechism
+adapters landed. An edition diagnostic has to be described somewhere a human can act on — WLC 109 is
+verified by confirming that "tolerating a false religion" is *absent*, and WSC 6 by confirming "Holy
+Ghost" is *present* — and the adapter's docstring is where the person about to bless it will look.
+A phrase of a few words, named as the marker a check turns on, is not the text of the work and does
+not put the work in the repository. The precedent was already here: the confession's adapter names
+"nursing fathers" for the same purpose.
+
+The boundary is quantity and purpose together. Naming the clause a check turns on is allowed;
+quoting a section, an answer, or a passage is not, however short and whatever its licence — which is
+the case ADR-0021 decided when it refused to commit the diagnostic's own text and kept only its
+hash. If a judgement about which side a string falls on ever feels close, it is the wrong side: this
+rule exists to be uniform, and a close call is the per-corpus reasoning it was written to remove.
+
 Text is acquired by a pipeline — fetch, extract, segment, normalise, verify, stage — into gitignored
 local storage. Structural chunking moves into acquisition, because per-chunk fingerprints are only
 meaningful once chunking has happened.

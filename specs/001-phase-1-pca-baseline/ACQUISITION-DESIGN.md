@@ -247,6 +247,93 @@ have noticed. Extraction reads tables column-major, and the suite asserts it.
 
 ---
 
+## The catechism adapters
+
+`wlc-1788-american` and `wsc-1788-american` landed against the interface above without changing it,
+which is the first thing worth recording: the adapter boundary held for a second document shape.
+
+### Shared helpers, and where the seam falls
+
+Three of the seven corpora are documents on one publisher's site in one markup shape. Two helper
+modules now sit under `corpora/`, both underscore-prefixed so the `corpus_id` → module mapping can
+never produce them:
+
+- **`_opc.py`** — the OPC page. Container capture on `div.mainBlock`, the dropped-subtree set, block
+  flushing tolerant of unbalanced markup, and column-major table flattening. Lifted from the WCF
+  adapter unchanged, which its suite proves: `test_acquire_wcf.py` passes untouched, and that is the
+  only evidence that a refactor did not move a fingerprint.
+- **`_catechism.py`** — Q&A segmentation, shared by the two catechisms.
+
+The split between them is the same one the pipeline draws between `extract` and `segment`, drawn one
+level down and for the same reason: `_opc` describes the shape of a publisher's markup and fails as
+garbage text, `_catechism` describes the structure of a catechism and fails as a wrong locator set.
+One module that did both could fail either way and would report both the same.
+
+`_opc`'s rules are deliberately **not** parameterised per corpus. A catechism page carries no table
+of contents, no tables and no proof-text apparatus, so the confession's rules are inert there — and
+load-bearing the day the OPC adds proof-texts to a catechism, which would otherwise be segmented as
+text.
+
+**This is a contract change.** The acquisition contract lists three committed artefacts per corpus,
+one of which is the adapter module; it did not anticipate shared code inside that package. The rule
+added to INTEGRATION-SPEC is that an underscore-prefixed module there is a helper and not an
+adapter, and that a helper may not do what the adapter interface forbids — normalisation stays with
+the pipeline.
+
+### Chunk text carries neither marker
+
+Decided during implementation; the contract was silent. A chunk is `<question> <answer>` with
+`Q. n.` and `A.` both dropped.
+
+Check 2 substring-matches a quote against exactly this text, so a marker left sitting on the
+boundary fails any quote that spans it — and a model quotes prose, not markers. Dropping the number
+also follows the confession's adapter, which puts the section number in the locator and not in the
+text. Nothing is lost: every question in both catechisms ends in a question mark, so the boundary
+survives its marker.
+
+### Division headings are matched structurally, because the text cannot be committed
+
+The Larger Catechism carries two all-caps headings that divide it and belong to no Q&A. They are
+dropped, counted, and the count asserted — `EXPECTED_DIVISIONS`, 2 for the WLC and **0 for the WSC**,
+which is what makes a heading appearing there a failure rather than a silent drop.
+
+They are matched as "an all-caps line between Q&As" rather than by their text, and that is forced
+rather than chosen: hard-coding the two strings would commit corpus text to this repository, which
+ADR-0014 forbids without a per-corpus exemption. The rule was checked against both sources before it
+was relied on — those two are the only all-caps lines in either document, and every continuation
+line inside WLC 99 and WLC 151 carries lowercase.
+
+A line *after* an answer is deliberately indistinguishable from a continuation of it, and must be:
+WLC 99's eight rules and WLC 151's four aggravations are exactly that. The stray-text check
+therefore catches prose *before* the first question, which is the case that can actually lose a
+chunk.
+
+### What the sources turned out to be
+
+- `opc.org/lc.html` and `opc.org/sc.html`. Not `wlc.html`/`wsc.html`, which 404.
+- 196 and 107 Q&As, contiguous from 1, each a single `<p>` of `Q. n. <i>…</i><br />A. …`.
+- **WLC 196's paragraph is never closed** — it runs straight into the container's `</div>`. The
+  extractor flushes at the container close, so the last chunk survives; a tree builder or a regex
+  over `<p>…</p>` loses it, and loses it silently. It has a test.
+- Neither page carries a table of contents, a table, or a `<sup>`.
+
+### The Shorter Catechism's diagnostic guards something else
+
+The 1788 revision altered the confession's chapters on the civil magistrate and WLC 109. **It left
+the Shorter Catechism unchanged**, so `wsc-1788-american` has no 1646-versus-1788 divergence for a
+diagnostic to point at.
+
+The ID stays as it is: a corpus ID is edition-specific by rule, the PCA's standards are one set, and
+an ID asserting a different date would invent a distinction the document does not have. What changes
+is what the diagnostic is *for*. The confusion this corpus is exposed to is a modernised printing,
+and the first thing a modernised printing changes is "Holy Ghost" to "Holy Spirit". WSC 6 is one
+short answer containing it — cheap to read at bless and impossible to be uncertain about.
+
+This is recorded in the adapter's own docstring rather than only here, because the person it needs to
+reach is whoever reads the module before blessing it.
+
+---
+
 ## Testing
 
 ADR-0014 bars corpus text from fixtures, which is not an inconvenience to work around — it decides
@@ -257,10 +344,17 @@ module, with invented text. Every generic stage — cache, verify, bless, stagin
 validation — is exercised there, because none of them care what the text says. No test touches the
 network.
 
-**The WCF adapter is tested structurally.** That extraction yields 33 chapters; that every locator
+**The adapters are tested structurally.** That extraction yields 33 chapters; that every locator
 matches `WCF <chapter>.<section>`; that the chapter numbering is contiguous from 1; that no
 proof-text markers survive extraction. All of that is assertable without committing a byte of the
 confession, and it is what would actually catch a broken parser.
+
+The catechisms are tested the same way, and the shared helpers get their own suites:
+`test_acquire_opc.py` covers the page shape once for all three corpora, and
+`test_acquire_catechisms.py` covers Q&A pairing, the division rule, and each adapter's constants
+against a page built in the source's layout from invented text. What is **not** a test is that
+WLC 109 omits the 1646 clause or that WSC 6 says "Holy Ghost" — asserting either would commit the
+phrase, so both are the human's job at bless, which is what the diagnostic exists for.
 
 The 33 is checked, not assumed. The 1903 PCUSA revision added chapters 34 and 35, and a source
 carrying them would be the wrong edition in a way WCF 23.3 does not detect — the divergence is
@@ -291,13 +385,31 @@ network.
 ## What lands
 
 - `services/catena/src/catena/acquire/` — `pipeline`, `fetch`, `record`, `manifest`,
-  `fingerprints`, `cli`, and `corpora/wcf_1788_american.py`
+  `fingerprints`, `cli`, the three Westminster adapters under `corpora/`, and the `_opc` and
+  `_catechism` helpers they share
 - `catena acquire` with real argument parsing, replacing the exit-69 stub
 - `corpora/wcf-1788-american/manifest.yaml` and `fingerprints.txt`, blessed by hand
 - One new dependency: **PyYAML**. Fetch is stdlib `urllib`, extraction stdlib `html.parser`. The
   offline overlay stays honest and the adapter is per-corpus regardless
 - No new Makefile targets — `provision-corpus` and `corpus-verify` already pass the flags, and
   `test-catena` globs new suites up
+
+### Every acquisition target depends on `build`
+
+Added 2026-09-04, after `make bless CORPUS=wlc-1788-american` reported `unknown corpus` against a
+freshly written adapter. The catena image `COPY`s `services/catena/src` at build time and mounts no
+source, so a container started against a stale image runs the adapters the image was built with.
+
+The visible failure — a new corpus reported unknown — is the harmless half. The dangerous half is an
+*edited* adapter, where the stale image acquires through the old code and nothing says so: a bless
+would then record a human verification against text the working tree no longer produces, which is
+precisely the class of silent divergence the fingerprints exist to catch and could not catch here,
+because the fingerprints would be written by the same stale code that produced them.
+
+So `provision-corpus`, `corpus-verify`, `bless` and `show-diagnostic` all take `build` as a
+prerequisite. A warm no-op build is under two seconds, which is the cheaper side of that trade.
+`show-diagnostic` is included for consistency with `bless`, which prints the same text: a stale
+diagnostic read is a human reading the wrong text and concluding the edition is right.
 
 ### Spec changes in the same change
 
@@ -325,9 +437,10 @@ becomes `edition_check.expected_sha256`.
 
 ## Status
 
-The pipeline and the WCF adapter have landed. `wcf-1788-american` acquires cleanly against
-`opc.org/wcf.html` — 171 sections across 33 chapters, byte-identical across runs — and is **not yet
-blessed under the current schema**.
+The pipeline and the three Westminster Standards adapters have landed, and all three acquire
+cleanly and byte-identically across runs: `wcf-1788-american` against `opc.org/wcf.html`, 171
+sections across 33 chapters; `wlc-1788-american` against `opc.org/lc.html`, 196 Q&As;
+`wsc-1788-american` against `opc.org/sc.html`, 107. **None of the three is blessed.**
 
 It was blessed once, before review. ADR-0021 changed `edition_check.expected` to
 `expected_sha256`, and a manifest is written only by `--bless`, so the artefacts written under the
@@ -338,11 +451,22 @@ make bless CORPUS=wcf-1788-american
 ```
 
 which prints WCF 23.3 in full — read it against the 1646 original at chapter 23 — and blocks on a
-typed name. To read the diagnostic without blessing anything, at any time:
+typed name. The two catechisms have never been blessed at all and take the same step:
 
 ```
-make show-diagnostic CORPUS=wcf-1788-american
+make bless CORPUS=wlc-1788-american
+make bless CORPUS=wsc-1788-american
 ```
 
-The remaining six corpora are follow-on work against this same interface: a module under
+Each prints one locator to read. **WLC 109 is confirmed by an absence** — "tolerating a false
+religion" must not appear among the sins forbidden in the second commandment, because the 1788
+revision deleted it. **WSC 6 is confirmed by a presence** — "the Holy Ghost", not "the Holy
+Spirit", which is what a modernised printing substitutes. To read any diagnostic without blessing
+anything, at any time:
+
+```
+make show-diagnostic CORPUS=<corpus-id>
+```
+
+The remaining four corpora are follow-on work against this same interface: a module under
 `catena/acquire/corpora/`, an entry in that package's `CORPUS_IDS`, and a bless.
