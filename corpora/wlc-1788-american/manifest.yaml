@@ -1,0 +1,29 @@
+corpus_id: wlc-1788-american
+source_url: https://www.opc.org/lc.html
+archive_url: https://web.archive.org/web/20260803234016id_/https://opc.org/lc.html
+retrieved: '2026-09-05'
+upstream_sha256: aed700d4d266023c349d28a8588e6ecf9699b2757c48cec806163ad9bc8eaa69
+license: public-domain
+license_terms: |
+  Public domain by age: the work is a 1648 document in a 1788 revision, and no
+  copyright term reaches either.
+
+  The source page, https://www.opc.org/lc.html, makes no statement of terms about
+  the catechism's text. The only notice it carries is a site-wide footer, quoted
+  here verbatim as found on the retrieval date recorded in this manifest:
+
+      © 2026 The Orthodox Presbyterian Church
+
+  That notice sits in the page furniture rather than beside the text, and it covers
+  the site rather than the eighteenth-century document reproduced on it. It is
+  recorded because a licence is evidence, not a label, and because the next person
+  to ask should be able to see what was actually there rather than what was
+  concluded from it.
+attribution: The Westminster Larger Catechism, 1788 American revision. Public domain. Text obtained from the Orthodox Presbyterian Church, https://www.opc.org/lc.html.
+normalisation_version: 1
+chunk_count: 196
+edition_check:
+  diagnostic: WLC Q&A 109
+  expected_sha256: 91bbfc7e37c7a059f554055f38d4d07376ff68f26f5457bef215d764195280b9
+  verified_by: tim
+  verified: '2026-09-05'

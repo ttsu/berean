@@ -1,0 +1,29 @@
+corpus_id: wsc-1788-american
+source_url: https://www.opc.org/sc.html
+archive_url: https://web.archive.org/web/20260706010651id_/https://www.opc.org/sc.html
+retrieved: '2026-09-05'
+upstream_sha256: 67cb01c8dcedcb4ad2584d8e377afecab8260e69852be3f9279c3f0d3995fb00
+license: public-domain
+license_terms: |
+  Public domain by age: the work is a 1647 document, carried unchanged through the
+  1788 American revision, and no copyright term reaches it.
+
+  The source page, https://www.opc.org/sc.html, makes no statement of terms about
+  the catechism's text. The only notice it carries is a site-wide footer, quoted
+  here verbatim as found on the retrieval date recorded in this manifest:
+
+      © 2026 The Orthodox Presbyterian Church
+
+  That notice sits in the page furniture rather than beside the text, and it covers
+  the site rather than the seventeenth-century document reproduced on it. It is
+  recorded because a licence is evidence, not a label, and because the next person
+  to ask should be able to see what was actually there rather than what was
+  concluded from it.
+attribution: The Westminster Shorter Catechism. Public domain. Text obtained from the Orthodox Presbyterian Church, https://www.opc.org/sc.html.
+normalisation_version: 1
+chunk_count: 107
+edition_check:
+  diagnostic: WSC Q&A 6
+  expected_sha256: 938eb0c5fa0f964808bbe24a8b8aa56481266dffe0f792e26286d8b2beb0c3f6
+  verified_by: tim
+  verified: '2026-09-05'
