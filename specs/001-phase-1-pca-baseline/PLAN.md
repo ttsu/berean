@@ -350,7 +350,8 @@ TECHNICAL-SPEC and SHARED in the same change:
 **Depends on:** —
 
 Build the acquisition pipeline, then use it to acquire the 1788 American revision of WCF/WLC/WSC,
-the current BCO, the 1646 original (needed for the edition check, and the profile's only `contrary`
+the current BCO, the 1646 recension (the profile's only `contrary` corpus; see below on why no
+faithful 1646 text could be found and what was taken instead) (needed for the edition check, and the profile's only `contrary`
 corpus), the WEB text, the 28th General Assembly (2000) creation study committee report
 (`pca-ga28-2000-creation-study`) — the document that establishes the contested status of
 `creation-days`, without which the corpus says only "in the space of six days" (WCF 4.1) and UC-4
@@ -465,7 +466,7 @@ never touches the network. It reads staged records, enriches, embeds, and loads.
 - [ ] WEB ingested as `web-2000`, the corpus ID the PCA profile names
 - [ ] `calvin-institutes-1559-beveridge` ingested at `advisory`, so UC-6 has a source that carries
       no binding authority. Roughly 1,700 section chunks, and the largest embedding job after WEB
-- [ ] `wcf-1646-original` ingested, so the profile's `contrary` entry resolves and UC-3 has a
+- [ ] `wcf-1646-epcew-modernised` ingested, so the profile's `contrary` entry resolves and UC-3 has a
       counterpart to contrast against
 - [ ] Every metadata field populated on every chunk, including `source_language` (`la` for
       the *Institutes*, equal to `language` elsewhere) and `text_form` (`majority` for WEB, whose NT
@@ -638,7 +639,7 @@ Tables come from Task 3; this task is the persistence path that writes them.
       ADR rather than quietly adding a quota
 - [ ] UC-2 (silent corpus) returns `VERIFIED` with `no_answer_reason` set and every content slot
       empty — **not** `DEGRADED`, and rendered differently
-- [ ] UC-3 (civil magistrate) cites `wcf-1788-american` and **no** `wcf-1646-original` citation
+- [ ] UC-3 (civil magistrate) cites `wcf-1788-american` and **no** `wcf-1646-epcew-modernised` citation
 - [ ] UC-4 (creation days) flags contested, cites the 2000 report's ruling, carries **no**
       `arguments`, and does not resolve
 - [ ] UC-5 (fabricated citation) — the fabrication is prompt-induced, so the assertion is the

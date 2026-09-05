@@ -55,7 +55,7 @@ text_form, edition, license, attribution, embedding_model, dim
 
 `language`, `source_language` and `text_form` are required now even though original-language support
 is Phase 3–4 (ADR-0008). `edition` is what makes `wcf-1788-american` distinguishable from
-`wcf-1646-original`.
+`wcf-1646-epcew-modernised`.
 
 `text_form` and `license` are closed enums, not free text — `tr | critical | majority |
 not-applicable` and `public-domain | cc-by | cc-by-sa | local-only | refused`. Most of the Phase 1
@@ -125,9 +125,9 @@ corpora:
     stance: binding
   - id: pca-bco-2024
     stance: governing
-  - id: wcf-1646-original
+  - id: wcf-1646-epcew-modernised
     stance: contrary
-    label: "original Westminster, not PCA's text"
+    label: "1646 Westminster in modern English, not PCA's text"
   - id: pca-ga28-2000-creation-study
     stance: advisory
     note: GA study committee reports are advice to the courts, not constitutional

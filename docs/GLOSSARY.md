@@ -61,7 +61,9 @@ prefix is used where the work is denomination-specific, as a church order is.
 
 - `wcf-1788-american` — correct
 - `wcf` — **wrong**, and a bug
-- `wcf-1646-original` — a different corpus, `contrary` under a PCA profile
+- `wcf-1646-epcew-modernised` — a different corpus, `contrary` under a PCA profile. Its ID
+  names the renderer because the text is the 1646 recension in modernised English rather than
+  the original wording; no faithful 1646 text was found in fetchable form
 - `pca-bco-2024`
 - `calvin-institutes-1559-beveridge` — the 1559 edition in Beveridge's 1845 translation. Both halves
   matter: Battles (1960) is a different text and is in copyright

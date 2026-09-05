@@ -416,6 +416,105 @@ is not one.
 
 ---
 
+## The 1646 confession, and the check that a diagnostic cannot make
+
+`wcf-1646-epcew-modernised`, 172 chunks. The corpus ID is the finding.
+
+### No faithful 1646 text exists in fetchable form
+
+Every candidate was checked against the divergence the edition turns on — 23.3, where the original
+gives the civil magistrate authority to call synods and the American revision has "nursing fathers":
+
+| Source | Verdict |
+| --- | --- |
+| OPC `wcf.html` | 1788 American — already held |
+| CCEL `westminster3.txt` | 1788 American, published under the original's title |
+| CCEL `westminster1` / `westminster2` | Shorter and Larger Catechisms, mislabelled |
+| Wikisource, *The Humble Advice of the Assembly of Divines* | the genuine 1646 text, but only 9 of 33 chapters transcribed |
+| Internet Archive, 1647 printing | page images, no OCR text at all |
+| EEBO | 403; a licensed database |
+| six denominational sites | 404 or 410 |
+
+What remains is the EPCEW, which publishes the 1646 recension a chapter to a page.
+
+### A modernised rendering passes every check this pipeline has
+
+The EPCEW text has the original's substance. 23.3 gives the magistrate authority to call synods,
+chapter 31 has five sections against the American revision's four, and `WCF 31.5` exists there and
+in no other corpus here. The edition diagnostic passes. The 33-chapter assertion passes. The
+chapter-31 assertion passes. The fingerprints are stable run to run.
+
+**Its English has been modernised throughout**, and only a diff against the 1788 corpus exposed it:
+151 of 171 shared locators differ, where the two editions should differ in a handful of places.
+
+| form | EPCEW | OPC 1788 |
+| --- | --- | --- |
+| `hath` | 1 | 38 |
+| `doth` | 0 | 23 |
+| `-eth` verbs | 1 | 52 |
+| `has` | 37 | 0 |
+| `does` | 23 | 0 |
+
+`dependeth` becomes `depends`; `he hath` becomes `He has`. That is a difference of diction rather
+than doctrine, which is why the corpus is kept — for showing what a tradition repudiated, the
+argument survives the rewording. What it may not do is claim to be the 1646 text, because every
+citation would verify against words no seventeenth-century document contains. Hence
+**`wcf-1646-epcew-modernised`** rather than `wcf-1646-original`, with `edition` saying the same
+thing in prose.
+
+**The general lesson: an edition diagnostic catches the wrong recension, not a modernised rendering
+of the right one.** ADR-0021 made the diagnostic a locator whose text a human reads, and that is
+exactly the right instrument for "is this the 1788 or the 1646 confession". It is the wrong
+instrument for "is this the 1646 confession or somebody's 1646 confession in today's English",
+because the passage reads correctly in both.
+
+So `--bless` now prints a **register profile** beside the diagnostic: counts of `hath`, `doth`,
+`-eth`, `has` and `does` across the whole corpus. It asserts nothing. "Old text, modern words" is a
+judgement, and a threshold would need one per corpus, which is the per-corpus reasoning this project
+keeps removing. It counts a grammatical pattern rather than quoting anything, so it says something
+about the text while the repository carries none of it. The two confessions side by side are why it
+earns its place — 38/23/52 against 1/0/1 is not a subtle signal.
+
+### `FetchPlan.follow`, for a corpus that is not one document
+
+The source is 33 pages. `FetchPlan` gains `follow`: the adapter is handed the index's bytes and
+returns the page URLs in reading order, and fetch downloads them into one blob. Every later stage is
+unchanged — the concatenation is content-addressed, cached and `--from-file`-able like any single
+document, and the index itself is dropped as the table of contents it is.
+
+The seam is in fetch rather than in an adapter's `extract` for the reason the stages are separate at
+all: fetch is the only stage that touches the network, and an adapter downloading its own pages
+would put network access behind a function the cache cannot see. `follow` reads bytes and returns
+strings; it performs no I/O.
+
+The URLs are **discovered rather than listed** because they carry the confession's chapter titles,
+and thirty-three of those written into an adapter is the document's table of contents committed to a
+public repository (ADR-0014).
+
+**A page set is fetched politely, one second apart.** Not a nicety: 33 back-to-back requests earned
+an HTTP 429 from a small denominational server during development, which fails the whole
+acquisition. Acquisition is one-time and human-supervised, so a minute spread over a corpus costs
+nothing.
+
+A per-page archive fallback was rejected. A set of archived snapshots is a second source to keep
+current, and a corpus that quietly acquired 32 of 33 pages would stage and bless as though complete;
+the fallback for a page set is `--from-file`.
+
+### Two source defects worth recording
+
+**Chapter 12, *Of Adoption*, is a single unnumbered paragraph.** The chapter has one section and the
+source omits the numeral, so a segmenter requiring one loses `WCF 12.1` entirely. A chapter opening
+with unnumbered text takes section 1, and the number of such chapters is asserted at exactly one —
+one is a feature of the document, two would be stray text being absorbed into a chunk.
+
+**Proof-text markers are linked in two styles.** The current one puts `footnotes` in the path; an
+older one is `/wcf/I_fn.html#fn10`. Matching the path caught only the first and left markers in
+eight chunks — a fingerprint of text-plus-apparatus, which blesses and verifies clean forever. Both
+styles carry an `fn<n>` fragment and name, which is the marker's real signature, and extraction now
+**refuses** rather than emitting a document with a marker still in it.
+
+---
+
 ## Testing
 
 ADR-0014 bars corpus text from fixtures, which is not an inconvenience to work around — it decides
