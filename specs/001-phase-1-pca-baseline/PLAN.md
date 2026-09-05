@@ -471,7 +471,12 @@ never touches the network. It reads staged records, enriches, embeds, and loads.
 - [ ] Reads staged records from gitignored `/data/staged/<corpus-id>/`; no network in this path
 - [ ] Records re-verified against committed fingerprints before insert — ingestion refuses text
       that does not match what was blessed
-- [ ] WEB ingested as `web-2000`, the corpus ID the PCA profile names
+- [ ] WEB ingested as `web-2020`, the corpus ID the PCA profile names. **Renamed from `web-2000`,
+      which named an edition nobody published.** eBible.org's FAQ says the translation "started out
+      as just one Bible translation that was continuously revised until 2020" and that "The World
+      English Bible was completed in 2020"; the archive's own about file ends "2020 stable text
+      edition". The Protestant edition (`engwebp`) is taken rather than the Classic (`eng-web`):
+      66 books, the canon WCF 1.2 enumerates, and "LORD" rather than "Yahweh"
 - [ ] `calvin-institutes-1559-beveridge` ingested at `advisory`, so UC-6 has a source that carries
       no binding authority. Roughly 1,700 section chunks, and the largest embedding job after WEB
 - [ ] `wcf-1646-epcew-modernised` ingested, so the profile's `contrary` entry resolves and UC-3 has a

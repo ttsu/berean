@@ -32,6 +32,7 @@ CORPUS_IDS = (
     "calvin-institutes-1559-beveridge",
     "wcf-1646-epcew-modernised",
     "pca-ga28-2000-creation-study",
+    "web-2020",
 )
 
 

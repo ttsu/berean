@@ -65,6 +65,10 @@ prefix is used where the work is denomination-specific, as a church order is.
   names the renderer because the text is the 1646 recension in modernised English rather than
   the original wording; no faithful 1646 text was found in fetchable form
 - `pca-bco-2024`
+- `web-2020` — the World English Bible's 2020 stable text, Protestant edition. Not `web-2000`:
+  the translation was continuously revised until 2020 and no 2000 edition was ever published.
+  The Classic edition is a different corpus — it carries the Deuterocanon and renders the
+  Tetragrammaton "Yahweh" where this one has "LORD"
 - `calvin-institutes-1559-beveridge` — the 1559 edition in Beveridge's 1845 translation. Both halves
   matter: Battles (1960) is a different text and is in copyright
 
@@ -76,7 +80,9 @@ specificity is painful; there is no grace period on this.
 
 Canonical, per-work, resolvable, stable.
 
-- Scripture: `Gen 1:1`, `Rom 8:28-30`
+- Scripture: `Gen 1:1`, `Rom 8:28-30`. Book abbreviations are fixed per corpus by its adapter;
+  `web-2020` maps the source's own codes (`SOL`, `JOH`, `JAM` — BibleWorks-style, not USFM) to
+  these. Numbered books keep the space: `1 Sam 1:1`, `1 Cor 13:4`
 - Confessional: `WCF 7.2`, `WSC Q&A 1`
 - Aquinas: `ST I-II q.94 a.2`
 - Church order: `BCO 21-4`

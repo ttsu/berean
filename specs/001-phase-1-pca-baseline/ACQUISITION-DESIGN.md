@@ -576,6 +576,91 @@ way, and the check belongs per adapter rather than in the pipeline.
 
 ---
 
+## The World English Bible
+
+`web-2020`, 31,098 verses — an order of magnitude past anything else acquired here, and the corpus
+whose ID had to change.
+
+### The edition is 2020, and `web-2000` named one nobody published
+
+PLAN, TECHNICAL-SPEC and INTEGRATION-SPEC all said `web-2000`. eBible.org is unambiguous that no
+such edition exists. Its FAQ: the translation "started out as just one Bible translation that was
+**continuously revised until 2020**", and "The World English Bible was **completed in 2020**. A few
+minor typos have been corrected since then." The VPL archive's own about file ends "**2020 stable
+text edition**". The Sword modules are named `engweb2025eb`, and the files on the server were
+rebuilt three days before acquisition.
+
+So `web-2000` asserted an edition that was never a published artefact — the same failure as
+`wcf-1646-original`, caught the same way, by reading the source instead of the spec. Renamed, and
+the three specs corrected in the same change.
+
+### Which WEB, and why it is a canon question rather than a spelling one
+
+eBible publishes two that matter here. `eng-web` is the **Classic**: it carries the
+Deuterocanon and renders the Tetragrammaton "Yahweh". `engwebp` is the **Updated** text restricted
+to the 66 books — exactly the canon WCF 1.2 enumerates — and renders it "LORD" (6,576 times;
+"Yahweh" appears nowhere in it). Both the canon and the divine name make the Protestant edition the
+right text under a Westminster profile, and the two are different corpora rather than two spellings
+of one. Taking the wrong one would put the Apocrypha into a corpus a PCA profile treats as
+`binding`.
+
+### `text_form` is `majority`, on the publisher's statement
+
+The enum is closed and the answer is not guessable from the abbreviation. eBible's FAQ: the WEB
+"has been edited to conform to the **Greek Majority Text** New Testament where there are significant
+differences in manuscripts", using "the Biblia Hebraica Stuttgartensia in the Old Testament, and the
+**Byzantine Majority Text**… Robinson-Pierpont and Hodges-Farstad". The text bears it out —
+Matthew 17:21, Mark 9:44 and John 5:4 are present where critical texts omit them, and the Comma
+Johanneum is absent where the Textus Receptus has it. Recorded from the statement, corroborated by
+the text, rather than either alone.
+
+### Five verses are blank, and *which* five is the evidence
+
+Luke 17:36, Acts 8:37, Acts 15:34, Acts 24:7 and Romans 16:25 are absent from that base text, and
+the source emits the verse marker with no text after it. `record.stage` refuses an empty normalised
+string, so acquiring them aborts the run — a loud failure, but the wrong one.
+
+They are skipped, and the adapter asserts the **exact set** rather than the count. Which verses a
+translation omits is evidence about its Greek text: a source blanking a different five would be a
+different textual base wearing this one's name, and the edition diagnostic could not see it, because
+every remaining verse reads identically. That is the `wcf-1646-epcew-modernised` lesson applied
+before it cost anything — a diagnostic locator catches the wrong recension, not a different text
+that agrees at the locator you happened to pick.
+
+**Skipping them leaves real gaps**, so verse numbering is deliberately *not* asserted contiguous,
+unlike chapter and section numbering everywhere else in this package. Acts runs 8:36 then 8:38, and
+that is correct.
+
+### A zip is the right shape, and the locator table is the source's dialect
+
+`extract` opens the archive in memory and reads one member. eBible's VPL form is "BIBLE TEXT ONLY.
+All formatting, paragraph breaks, notes, introductions, noncanonical section titles, etc., have been
+removed" — the bare text this project wants, with the apparatus already gone. The alternative
+single-document forms are HTML per book, which would need `FetchPlan.follow` and a parser to arrive
+at exactly the lines this member already contains.
+
+The source's book codes are the older BibleWorks-style forms rather than USFM — `SOL` not `SNG`,
+`JOH` not `JHN`, `JAM` not `JAS` — so the adapter's 66-entry table is not decoration: it pins the
+dialect the source actually speaks, and an unrecognised code fails rather than inventing a locator.
+Book names are identifiers, not text (ADR-0014).
+
+### Scale, measured
+
+| | |
+| --- | --- |
+| chunks | 31,098 (31,103 verses less the five blanks) |
+| extract + segment + normalise + stage | 0.39 s |
+| verse length | median 119 characters, max 491 |
+| `make browse` | paginates at 500, so 63 pages; loads in 0.44 s and renders one page in 0.02 s |
+
+**482 verses (1.5%) fall below ADR-0020's 40-character quote floor** — including John 11:35, "Jesus
+wept." They can be retrieved and cited and never quoted, which is exactly the case ADR-0020
+anticipated when it said the floor "will occasionally reject a legitimately short citation… Revisit
+the number if it fires on real Westminster content during Task 11." It now has a number attached to
+it before Task 11 rather than after.
+
+---
+
 ## Testing
 
 ADR-0014 bars corpus text from fixtures, which is not an inconvenience to work around — it decides

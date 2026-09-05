@@ -113,7 +113,7 @@ A YAML document, loaded and resolved by Go:
 ```yaml
 profile: pca
 scripture:
-  corpus_id: web-2000
+  corpus_id: web-2020
   stance: binding              # optional; defaults to binding
 corpora:
   - id: wcf-1788-american

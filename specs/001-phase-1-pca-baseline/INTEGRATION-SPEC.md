@@ -285,7 +285,7 @@ YAML, loaded by Go, never sent to Python.
 ```yaml
 profile: string                  # e.g. pca
 scripture:
-  corpus_id: string              # edition-specific, e.g. web-2000
+  corpus_id: string              # edition-specific, e.g. web-2020
   stance: string                 # optional; binding | governing | advisory, default binding
 corpora:
   - id: string                   # edition-specific, required
@@ -345,7 +345,7 @@ like any other corpus, and a translation left out of `corpora` makes every verse
 fabrication.
 
 The profile carries the **corpus ID**, not a translation abbreviation. An earlier draft carried
-`translation: WEB`, which left the WEB → `web-2000` mapping with no specified home: the engine would
+`translation: WEB`, which left the WEB → `web-2020` mapping with no specified home: the engine would
 have had to hold an abbreviation table, making every added translation an engine change and putting
 a per-tradition corpus commitment outside the profile, which is the thing ADR-0011 exists to
 prevent. A corpus ID needs no resolution step and fails loudly when wrong, because an ID absent from
