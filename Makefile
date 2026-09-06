@@ -19,7 +19,7 @@ UV      := uv
 # images and the model weights are: "the same commit" has to mean the same
 # stack.
 BUF_IMAGE := bufbuild/buf:1.72.0
-GO_IMAGE  := golang:1.24-alpine
+GO_IMAGE  := golang:1.25-alpine
 
 BUF = docker run --rm \
 	  --user "$$(id -u):$$(id -g)" --env HOME=/tmp \
