@@ -14,17 +14,19 @@ No test here touches the network. The one seam that could is injected.
 from __future__ import annotations
 
 import contextlib
+import hashlib
 import io
 import os
 import pathlib
 import tempfile
 import unittest
+import urllib.error
 from typing import Iterator
 
 import yaml
 
 from catena import normalise
-from catena.acquire import cli, corpora
+from catena.acquire import cli, corpora, fetch
 from catena.acquire import fingerprints as fp
 from catena.acquire import manifest as mf
 from catena.acquire import pipeline, record
@@ -285,6 +287,132 @@ class WorkFactsValidation(unittest.TestCase):
 
     def test_a_null_author_is_allowed(self) -> None:
         self.assertIsNone(WorkFacts(**{**WORK.to_dict(), "author": None}).author)
+
+
+def noop(_seconds: float) -> None:
+    """The pacing delay, stood down. Only the pacing test asserts on it."""
+
+
+class MultiPageFetching(unittest.TestCase):
+    """A corpus whose source is a set of pages rather than one document.
+
+    The 1646 confession is published a chapter to a page, and no complete
+    single-document source of it exists. `follow` lets the adapter say how its
+    pages are found without the fetch stage learning anything about a corpus and
+    without the adapter touching the network: fetch downloads the index, the
+    adapter reads the page URLs out of it, and fetch downloads those.
+
+    Discovering the pages rather than listing them also keeps the confession's
+    chapter titles out of this repository -- they are in the URLs (ADR-0014).
+    """
+
+    INDEX = b"index: <a>one</a> <a>two</a>"
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self.root = pathlib.Path(self._tmp.name)
+        self.addCleanup(self._tmp.cleanup)
+
+    def plan(self) -> FetchPlan:
+        return FetchPlan(
+            source_url="https://invented.example/contents",
+            archive_url="https://archive.invented.example/contents",
+            follow=lambda raw: ("https://invented.example/one",
+                                "https://invented.example/two"),
+        )
+
+    def downloader(self):
+        pages = {
+            "https://invented.example/contents": self.INDEX,
+            "https://invented.example/one": b"<page>ONE</page>",
+            "https://invented.example/two": b"<page>TWO</page>",
+        }
+        calls: list[str] = []
+
+        def download(url: str) -> bytes:
+            calls.append(url)
+            if url not in pages:
+                raise urllib.error.URLError("no such page")
+            return pages[url]
+
+        return download, calls
+
+    def test_the_followed_pages_are_fetched_in_order(self) -> None:
+        download, calls = self.downloader()
+        fetch.fetch(self.root, CORPUS_ID, self.plan(), downloader=download, sleep=noop)
+        self.assertEqual(calls, [
+            "https://invented.example/contents",
+            "https://invented.example/one",
+            "https://invented.example/two",
+        ])
+
+    def test_the_pages_arrive_as_one_blob(self) -> None:
+        download, _ = self.downloader()
+        fetched = fetch.fetch(self.root, CORPUS_ID, self.plan(), downloader=download, sleep=noop)
+        self.assertIn(b"ONE", fetched.raw)
+        self.assertIn(b"TWO", fetched.raw)
+
+    def test_the_index_is_not_part_of_the_document(self) -> None:
+        """It is a table of contents, which is an index rather than text."""
+        download, _ = self.downloader()
+        fetched = fetch.fetch(self.root, CORPUS_ID, self.plan(), downloader=download, sleep=noop)
+        self.assertNotIn(b"index:", fetched.raw)
+
+    def test_the_blob_is_content_addressed_like_any_other(self) -> None:
+        download, _ = self.downloader()
+        fetched = fetch.fetch(self.root, CORPUS_ID, self.plan(), downloader=download, sleep=noop)
+        self.assertEqual(
+            fetched.digest, hashlib.sha256(fetched.raw).hexdigest()
+        )
+        self.assertTrue((fetch.cache_dir(self.root, CORPUS_ID) / fetched.digest).is_file())
+
+    def test_a_page_that_fails_names_the_page(self) -> None:
+        """33 pages means a failure has to say which one, and an archive
+        fallback over a page set is not offered -- `--from-file` is."""
+        download, _ = self.downloader()
+        plan = FetchPlan(
+            source_url="https://invented.example/contents",
+            archive_url="https://archive.invented.example/contents",
+            follow=lambda raw: ("https://invented.example/missing",),
+        )
+        with self.assertRaises(AcquisitionError) as caught:
+            fetch.fetch(self.root, CORPUS_ID, plan, downloader=download, sleep=noop)
+        self.assertIn("missing", str(caught.exception))
+        self.assertIn("--from-file", str(caught.exception))
+
+    def test_pages_are_fetched_politely(self) -> None:
+        """33 requests back to back earned an HTTP 429 from the small
+        denominational server this was written against. A page set is one
+        publisher, hit repeatedly, and acquisition is a one-time human-supervised
+        act where waiting costs nothing."""
+        download, _ = self.downloader()
+        slept: list[float] = []
+        fetch.fetch(
+            self.root, CORPUS_ID, self.plan(), downloader=download, sleep=slept.append
+        )
+        self.assertEqual(len(slept), 2, "one pause before each followed page")
+        self.assertTrue(all(s >= fetch.PAGE_DELAY_SECONDS for s in slept))
+
+    def test_a_single_page_plan_never_sleeps(self) -> None:
+        download, _ = self.downloader()
+        slept: list[float] = []
+        plan = FetchPlan(
+            source_url="https://invented.example/one",
+            archive_url="https://archive.invented.example/one",
+        )
+        fetch.fetch(self.root, CORPUS_ID, plan, downloader=download, sleep=slept.append)
+        self.assertEqual(slept, [])
+
+    def test_a_single_page_plan_is_unchanged(self) -> None:
+        """Every corpus that came before must take the identical path."""
+        download, calls = self.downloader()
+        plan = FetchPlan(
+            source_url="https://invented.example/one",
+            archive_url="https://archive.invented.example/one",
+        )
+        fetched = fetch.fetch(self.root, CORPUS_ID, plan, downloader=download, sleep=noop)
+        self.assertEqual(calls, ["https://invented.example/one"])
+        self.assertEqual(fetched.raw, b"<page>ONE</page>")
 
 
 class Fetching(Workspace):
@@ -585,6 +713,48 @@ class Blessing(Workspace):
         self.assertIn("unexpected", asked[0])
 
 
+class RegisterProfile(unittest.TestCase):
+    """Counts of archaic and modern verb forms, shown at bless.
+
+    A modernised transcription of an old document passes every check this
+    pipeline has: the edition diagnostic matches, the chapter and section counts
+    match, the fingerprints are stable. The EPCEW's rendering of the 1646
+    confession did exactly that -- `hath` once where the 1788 text has it 38
+    times. Nothing fails automatically, because "old text, modern words" is a
+    judgement rather than a rule; the person already being asked to judge the
+    edition gets the counts in front of them.
+    """
+
+    def profile(self, text: str) -> dict:
+        return pipeline.register_profile([record.stage("X 1", text)])
+
+    def test_archaic_verb_forms_are_counted(self) -> None:
+        found = self.profile("He hath spoken, and it doth stand, and he maketh it so.")
+        self.assertEqual(found["hath"], 1)
+        self.assertEqual(found["doth"], 1)
+        # `hath` and `doth` end in -th, not -eth; only `maketh` matches.
+        self.assertEqual(found["-eth"], 1)
+
+    def test_modern_verb_forms_are_counted(self) -> None:
+        found = self.profile("He has spoken, and it does stand.")
+        self.assertEqual(found["has"], 1)
+        self.assertEqual(found["does"], 1)
+
+    def test_a_word_merely_containing_a_form_is_not_counted(self) -> None:
+        found = self.profile("Hathaway does not have a beneath.")
+        self.assertEqual(found["hath"], 0)
+        self.assertEqual(found["has"], 0)
+
+    def test_the_profile_is_printed_at_bless(self) -> None:
+        stream = io.StringIO()
+        pipeline.show_register(
+            [record.stage("X 1", "He hath spoken and it doth stand.")], stream=stream
+        )
+        out = stream.getvalue()
+        self.assertIn("register", out.lower())
+        self.assertIn("hath", out)
+
+
 class AtomicWrites(unittest.TestCase):
     """An interrupted bless must leave the previous file intact.
 
@@ -660,19 +830,60 @@ class CommandLine(Workspace):
         self.assertEqual(code, cli.EX_USAGE)
         self.assertIn("unknown corpus", out)
 
-    def test_an_unblessed_corpus_says_so_rather_than_verifying_nothing(self) -> None:
+    def test_an_unblessed_corpus_stages_so_it_can_be_read_before_blessing(self) -> None:
+        """The browser hosts the first bless, and can only show what is staged.
+
+        Refusing to stage an unblessed corpus made that feature unreachable: a
+        corpus reaches `make browse` by being staged, staging required a
+        successful verify, and verifying required the blessing the browser
+        exists to perform. There is no committed record to drift from, so
+        verification has nothing to do and staging is safe.
+        """
+        stream = io.StringIO()
+        ok = cli.run_one(
+            self.adapter,
+            data_dir=self.data_dir,
+            corpora_dir=self.corpora_dir,
+            bless=False,
+            verify_only=False,
+            from_file=None,
+            stream=stream,
+            downloader=CountingDownloader(),
+        )
+        self.assertTrue(ok)
+        staged = pipeline.corpus_dir(self.data_dir, CORPUS_ID) / "stage" / pipeline.RECORDS
+        self.assertTrue(staged.is_file(), "an unblessed corpus must still stage")
+
+    def test_staging_an_unblessed_corpus_says_nothing_was_verified(self) -> None:
+        """Loudly, because a staged corpus otherwise looks like a checked one."""
+        stream = io.StringIO()
+        cli.run_one(
+            self.adapter,
+            data_dir=self.data_dir,
+            corpora_dir=self.corpora_dir,
+            bless=False,
+            verify_only=False,
+            from_file=None,
+            stream=stream,
+            downloader=CountingDownloader(),
+        )
+        self.assertIn("UNVERIFIED", stream.getvalue())
+
+    def test_verify_only_refuses_an_unblessed_corpus(self) -> None:
+        """Drift detection against no committed record is not a check that
+        passes -- it is a check with nothing to evaluate."""
         with self.assertRaises(AcquisitionError) as caught:
             cli.run_one(
                 self.adapter,
                 data_dir=self.data_dir,
                 corpora_dir=self.corpora_dir,
                 bless=False,
-                verify_only=False,
+                verify_only=True,
                 from_file=None,
                 stream=io.StringIO(),
                 downloader=CountingDownloader(),
             )
-        self.assertIn("--bless", str(caught.exception))
+        self.assertIn("nothing to compare", str(caught.exception))
 
     def test_a_manifest_without_fingerprints_is_half_a_blessing(self) -> None:
         manifest = self.bless()

@@ -1,0 +1,31 @@
+corpus_id: calvin-institutes-1559-beveridge
+source_url: https://www.ccel.org/ccel/c/calvin/institutes/cache/institutes.txt
+archive_url: https://web.archive.org/web/20260904id_/https://www.ccel.org/ccel/c/calvin/institutes/cache/institutes.txt
+retrieved: '2026-09-05'
+upstream_sha256: b527a27e234bc4a8cdbbbfb82d9243677d645d35f82d4762faf5e3f8cfc4085e
+license: public-domain
+license_terms: |
+  Public domain by age: the work is a 1559 Latin text in an 1845 English
+  translation, and no copyright term reaches either.
+
+  The source file, https://www.ccel.org/ccel/c/calvin/institutes/cache/institutes.txt,
+  states its terms in its own header, quoted here verbatim as found on the
+  retrieval date recorded in this manifest:
+
+      Title: The Institutes of the Christian Religion
+      Creator(s): Calvin, John (1509-1564)
+                  Beveridge, Henry (Translator)
+      Rights: Public Domain
+
+  That statement covers the work and the translation. It does not reach the
+  twentieth-century introduction by John Murray that the same file carries, which
+  is why acquisition excludes it: a public-domain statement about a work is not a
+  statement about the apparatus a later edition wraps around it.
+attribution: John Calvin, Institutes of the Christian Religion, 1559 edition, translated by Henry Beveridge (1845). Public domain. Text obtained from the Christian Classics Ethereal Library, https://www.ccel.org/ccel/c/calvin/institutes/.
+normalisation_version: 1
+chunk_count: 1284
+edition_check:
+  diagnostic: Inst. 4.17.10
+  expected_sha256: a5df0abf601b76d470873aab22e60b36bc35d6fc7d2dc0fa6688f05ec891775e
+  verified_by: tim
+  verified: '2026-09-05'

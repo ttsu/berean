@@ -24,6 +24,7 @@ from __future__ import annotations
 import hashlib
 import http.client
 import pathlib
+import time
 import urllib.error
 import urllib.request
 from dataclasses import dataclass
@@ -55,10 +56,30 @@ class FetchPlan:
     will not hash to the same `upstream_sha256` — an archive wraps what it
     stores — so falling back is a reported event, and the fingerprints rather
     than the upstream digest are what say the text is the blessed text.
+
+    `follow` is for a corpus published across several pages rather than as one
+    document, which the 1646 confession is: a chapter to a page, and no complete
+    single-document source of it exists. The adapter is handed the index's bytes
+    and returns the page URLs in reading order; fetch downloads them and hands
+    every later stage one blob, so caching, content addressing, `--from-file`
+    and drift detection are unchanged.
+
+    The seam falls here rather than inside an adapter's `extract` for the reason
+    the stages are separate at all: fetch is the only stage that touches the
+    network, and an adapter that downloaded its own pages would put network
+    access behind a function the cache cannot see. `follow` reads bytes and
+    returns strings; it performs no I/O.
+
+    Discovering the pages also keeps them out of this repository. The 1646
+    confession's URLs carry its chapter titles, and a list of 33 of them
+    committed to an adapter is the document's table of contents (ADR-0014).
     """
 
     source_url: str
     archive_url: str
+    #: Index bytes to the page URLs to fetch, in order. `None` for a corpus that
+    #: is one document, which is every other corpus.
+    follow: Callable[[bytes], "tuple[str, ...]"] | None = None
 
 
 @dataclass(frozen=True)
@@ -101,6 +122,7 @@ def fetch(
     refetch: bool = False,
     from_file: pathlib.Path | None = None,
     downloader: Downloader = download,
+    sleep: Callable[[float], None] = time.sleep,
 ) -> Fetched:
     if from_file is not None:
         try:
@@ -127,7 +149,60 @@ def fetch(
             return Fetched(expected_digest, raw, "cache")
 
     raw, origin = _download_with_fallback(plan, downloader)
+    if plan.follow is not None:
+        raw, origin = _download_pages(plan, raw, origin, downloader, sleep)
     return Fetched(store(root, corpus_id, raw), raw, origin)
+
+
+#: Between concatenated pages. A newline rather than nothing, so a tag closing
+#: at the end of one page cannot fuse with one opening at the start of the next.
+PAGE_SEPARATOR = b"\n"
+
+#: Waited before each followed page. A page set is one publisher hit dozens of
+#: times in a row, and 33 back-to-back requests earned an HTTP 429 from the
+#: small denominational server this was first written against. Acquisition is a
+#: one-time, human-supervised act; a minute spread over a corpus costs nothing
+#: and being throttled mid-set costs the whole acquisition.
+PAGE_DELAY_SECONDS = 1.0
+
+
+def _download_pages(
+    plan: FetchPlan,
+    index: bytes,
+    origin: str,
+    downloader: Downloader,
+    sleep: Callable[[float], None] = time.sleep,
+) -> tuple[bytes, str]:
+    """Fetch every page the adapter finds in the index, in reading order.
+
+    The index itself is dropped: it is a table of contents, which is an index
+    rather than text, and the same rule that drops one inside a page.
+    """
+    assert plan.follow is not None
+    pages = plan.follow(index)
+    if not pages:
+        raise AcquisitionError(
+            f"fetch {plan.source_url}: the index named no pages. The source's shape "
+            "changed, and acquiring it would produce an empty corpus rather than an error."
+        )
+    parts: list[bytes] = []
+    for url in pages:
+        sleep(PAGE_DELAY_SECONDS)
+        try:
+            parts.append(downloader(url))
+        except _TRANSPORT_ERRORS as error:
+            # No archive fallback per page: a set of archived snapshots is a
+            # second source to keep current, and a partial corpus that acquired
+            # cleanly is worse than one that refused to.
+            raise AcquisitionError(
+                f"fetch {url}: {error}\n"
+                f"  This is one of {len(pages)} pages listed by {plan.source_url}, and a "
+                "corpus missing a page would stage and bless as though complete.\n"
+                "  If this is a 429, the publisher is throttling: raise PAGE_DELAY_SECONDS "
+                "rather than retrying into it.\n"
+                "  Acquire the pages by hand and pass the concatenation with --from-file."
+            ) from error
+    return PAGE_SEPARATOR.join(parts), f"{origin} (+{len(pages)} pages)"
 
 
 def _download_with_fallback(plan: FetchPlan, downloader: Downloader) -> tuple[bytes, str]:

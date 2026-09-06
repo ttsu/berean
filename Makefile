@@ -64,12 +64,20 @@ provision: provision-models provision-corpus ## Fetch pinned weights and acquire
 provision-models: env dirs ## Fetch the pinned Qwen3-8B and BGE-M3 weights into ./models/
 	./tools/provision/pull-models.sh
 
+# Every acquisition target depends on `build`, and that is load-bearing rather
+# than tidy. The catena image COPYs services/catena/src at build time and mounts
+# no source, so a container started against a stale image runs the adapters the
+# image was built with. The failure is not a crash: a new corpus reports
+# "unknown corpus", and -- worse -- an *edited* adapter silently acquires through
+# the old code, which is how a bless records a human verification of text the
+# working tree no longer produces. A few seconds of no-op build is the cheaper
+# side of that trade.
 .PHONY: provision-corpus
-provision-corpus: env dirs ## Acquire every corpus into ./data/ (ADR-0014)
+provision-corpus: env dirs build ## Acquire every corpus into ./data/ (ADR-0014)
 	$(COMPOSE) run --rm catena acquire --all
 
 .PHONY: corpus-verify
-corpus-verify: env dirs ## Re-acquire every corpus and diff against committed fingerprints
+corpus-verify: env dirs build ## Re-acquire every corpus and diff against committed fingerprints
 	$(COMPOSE) run --rm catena acquire --all --verify-only
 
 # One corpus at a time, and both write into ./data, so they go through $(COMPOSE)
@@ -93,7 +101,7 @@ endef
 # overrides that, so this target is deliberately not reachable from `provision`:
 # a batch bless would record verifications nobody made.
 .PHONY: bless
-bless: env dirs ## Verify one corpus's edition by hand and write its manifest: make bless CORPUS=<id>
+bless: env dirs build ## Verify one corpus's edition by hand and write its manifest: make bless CORPUS=<id>
 	$(call require_corpus,bless)
 	$(ACQUIRE_ONE) $(CORPUS) --bless
 
@@ -102,7 +110,7 @@ bless: env dirs ## Verify one corpus's edition by hand and write its manifest: m
 # it is here for everyone who reads the record afterwards and wants to see what
 # the verifier saw.
 .PHONY: show-diagnostic
-show-diagnostic: env dirs ## Print one corpus's edition diagnostic and its hash: make show-diagnostic CORPUS=<id>
+show-diagnostic: env dirs build ## Print one corpus's edition diagnostic and its hash: make show-diagnostic CORPUS=<id>
 	$(call require_corpus,show-diagnostic)
 	$(ACQUIRE_ONE) $(CORPUS) --show-diagnostic
 

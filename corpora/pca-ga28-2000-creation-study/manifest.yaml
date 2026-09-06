@@ -1,0 +1,29 @@
+corpus_id: pca-ga28-2000-creation-study
+source_url: https://pcahistory.org/pca/digest/studies/creation/report.html
+archive_url: https://web.archive.org/web/2id_/https://pcahistory.org/pca/digest/studies/creation/report.html
+retrieved: '2026-09-05'
+upstream_sha256: af52bb68fc6016a2fa09640d7e61fb053f172a82180cb269bdc920fe9314a491
+license: local-only
+license_terms: |
+  Published by the Presbyterian Church in America and hosted by the PCA Historical
+  Center. Not assumed permissive: public availability on a denominational website
+  is not a licence, and a permission to read or quote is not a permission to
+  ingest.
+
+  The source page, https://pcahistory.org/pca/digest/studies/creation/report.html,
+  carries no statement of terms about the report's text and no copyright notice on
+  the document itself. That absence is recorded rather than read as permission.
+
+  So the corpus is `local-only` under ADR-0017. Ingestion and serving are separate
+  acts and serving is the licensed one: the repository distributes no text at all
+  (ADR-0014), and verification check 4 refuses to serve these chunks unless the
+  deployer has set an explicit opt-in, which defaults to off. Whether a deployer
+  may serve this document from their own machine is the deployer's call to make.
+attribution: Report of the Creation Study Committee, Presbyterian Church in America, adopted by the 28th General Assembly (2000). Text obtained from the PCA Historical Center, https://pcahistory.org/pca/digest/studies/creation/report.html.
+normalisation_version: 1
+chunk_count: 513
+edition_check:
+  diagnostic: GA28 Rec.2
+  expected_sha256: 5aa742734b2edd3c3afc26715f820cbfb633ca1956e70a726112228a481e29cc
+  verified_by: tim
+  verified: '2026-09-05'

@@ -61,8 +61,16 @@ prefix is used where the work is denomination-specific, as a church order is.
 
 - `wcf-1788-american` — correct
 - `wcf` — **wrong**, and a bug
-- `wcf-1646-original` — a different corpus, `contrary` under a PCA profile
-- `pca-bco-2024`
+- `wcf-1646-epcew-modernised` — a different corpus, `contrary` under a PCA profile. Its ID
+  names the renderer because the text is the 1646 recension in modernised English rather than
+  the original wording; no faithful 1646 text was found in fetchable form
+- `pca-bco-2026` — the year matters: a BCO is amended most years, so `pca-bco-2024` and
+  `pca-bco-2026` are different constitutions and a citation resolving against the wrong one is a
+  correctness failure
+- `web-2020` — the World English Bible's 2020 stable text, Protestant edition. Not `web-2000`:
+  the translation was continuously revised until 2020 and no 2000 edition was ever published.
+  The Classic edition is a different corpus — it carries the Deuterocanon and renders the
+  Tetragrammaton "Yahweh" where this one has "LORD"
 - `calvin-institutes-1559-beveridge` — the 1559 edition in Beveridge's 1845 translation. Both halves
   matter: Battles (1960) is a different text and is in copyright
 
@@ -74,11 +82,21 @@ specificity is painful; there is no grace period on this.
 
 Canonical, per-work, resolvable, stable.
 
-- Scripture: `Gen 1:1`, `Rom 8:28-30`
+- Scripture: `Gen 1:1`, `Rom 8:28-30`. Book abbreviations are fixed per corpus by its adapter;
+  `web-2020` maps the source's own codes (`SOL`, `JOH`, `JAM` — BibleWorks-style, not USFM) to
+  these. Numbered books keep the space: `1 Sam 1:1`, `1 Cor 13:4`
 - Confessional: `WCF 7.2`, `WSC Q&A 1`
 - Aquinas: `ST I-II q.94 a.2`
 - Church order: `BCO 21-4`
-- Calvin's *Institutes*: `Inst. 4.17.10` — book.chapter.section
+- Calvin's *Institutes*: `Inst. 4.17.10` — book.chapter.section. Calvin's prefatory address to
+  Francis I opens the work outside that scheme, so it takes a second form, `Inst. Pref.1`
+  through `Inst. Pref.7` — the only corpus in Phase 1 with two locator forms
+
+- PCA 2000 creation study report: `GA28 IV.B.2.4` — section.subsection.sub-subsection.paragraph,
+  with the depth the document actually has at that point (`GA28 I.3`, `GA28 IV.A.7`). Its
+  recommendations take a second, deliberately unlike form, `GA28 Rec.1` through `GA28 Rec.3`:
+  a profile's `ruling_source` resolves there and must never resolve to the body, which argues
+  four interpretations the denomination did not adopt
 
 A locator that does not resolve is a verification failure, not a formatting nit.
 

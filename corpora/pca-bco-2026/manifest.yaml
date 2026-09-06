@@ -1,0 +1,27 @@
+corpus_id: pca-bco-2026
+source_url: https://www.pcaac.org/wp-content/uploads/2026/07/BCO_2026.pdf
+archive_url: https://web.archive.org/web/2id_/https://www.pcaac.org/wp-content/uploads/2026/07/BCO_2026.pdf
+retrieved: '2026-09-06'
+upstream_sha256: 8aba6c850a2d2e2c8e7b5c9b1906a29981b69e0e1345c4c2ceb6bf56bfe4dc59
+license: local-only
+license_terms: |
+  Published by the Office of the Stated Clerk of the General Assembly of the
+  Presbyterian Church in America. Not assumed permissive: public availability of a
+  PDF on a denominational website is not a licence, and a permission to read or
+  quote is not a permission to ingest.
+
+  The document carries no statement of terms and no copyright notice. That absence
+  is recorded rather than read as permission.
+
+  So the corpus is `local-only` under ADR-0017. Ingestion and serving are separate
+  acts and serving is the licensed one: the repository distributes no text at all
+  (ADR-0014), and verification check 4 refuses to serve these chunks unless the
+  deployer has set an explicit opt-in, which defaults to off.
+attribution: The Book of Church Order of the Presbyterian Church in America, 2026 edition. Published by the Office of the Stated Clerk of the General Assembly of the Presbyterian Church in America. Text obtained from https://www.pcaac.org/wp-content/uploads/2026/07/BCO_2026.pdf.
+normalisation_version: 1
+chunk_count: 430
+edition_check:
+  diagnostic: BCO 21-4
+  expected_sha256: 9f833feb3e8dc0294f223de759634334148afc30732a24eb06d9ef503dbf7cb8
+  verified_by: tim
+  verified: '2026-09-06'

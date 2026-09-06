@@ -1,0 +1,32 @@
+corpus_id: web-2020
+source_url: https://ebible.org/Scriptures/engwebp_vpl.zip
+archive_url: https://web.archive.org/web/2id_/https://ebible.org/Scriptures/engwebp_vpl.zip
+retrieved: '2026-09-05'
+upstream_sha256: f08d13b4f0701108f7b9f95d57c201649f37c36359f707c8cf1876538a84d750
+license: public-domain
+license_terms: |
+  Public domain by dedication, stated by the publisher in the archive itself
+  (engwebp_about.htm) and quoted here verbatim as found on the retrieval date
+  recorded in this manifest:
+
+      The World English Bible is in the Public Domain. That means that it is not
+      copyrighted. However, "World English Bible" is a Trademark of eBible.org.
+      You may copy, publish, proclaim, distribute, redistribute, sell, give away,
+      quote, memorize, read publicly, broadcast, transmit, share, back up, post on
+      the Internet, print, reproduce, preach, teach from, and use the World English
+      Bible as much as you want, and others may also do so. All we ask is that if
+      you CHANGE the actual text of the World English Bible in any way, you not
+      call the result the World English Bible any more. This is to avoid confusion,
+      not to limit your freedom.
+
+  The trademark is the only live obligation and this project satisfies it by
+  construction: normalisation does not change the text, the fingerprints prove it
+  was not changed, and the attribution names the translation and its source.
+attribution: The World English Bible, 2020 stable text, Protestant edition. Public domain. Text obtained from eBible.org, https://ebible.org/Scriptures/engwebp_vpl.zip. 'World English Bible' is a trademark of eBible.org.
+normalisation_version: 1
+chunk_count: 31098
+edition_check:
+  diagnostic: Deut 6:4
+  expected_sha256: 84e3bc3136d5549c68847f0c150e754b5db599408888ed85df457bf5429a3a24
+  verified_by: tim
+  verified: '2026-09-05'

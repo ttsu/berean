@@ -1,0 +1,29 @@
+corpus_id: wcf-1788-american
+source_url: https://www.opc.org/wcf.html
+archive_url: https://web.archive.org/web/20260831082916id_/https://opc.org/wcf.html
+retrieved: '2026-09-04'
+upstream_sha256: 239c0c3fd692c45f7dd3098b03d16bb1a6598f3b21ced95f95fec0e155f027e7
+license: public-domain
+license_terms: |
+  Public domain by age: the work is a 1646 document in a 1788 revision, and no
+  copyright term reaches either.
+
+  The source page, https://www.opc.org/wcf.html, makes no statement of terms about
+  the confession's text. The only notice it carries is a site-wide footer, quoted
+  here verbatim as found on the retrieval date recorded in this manifest:
+
+      © 2026 The Orthodox Presbyterian Church
+
+  That notice sits in the page furniture rather than beside the text, and it covers
+  the site rather than the eighteenth-century document reproduced on it. It is
+  recorded because a licence is evidence, not a label, and because the next person
+  to ask should be able to see what was actually there rather than what was
+  concluded from it.
+attribution: The Westminster Confession of Faith, 1788 American revision. Public domain. Text obtained from the Orthodox Presbyterian Church, https://www.opc.org/wcf.html.
+normalisation_version: 1
+chunk_count: 171
+edition_check:
+  diagnostic: WCF 23.3
+  expected_sha256: 153ed4444f8285b6b3db382b50aa4392734e233fafe4a93f748db179db9a8c47
+  verified_by: tim
+  verified: '2026-09-04'

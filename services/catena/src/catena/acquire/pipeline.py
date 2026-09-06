@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import json
 import pathlib
+import re
 import sys
 
 import yaml
@@ -341,6 +342,51 @@ def show_diagnostic(adapter: Adapter, acquired: Acquired, *, stream: TextIO = sy
     return staged.text
 
 
+#: Verb forms that separate early modern English from a modernised rendering of
+#: it. Counted, never asserted on: "old text, modern words" is a judgement, and
+#: a threshold would need one per corpus — which is the per-corpus reasoning
+#: this project keeps removing.
+REGISTER_FORMS = {
+    "hath": re.compile(r"\bhath\b", re.I),
+    "doth": re.compile(r"\bdoth\b", re.I),
+    "-eth": re.compile(r"\b\w+eth\b", re.I),
+    "has": re.compile(r"\bhas\b", re.I),
+    "does": re.compile(r"\bdoes\b", re.I),
+}
+
+
+def register_profile(records: list[StagedRecord]) -> dict[str, int]:
+    """How archaic the corpus's English is, counted rather than judged.
+
+    A modernised transcription of an old document passes every other check here:
+    the edition diagnostic matches, the counts match, the fingerprints are
+    stable run to run. The EPCEW's rendering of the 1646 confession did exactly
+    that — `hath` once, against 38 in the 1788 text — and only a diff against
+    another edition exposed it. A diagnostic locator catches the wrong
+    recension; it does not catch a modernised rendering of the right one.
+
+    This counts a grammatical pattern rather than quoting anything, so it says
+    something about the text without the repository carrying any (ADR-0014).
+    """
+    joined = " ".join(record.text for record in records)
+    return {name: len(pattern.findall(joined)) for name, pattern in REGISTER_FORMS.items()}
+
+
+def show_register(records: list[StagedRecord], *, stream: TextIO = sys.stderr) -> None:
+    """Print the register profile. Evidence for a human, never a gate."""
+    counts = register_profile(records)
+    archaic = sum(counts[name] for name in ("hath", "doth", "-eth"))
+    modern = sum(counts[name] for name in ("has", "does"))
+    print("  register    " + "  ".join(f"{name} {counts[name]}" for name in REGISTER_FORMS), file=stream)
+    if archaic == 0 and modern > 0:
+        print(
+            "              no archaic verb forms at all, and modern ones throughout. If "
+            "this corpus\n              claims to predate about 1800, it is a modernised "
+            "rendering rather than the text.",
+            file=stream,
+        )
+
+
 def bless(
     adapter: Adapter,
     acquired: Acquired,
@@ -384,6 +430,8 @@ def bless(
     say(f"  chunks        {len(acquired.records)}")
     say(f"  contract      normalisation v{normalisation.NORMALISATION_VERSION}")
     say(f"  licence       {adapter.work.license}")
+    say()
+    show_register(acquired.records, stream=stream)
     say()
     say("Read this in full. It is the edition verification, and the manifest will record")
     say("only its hash — the text is never committed (ADR-0021).")
