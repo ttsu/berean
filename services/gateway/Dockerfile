@@ -1,7 +1,7 @@
 # The trust boundary. Static binary, distroless runtime — nothing in this image
 # needs a shell, and the smaller the image the shorter the list of things that
 # can reach the network from inside it (SHARED §1).
-FROM golang:1.24-alpine AS build
+FROM golang:1.25-alpine AS build
 WORKDIR /src
 
 # Module files first so dependency resolution caches independently of source.

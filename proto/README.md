@@ -39,8 +39,8 @@ when the stubs are absent, so a clean clone that has never generated reports gre
 `go.mod` requires `google.golang.org/grpc` and `google.golang.org/protobuf` even though nothing in
 the committed tree imports them yet — the generated code does, and `protodeps.go` is what keeps
 `go mod tidy` from dropping them on a clean clone. gRPC is pinned at the newest release that still
-builds under the pinned Go 1.24 image; raising it means raising the toolchain, which is a stack
-change and belongs in its own commit.
+builds under the pinned Go image, which is now 1.25 — the toolchain was raised in its own commit
+so the dependency bump did not carry a stack change along with it.
 
 ## Fields it is easy to get wrong
 
