@@ -212,9 +212,10 @@ Three things the task did not anticipate, each resolved and propagated to INTEGR
 
 Two stack changes it forced, both small and both recorded where they live:
 
-- **gRPC is pinned at v1.80.0**, the newest release that still builds under the pinned Go 1.24
-  image. Raising it means raising the toolchain, which is a stack change and belongs in its own
-  commit rather than riding along with the contract.
+- **gRPC was pinned at v1.80.0**, the newest release that still built under the then-pinned Go 1.24
+  image. Raising it meant raising the toolchain, which is a stack change and belongs in its own
+  commit rather than riding along with the contract. Two advisories against gRPC ≤ 1.83.0 forced
+  it: the image is now `golang:1.25-alpine` and gRPC v1.83.1, raised in that order.
 - **The gateway image now copies `go.sum`.** Without it the build re-resolves the dependency graph
   and writes its own, so the image's dependency set would be whatever the registry served that day.
 
