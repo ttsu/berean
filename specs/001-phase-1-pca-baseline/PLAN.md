@@ -392,7 +392,7 @@ Pipeline:
       content-addressed at `/data/acquire/<id>/fetch/<sha256>`, since a cache key cannot be the hash
       of something not yet fetched. Only fetch caches: the pure stages recompute, so an adapter fix
       cannot land while verification still runs against the output of the code it replaced
-- [ ] Structural chunking lives in the segment stage — WCF per numbered section, WLC/WSC per Q&A
+- [x] Structural chunking lives in the segment stage — WCF per numbered section, WLC/WSC per Q&A
       pair never split, BCO per numbered paragraph, WEB per verse, the *Institutes* per numbered
       section (`Inst. 4.17.10`), the 2000 report per numbered section with its recommendations
       segmented separately from the expository body. **All eight corpora are done.** The BCO is
@@ -434,14 +434,16 @@ Provenance and licensing:
       check 4 refuses to serve `local-only` chunks unless the deployer has opted in, defaulting to
       deny. This no longer blocks acquisition. It does mean the manifest must record the terms
       **verbatim as found**, with the URL, in `license_terms`: a licence is evidence, not a label
-- [ ] Manifest per corpus: source URL, archive fallback URL, retrieval date, licence enum,
+- [x] Manifest per corpus: source URL, archive fallback URL, retrieval date, licence enum,
       `license_terms` verbatim, attribution, the edition diagnostic's locator and the hash of the
       text its verifier read — never the text (ADR-0021) — normalisation contract version (`1`),
-      chunk count
+      chunk count. All eight parse through the schema reader with no field missing, and unknown
+      keys are rejected rather than ignored — a misspelled field that loads clean is a provenance
+      record with a hole in it
 - [x] Fingerprints file: one `<locator>  <sha256-of-normalised-text>` per line, sorted —
       bytewise on the UTF-8 encoding of the locator, since "sorted by locator" is
       underspecified and a numeric-aware sort needs a locator grammar the format does not have
-- [ ] **Verified as the 1788 American revision** — WCF ch. 23 checked by hand against the 1646
+- [x] **Verified as the 1788 American revision** — WCF ch. 23 checked by hand against the 1646
       text, read in full at bless and recorded as its hash rather than as a checkbox or as committed
       text (ADR-0021). Blessed once, superseded by the schema change, and re-blessed under the
       current one on 2026-09-04; the confession needs nothing further. The diagnostic can be read
@@ -454,8 +456,11 @@ Provenance and licensing:
       diagnostic guards the register instead — WSC 6 names the Holy Ghost, which is the first thing
       a modernised printing rewrites. Recorded in the adapter rather than left for a reader to
       infer from an ID whose date the document does not share
-- [ ] Licence and attribution confirmed per source and recorded, never assumed. `public-domain` for
-      WCF/WLC/WSC, WEB and the Beveridge *Institutes*; `local-only` for the two PCA-published corpora
+- [x] Licence and attribution confirmed per source and recorded, never assumed. `public-domain` for
+      WCF/WLC/WSC, WEB and the Beveridge *Institutes*; `local-only` for the two PCA-published corpora,
+      and `public-domain` for the EPCEW 1646. `license_terms` carries what was actually on the page,
+      verbatim, 697 to 1,081 characters per corpus — including a site-wide copyright footer beside an
+      eighteenth-century text, recorded because a licence is evidence and not a label
 - [x] The *Institutes* is taken in the Beveridge 1845 translation, not Battles (1960), which is in
       copyright. Acquired from CCEL as plain text: 4 books, 80 chapters, 1,277 sections plus the
       seven of Calvin's prefatory address, 1,284 chunks. Three source hazards are handled and
@@ -466,7 +471,13 @@ Provenance and licensing:
       most likely to have memorised, so UC-6 may fail check 2 on passages the model genuinely knows.
       That is a finding about the generator, not a defect in the verifier
 - [ ] Bare text only, never a modern edition's apparatus — footnotes, cross-references, modernised
-      spelling, and proof-text selections can carry fresh copyright over public-domain text
+      spelling, and proof-text selections can carry fresh copyright over public-domain text. Apparatus
+      is stripped everywhere: the confession's proof-texts, 1,283 footnote anchors and every chapter
+      synopsis in the *Institutes*, Murray's introduction, the BCO's amendment bullets and appendices.
+      **This stays open on the spelling clause**, and deliberately: no faithful 1646 text could be
+      found, so the `contrary` corpus is the EPCEW's modernised rendering. The departure is recorded
+      in the corpus ID — `wcf-1646-epcew-modernised` — and ticking this line would hide the one thing
+      it exists to keep visible. It closes if a faithful 1646 text is ever found, and not before
 
 Getting the edition wrong here silently poisons everything downstream. Verify by hand.
 
