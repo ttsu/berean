@@ -537,8 +537,28 @@ Extend the hazard list's item 4 to name the rules alongside the anchors:
 make check
 ```
 
-Expected: every suite green. `guard-corpus` must pass — if it fails, a fixture picked up real text
-and that is a Global Constraint violation, not a test problem.
+Expected: **one failure, and only this one** —
+`test_every_committed_manifest_agrees_with_its_adapter` in
+`services/catena/tests/test_acquire_pipeline.py`:
+
+```
+calvin-institutes-1559-beveridge: the manifest and the adapter disagree about diagnostic.
+The manifest is the blessed record and the adapter is code; one of them was changed without
+the other, and re-blessing is what reconciles them.
+```
+
+**That failure is correct and must not be silenced.** The adapter now says
+`Inst. 4.17.10.p1` and the committed manifest still says `Inst. 4.17.10`, because the manifest is
+written by `make bless` and nobody has blessed the corpus under the new parser yet. The guard is
+reporting the truth, and it clears in Task 4.
+
+Do **not** hand-edit `manifest.yaml` to make this green. The manifest is the record of a human
+verification; editing it by hand so CI passes would make the repository assert a verification that
+has not happened, which is the failure the whole bless design exists to prevent. The branch is
+legitimately red on this one named test between here and Task 4.
+
+Everything else must pass. `guard-corpus` in particular — if it fails, a fixture picked up real
+text, and that is a Global Constraint violation rather than a test problem.
 
 - [ ] **Step 11: Commit**
 
@@ -686,6 +706,17 @@ make corpus-verify
 Expected: all eight corpora verify clean. The *Institutes* now verifies against the record you just
 wrote; the other seven must be untouched. A diff in any of them means Task 1 or 2 changed shared
 code, which it should not have — every edit was inside one adapter.
+
+Then:
+
+```bash
+make check
+```
+
+Expected: **fully green now.** The bless is what reconciles the manifest with the adapter, so
+`test_every_committed_manifest_agrees_with_its_adapter` — which has been failing since Task 2, and
+correctly so — passes again here. If it still fails, the manifest did not pick up
+`diagnostic: Inst. 4.17.10.p1` and the bless did not do what it should have.
 
 - [ ] **Step 5: Commit**
 
