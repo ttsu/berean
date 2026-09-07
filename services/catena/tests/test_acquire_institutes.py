@@ -143,11 +143,19 @@ class TestLocators(unittest.TestCase):
         self.assertEqual(found, [f"Inst. Pref.{n}.p1" for n in range(1, 8)])
 
     def test_every_locator_can_be_written_to_a_fingerprints_file(self) -> None:
-        for segment in segments(document(WHOLE)):
+        """`Inst. 4.17.10.p1` is two tokens separated by one space, which
+        LOCATOR permits and which `WSC Q&A 1` already relies on. The
+        fingerprints file is `<locator>  <sha256>` split on the double space, so
+        a single internal space has to survive the round trip."""
+        for segment in segments(document(WHOLE, paragraphs=3)):
             stage(segment.locator, segment.text)
 
     def test_locators_are_unique(self) -> None:
-        found = [s.locator for s in segments(document(WHOLE))]
+        """Across the whole document, not within a chapter. A duplicate locator
+        is two chunks claiming one address, and the fingerprints file would keep
+        whichever was written last without saying so. This is the assertion that
+        would have caught this class of defect on the first pass."""
+        found = [s.locator for s in segments(document(WHOLE, paragraphs=4))]
         self.assertEqual(len(found), len(set(found)))
 
 

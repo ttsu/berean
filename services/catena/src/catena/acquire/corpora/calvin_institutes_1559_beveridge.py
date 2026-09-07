@@ -201,9 +201,10 @@ _ORDINALS = {"FIRST": 1, "SECOND": 2, "THIRD": 3, "FOURTH": 4}
 
 
 def segment(document: str) -> Iterator[Segment]:
-    """One chunk per numbered section: `Inst. 4.17.10`, and `Inst. Pref.1`.
+    """One chunk per paragraph: `Inst. 4.17.10.p1`, and `Inst. Pref.1.p1`.
 
-    Structural, never fixed-token.
+    Structural, never fixed-token. The section is the path in the locator, not
+    the chunk.
     """
     lines = document.splitlines()
     split = next((i for i, line in enumerate(lines) if _MARKER.match(line)), None)
