@@ -138,13 +138,36 @@ _INDEX = re.compile(r"^\s*GENERAL INDEX OF CHAPTERS\.\s*$")
 _START = re.compile(r"^\s*INSTITUTES OF THE CHRISTIAN RELIGION\s*$")
 _APHORISMS = re.compile(r"^\s*ONE HUNDRED APHORISMS,?\s*$")
 
+#: The four front-matter pieces that follow Calvin's address to Francis I and
+#: precede the general index. Nothing in the address's own numbering closes it,
+#: so section 7 ran on and absorbed all four -- 32 paragraphs of four other
+#: works addressable as `Inst. Pref.7.pN`, a locator that resolves to text it
+#: does not name. They are excluded on the ground Norton's preface and the
+#: aphorisms already are: they are not the work.
+#:
+#: All four are asserted rather than only the first. Cutting at whichever
+#: happened to be found would silently keep three whole works if CCEL renamed
+#: one heading, and the wrong locators are invisible downstream -- they hash,
+#: bless and verify clean.
+_AFTER_ADDRESS = (
+    re.compile(r"^THE EPISTLE TO THE READER\s*$"),
+    re.compile(r"^SUBJECT OF THE PRESENT WORK\.\s*$"),
+    re.compile(r"^EPISTLE TO THE READER\.\s*$"),
+    re.compile(r"^METHOD AND ARRANGEMENT, OR SUBJECT OF THE WHOLE WORK\.\s*$"),
+)
+
 
 def extract(raw: bytes) -> str:
     """The file's bytes to the document, with footnote anchors removed.
 
     Region selection happens here rather than in `segment` because it is a
     property of this file's shape: extraction fails on the shape of a source,
-    and taking the Murray introduction would be exactly that failure.
+    and taking the Murray introduction would be exactly that failure. The same
+    is true at the other end of the address: four further works -- Calvin's
+    epistle to the reader, a note on the subject of the work, Norton's own
+    epistle to the reader, and a note on the method and arrangement of the
+    whole work -- sit between it and the general index, and section 7 absorbs
+    them unless stopped.
     """
     try:
         text = raw.decode("utf-8", errors="strict")
@@ -167,7 +190,8 @@ def extract(raw: bytes) -> str:
     start = _find(lines, _START, "the start of the four books", after=index)
     end = _find_optional(lines, _APHORISMS, after=start) or len(lines)
 
-    kept = lines[prefatory:index] + ["INSTITUTES"] + lines[start:end]
+    address = _address_ends(lines, prefatory, index)
+    kept = lines[prefatory:address] + ["INSTITUTES"] + lines[start:end]
     return "\n".join(kept) + "\n"
 
 
@@ -187,6 +211,31 @@ def _find_optional(lines: list[str], pattern: re.Pattern[str], *, after: int = 0
         if pattern.match(lines[index]):
             return index
     return None
+
+
+def _address_ends(lines: list[str], prefatory: int, index: int) -> int:
+    """Where Calvin's address to Francis I stops and the other front matter starts.
+
+    Each of `_AFTER_ADDRESS` must appear exactly once between the address and
+    the general index, in order. The address ends at the first.
+    """
+    found = []
+    for pattern in _AFTER_ADDRESS:
+        at = [i for i in range(prefatory, index) if pattern.match(lines[i])]
+        if len(at) != 1:
+            raise AcquisitionError(
+                f"{corpus_id}: the front matter heading {pattern.pattern!r} appears "
+                f"{len(at)} times between the prefatory address and the general index, "
+                "expected once. The address has no closing marker of its own, so these "
+                "headings are the only thing stopping section 7 absorbing four other works."
+            )
+        found.append(at[0])
+    if found != sorted(found):
+        raise AcquisitionError(
+            f"{corpus_id}: the four front-matter headings are out of order at {found}; "
+            "the region between the address and the index is not shaped as expected"
+        )
+    return found[0]
 
 
 # --- segment ---------------------------------------------------------------

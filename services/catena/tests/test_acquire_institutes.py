@@ -83,8 +83,19 @@ def book(number: int, chapters: list[str]) -> str:
                       "   An editorial summary of the book, which is not Calvin.", ""] + chapters)
 
 
-def document(shape: dict[int, list[int]], *, prefatory: int = 7, **kw) -> str:
-    """A whole file: front matter, the prefatory address, four books, aphorisms."""
+def document(
+    shape: dict[int, list[int]], *, prefatory: int = 7, front_matter: bool = True, **kw
+) -> str:
+    """A whole file: front matter, the prefatory address, four books, aphorisms.
+
+    `front_matter` emits the four works that sit between the address and the
+    general index -- Calvin's epistle to the reader, a note on the subject of
+    the work, Norton's own epistle to the reader, and a note on the method and
+    arrangement of the whole work. On by default, so every existing test
+    exercises the realistic shape: the address's section 7 has no closing
+    marker of its own, and these four headings are the only thing that stops
+    it running on into the index.
+    """
     front = [
         "     ____________________", "           Title: The Institutes of the Christian Religion",
         "          Rights: Public Domain", "     ____________________", "",
@@ -95,6 +106,17 @@ def document(shape: dict[int, list[int]], *, prefatory: int = 7, **kw) -> str:
         "PREFATORY ADDRESS", "", "   TO FRANCIS, KING OF THE FRENCH,", "",
     ]
     front.append("\n\n".join(section(n) for n in range(1, prefatory + 1)))
+    if front_matter:
+        front += [
+            "", "THE EPISTLE TO THE READER", "",
+            "   Invented front matter that follows the address, first of four.", "",
+            "SUBJECT OF THE PRESENT WORK.", "",
+            "   Invented front matter that follows the address, second of four.", "",
+            "EPISTLE TO THE READER.", "",
+            "   Invented front matter that follows the address, third of four.", "",
+            "METHOD AND ARRANGEMENT, OR SUBJECT OF THE WHOLE WORK.", "",
+            "   Invented front matter that follows the address, fourth of four.", "",
+        ]
     front += ["", "GENERAL INDEX OF CHAPTERS.", "", "  BOOK FIRST.", "",
               "INSTITUTES OF THE CHRISTIAN RELIGION", ""]
     books = [
@@ -308,6 +330,42 @@ class TestApparatus(unittest.TestCase):
             "   continuation line 1 of an invented section.",
         )
         self.assertNotIn("__", " ".join(s.text for s in segments(text)))
+
+
+class TestTheEndOfTheAddress(unittest.TestCase):
+    """Section 7 has no closing marker of its own, so four further front-matter
+    works sat inside it -- 32 paragraphs addressable as `Inst. Pref.7.pN`, a
+    locator that resolves to text it does not name."""
+
+    def test_the_four_following_works_are_not_ingested(self) -> None:
+        found = " ".join(s.text for s in segments(document(WHOLE)))
+        self.assertNotIn("front matter that follows the address", found)
+
+    def test_the_address_keeps_its_own_seven_sections(self) -> None:
+        found = [s.locator for s in segments(document(WHOLE)) if PREF.match(s.locator)]
+        self.assertEqual(found, [f"Inst. Pref.{n}.p1" for n in range(1, 8)])
+
+    def test_a_missing_heading_fails(self) -> None:
+        """Cutting at whichever heading was found would silently keep three
+        whole works. All four are asserted."""
+        text = document(WHOLE).replace("SUBJECT OF THE PRESENT WORK.", "SUBJECT OF THE WORK.", 1)
+        with self.assertRaises(AcquisitionError) as caught:
+            segments(text)
+        self.assertIn("expected once", str(caught.exception))
+
+    def test_all_four_headings_missing_fails(self) -> None:
+        """Without the trailing front matter, none of the four headings are
+        present between the address and the index. The address has no closing
+        marker of its own, so this is not a milder case of the heading being
+        absent -- it is caught the same way, at zero occurrences rather than
+        two. (The brief's sketch of this test asserted `document(WHOLE,
+        front_matter=False)` still parses; it does not -- `_address_ends`
+        raises, correctly, because the only thing that would stop section 7
+        running on to the index is gone. This test asserts the raise instead.)
+        """
+        with self.assertRaises(AcquisitionError) as caught:
+            segments(document(WHOLE, front_matter=False))
+        self.assertIn("expected once", str(caught.exception))
 
 
 class TestAdapterContract(unittest.TestCase):
