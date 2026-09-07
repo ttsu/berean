@@ -2,9 +2,9 @@
 
 **Scope:** PLAN Task 4, and the blocker INGESTION-DESIGN records against Task 5. The *Institutes*
 was acquired at one chunk per numbered section and nobody re-measured; its longest section is
-66,614 characters, roughly twice BGE-M3's 8,192-token window on any plausible characters-per-token
-ratio. Ingestion refuses a corpus carrying a chunk the embedder cannot read whole, so the corpus
-cannot be ingested as blessed.
+66,614 characters, which BGE-M3's own tokeniser makes 16,714 tokens against a window of 8,192.
+Ingestion refuses a corpus carrying a chunk the embedder cannot read whole, so the corpus cannot be
+ingested as blessed.
 
 This is a working design document. The durable statements belong in
 [TECHNICAL-SPEC](TECHNICAL-SPEC.md), [ACQUISITION-DESIGN](ACQUISITION-DESIGN.md) and
@@ -21,11 +21,14 @@ committed and ADR-0014 does not take licence into account.
 
 Two things, and only one of them is the reason this change was opened.
 
-**The chunk is too big for the embedder.** Sixteen sections exceed 8,000 characters and four exceed
-32,000, which is past the window at any characters-per-token ratio English plausibly has. The exact
-count of offending chunks is not recorded here for the reason INGESTION-DESIGN gives: it depends on
-the tokeniser, the tokeniser arrives with the embedder, and a design document that guesses at it is
-guessing. A longer chunk does not fail: the encoder truncates and returns a vector,
+**The chunk is too big for the embedder.** Four chunks exceed BGE-M3's 8,192-token window:
+`Inst. 4.1.27` at 16,714 tokens, `Inst. 3.22.11` at 9,296, `Inst. Pref.7` at 8,671 and
+`Inst. 4.20.11` at 8,345. Those are counts from the model's own tokeniser in `models/bge-m3/`, not
+an estimate — INGESTION-DESIGN declines to guess the number for exactly the right reason, that it
+depends on a tokeniser that arrives with the embedder, and the answer is to run the tokeniser rather
+than to defer. The measured ratio is 3.93 characters per token.
+
+A longer chunk does not fail: the encoder truncates and returns a vector,
 and nothing downstream can tell. The chunk is then retrieved on its opening fraction and quoted from
 its whole text, and verification passes, because check 2 matches against `corpus.chunks.text` rather
 than against the vector. INGESTION-DESIGN makes this a refusal rather than a warning for that
@@ -162,8 +165,8 @@ a chunk is a numbered section.
 ### Two assertions, in the module's existing idiom
 
 **No chunk exceeds 20,000 characters.** A canary rather than a limit: far above anything this source
-produces — the longest is 11,498 — and far below the window, so it never argues with the
-characters-per-token ratio that only the tokeniser knows. What it catches is a CCEL reflow that
+produces — the longest is 11,498 — and, at the measured 3.93 characters per token, roughly 5,090
+tokens, so it fires well below the window rather than at it. What it catches is a CCEL reflow that
 removes blank lines, which is the single change that silently reintroduces the defect this document
 exists to fix. The real check stays in ingestion, where the tokeniser is; this one fails where the
 defect lives.
@@ -175,7 +178,9 @@ bless it and verify it clean forever.
 ### The one chunk that cannot be split
 
 `Inst. 4.16.31` is a single 11,498-character paragraph with no internal break. It is the longest
-chunk in the corpus after this change, it is about 2,900 tokens, and it fits. It is named here
+chunk in the corpus after this change at 2,890 tokens — 35% of the window — and because nothing can
+split it, it is the true bound: no chunk of this corpus gets nearer the limit unless the source
+itself changes. It is named here
 because it is the bound: **any rule that splits inside a paragraph would have to invent a boundary
 the document does not have**, and no such rule is needed. If a future source produces a paragraph
 past the window, the assertion above stops acquisition and the answer is a design decision, not a
@@ -190,8 +195,9 @@ sentence splitter added under time pressure.
 | chunks | 1,284 | **2,292** — 2,177 body, 115 prefatory |
 | sections yielding more than one chunk | — | 151 of 1,284 |
 | most chunks from one section | — | 88 (`Inst. Pref.7`) |
-| longest chunk | 66,614 chars | **11,498** |
-| median chunk | 2,411 chars | 1,622 |
+| longest chunk | 66,614 chars / 16,714 tokens | **11,498 chars / 2,890 tokens** |
+| median chunk | 2,411 chars / 604 tokens | 1,622 chars / 405 tokens |
+| chunks over the 8,192-token window | **4** | **0** |
 | chunks under 100 chars | 17 | 443 |
 | total text | 3,558,323 chars | 3,545,791 — the 172 rules |
 
@@ -277,4 +283,6 @@ is below them, and a failure there means paragraph splitting perturbed section d
 ## Status
 
 Designed, not implemented. The prototype that produced every figure above was run against the local
-staged corpus and discarded; nothing in it was committed.
+staged corpus and discarded; nothing in it was committed. Token counts are from
+`models/bge-m3/tokenizer.json` loaded directly, so the claim that this chunking clears the window is
+a measurement and not an inference from a characters-per-token ratio.
