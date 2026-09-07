@@ -42,7 +42,7 @@ the change goes.
 ### The structure was there and the segmenter was throwing it away
 
 CCEL serves this file with blank-line paragraph breaks intact. `_sections` filtered blank lines out
-before joining, so paragraph structure never reached a `Segment`. The 1,284 sections contain 2,292
+before joining, so paragraph structure never reached a `Segment`. The 1,284 sections contain 2,260
 paragraphs.
 
 Those breaks are trustworthy, which had to be established rather than assumed. Of the 1,008
@@ -66,12 +66,12 @@ lives in the locator.
 
 ### What it costs, stated rather than discovered later
 
-**443 of the 2,292 chunks fall under 100 characters.** They are not, in the main, the numbered
-lists that run inside the prose — only 44 of the 443 are numbered-list shaped. The bulk is editorial
-apparatus and headings: 47 are forty characters or fewer and four words or fewer — running heads,
+**431 of the 2,260 chunks fall under 100 characters.** They are not, in the main, the numbered
+lists that run inside the prose — only 44 of the 431 are numbered-list shaped. The bulk is editorial
+apparatus and headings: 44 are forty characters or fewer and four words or fewer — running heads,
 datelines, and commandment headings; `Inst. 2.8.16.p4` is the text "Second Commandment". A further
-17 are section-final scripture-reference blocks. And `Inst. Pref.7` alone yields 88 chunks, of which
-59 are under 120 characters and 27 carry "Ed. 15xx" variant-reading notes — every chunk in the whole
+17 are section-final scripture-reference blocks. And `Inst. Pref.7` alone yields 56 chunks, of which
+45 are under 120 characters and 27 carry "Ed. 15xx" variant-reading notes — every chunk in the whole
 corpus that contains "Ed. 15" is one of those 27. A variant-reading note is the same class of
 material the adapter already strips elsewhere on stated licensing grounds — footnote anchors,
 horizontal rules — and the re-chunk instead promotes it to a first-class, separately citable chunk.
@@ -95,12 +95,22 @@ that embed to one diluted vector, and it makes the chunk boundary a function of 
 so a model swap would re-chunk the corpus. ADR-0006 exists to make a model swap a re-index rather
 than a re-acquisition.
 
-The 443 short chunks are a real cost. Some of it is retrieval noise that Phase 3's reranking
+The 431 short chunks are a real cost. Some of it is retrieval noise that Phase 3's reranking
 exists to address; the harder part is the headings and apparatus that reranking cannot fix, because
 they are not diluted answers but citable non-answers. It is accepted here in exchange for a boundary
-that no parameter moves. Whether `Inst. Pref.7`'s variant-reading tail should be excluded outright,
-the way the anchors and rules are, is an open question this change deliberately does not settle — it
-changes what text is in the corpus, and must be decided before the corpus is blessed.
+that no parameter moves.
+
+Whether `Inst. Pref.7`'s variant-reading tail should be excluded outright, the way the anchors and
+rules are, was left here as an open question. It is now half-settled. The four front-matter works
+that had been running on past the end of section 7 are gone — see *The address had no end, and
+absorbed four more works* below — cut at a structural boundary rather than a convenient one. The 27
+"Ed. 15xx" notes inside section 7 itself remain, and that is now a finding rather than a deferral:
+they have no clean structural signature to cut on. Indentation was tried as a candidate and it
+fails — 763 lines are indented the same way across the whole document, and only 52 of them fall in
+this region, so a rule that kept those 52 and excluded the rest would be tuned to this corpus's one
+instance of the problem. That is the same tunable this design rejected two sections up, for the same
+reason: a heuristic tuned until it fits is how garbage gets blessed. They stay, citable individually,
+because the alternative is inventing a boundary the source does not have.
 
 ---
 
@@ -108,7 +118,7 @@ changes what text is in the corpus, and must be decided before the corpus is ble
 
 ```
 Inst. 4.17.10.p1        body:       book . chapter . section . p paragraph
-Inst. Pref.7.p88        prefatory:  Pref . section . p paragraph
+Inst. Pref.7.p56        prefatory:  Pref . section . p paragraph
 ```
 
 Uniform: every chunk carries a paragraph ordinal, including the 1,133 sections that hold exactly
@@ -146,7 +156,7 @@ underscores to pass check 2.
 They are stripped in this change rather than a later one, and the reason is arithmetic rather than
 tidiness: **80 of the 81 affected sections are multi-paragraph and are being re-chunked anyway**, so
 stripping the rules changes exactly one fingerprint beyond what the re-chunk changes. Deferring it
-would buy a smaller diff now and cost a second full re-bless of 2,292 chunks later, for a one-chunk
+would buy a smaller diff now and cost a second full re-bless of 2,260 chunks later, for a one-chunk
 result.
 
 **A rule line becomes a blank line**, not nothing. On this source the two are indistinguishable —
@@ -154,6 +164,44 @@ both produce byte-identical output, which was checked rather than assumed — so
 against a source that changes. A 66-character rule is a divider. If a future CCEL revision moves one
 inside a paragraph, blanking preserves the division and dropping silently fuses two paragraphs into
 one chunk, which is the failure mode this whole change exists to remove.
+
+---
+
+## The address had no end, and absorbed four more works
+
+Calvin's address to Francis I has seven numbered sections, and section 7 has no closing marker of
+its own — nothing in the source says where the address stops and the next thing begins. `extract`
+took the next heading it could find, which was the general index, and let section 7 run the whole
+distance to it.
+
+Four further front-matter works sat in that gap, and all four were absorbed: THE EPISTLE TO THE
+READER (4 paragraphs), SUBJECT OF THE PRESENT WORK (7), EPISTLE TO THE READER (12), and METHOD AND
+ARRANGEMENT, OR SUBJECT OF THE WHOLE WORK (9) — 32 paragraphs, 21,204 characters, none of them
+Calvin's address to Francis I. They were addressable as `Inst. Pref.7.p57` through `Inst. Pref.7.p88`.
+
+That is worse than a locator that fails to resolve. `Inst. Pref.7.p61` hashed, would have blessed,
+and would have verified clean forever — the text is real, it is simply not the text the locator
+names, and nothing downstream can tell the difference. A broken locator announces itself; a locator
+that resolves to the wrong work does not.
+
+**The defect predates this change.** Before the re-chunk, `Inst. Pref.7` was a single
+33,944-character chunk quietly holding all five regions — the address's own section 7, and the four
+works that follow it — fused into one opaque blob nobody could see into. The re-chunk did not create
+this defect; it made it visible, by turning one chunk nobody could cite piecemeal into 32 chunks each
+citable on its own, and wrong. That is the argument for chunking at a real boundary rather than a
+convenient one: the convenient boundary — the next recognisable heading, the general index — had
+been hiding this the entire time the corpus stood as one chunk per section.
+
+**The fix.** All four headings sit at indent 0, and nothing else in the prefatory region does, so the
+boundary is structural rather than a tuned heuristic. `_address_ends` requires all four to appear,
+exactly once each, in order, between the address and the index, and the address ends at the first of
+them. All four are asserted rather than only the first: cutting at whichever was found would silently
+keep three whole works if CCEL renamed or reordered one heading, and the wrong locators that would
+result are invisible downstream in exactly the way described above — they hash, bless and verify
+clean.
+
+They are excluded on the same ground Norton's 1581 preface, the indexes, and the aphorisms already
+are: they are not the work.
 
 ---
 
@@ -207,16 +255,16 @@ sentence splitter added under time pressure.
 
 | | before | after |
 | --- | --- | --- |
-| chunks | 1,284 | **2,292** — 2,177 body, 115 prefatory |
+| chunks | 1,284 | **2,260** — 2,177 body, 83 prefatory |
 | sections yielding more than one chunk | — | 151 of 1,284 |
-| most chunks from one section | — | 88 (`Inst. Pref.7`) |
+| most chunks from one section | — | 56 (`Inst. Pref.7`) |
 | longest chunk | 66,614 chars / 16,714 tokens | **11,498 chars / 2,890 tokens** |
-| median chunk | 2,411 chars / 604 tokens | 1,622 chars / 405 tokens |
+| median chunk | 2,411 chars / 604 tokens | 1,636 chars |
 | chunks over the 8,192-token window | **4** | **0** |
-| chunks under 100 chars | 17 | 443 |
-| total text | 3,558,323 chars | 3,545,791 — the 172 rules |
+| chunks under 100 chars | 17 | 431 |
+| total text | 3,558,323 chars | 3,524,589 — the 172 rules and the 21,204 characters of absorbed front matter |
 
-The fingerprint diff is 1,284 locators deleted and 2,292 inserted, of which **1,132 carry text that
+The fingerprint diff is 1,284 locators deleted and 2,260 inserted, of which **1,132 carry text that
 is byte-identical to the section they came from**. Those are the single-paragraph sections that
 carried no rule: normalisation collapses whitespace runs to one space, so a section's normalised
 text does not depend on whether its lines were joined with a newline or a space, and only the
@@ -234,7 +282,7 @@ between one bless and the next. What the unchanged hash buys is not a skipped bl
 human doing it can be shown the diagnostic's text is provably the same text they approved before,
 so the re-bless is a confirmation rather than a fresh act of faith.
 
-`chunk_count` goes to 2,292 and `fingerprints.txt` is regenerated in full.
+`chunk_count` goes to 2,260 and `fingerprints.txt` is regenerated in full.
 `normalisation_version` is untouched — the contract did not change, the parser did.
 
 ---
@@ -283,7 +331,7 @@ is below them, and a failure there means paragraph splitting perturbed section d
 ## Spec changes in the same change
 
 1. **GLOSSARY**, *Locators* — the *Institutes* now has three forms, not two. Record
-   `Inst. 4.17.10.p1` and `Inst. Pref.7.p88`, and why the `p` is there.
+   `Inst. 4.17.10.p1` and `Inst. Pref.7.p56`, and why the `p` is there.
 2. **TECHNICAL-SPEC:46** — "one chunk per numbered section (`Inst. 4.17.10`)" becomes one chunk per
    paragraph, with book, chapter and section as the locator path.
 3. **ACQUISITION-DESIGN**, *The* Institutes — the chunk count, the paragraph rule, the rules as a

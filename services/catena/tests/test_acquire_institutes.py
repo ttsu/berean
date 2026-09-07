@@ -367,6 +367,21 @@ class TestTheEndOfTheAddress(unittest.TestCase):
             segments(document(WHOLE, front_matter=False))
         self.assertIn("expected once", str(caught.exception))
 
+    def test_headings_out_of_order_fail(self) -> None:
+        """Each heading is found by scanning forward from the address, so all
+        four are present and singular here -- only their order is wrong. That
+        has to be caught on its own: cutting at the first heading found, in
+        source order rather than the expected order, would silently keep
+        whichever of the four landed ahead of where it belongs."""
+        text = document(WHOLE)
+        placeholder = "\x00SWAP\x00"
+        text = text.replace("THE EPISTLE TO THE READER", placeholder, 1)
+        text = text.replace("SUBJECT OF THE PRESENT WORK.", "THE EPISTLE TO THE READER", 1)
+        text = text.replace(placeholder, "SUBJECT OF THE PRESENT WORK.", 1)
+        with self.assertRaises(AcquisitionError) as caught:
+            segments(text)
+        self.assertIn("out of order", str(caught.exception))
+
 
 class TestAdapterContract(unittest.TestCase):
     def test_the_corpus_id_is_edition_and_translation_specific(self) -> None:
