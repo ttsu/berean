@@ -35,8 +35,10 @@ The source's shape carries four hazards, each of which fails silently:
 
 What is excluded is as decided as what is kept: the CCEL header, **John Murray's
 20th-century introduction, which is in copyright**, Norton's 1581 translator's
-preface, the scripture and author indexes, each book's editorial ARGUMENT, and
-the One Hundred Aphorisms appended at the end.
+preface, the scripture and author indexes, each book's editorial ARGUMENT, the
+One Hundred Aphorisms appended at the end, and the four front-matter works that
+follow Calvin's address to Francis I — see `_AFTER_ADDRESS`, which is also what
+stops the address running on into them.
 """
 
 from __future__ import annotations
