@@ -66,10 +66,20 @@ lives in the locator.
 
 ### What it costs, stated rather than discovered later
 
-**443 of the 2,292 chunks fall under 100 characters.** They are the numbered lists that run inside
-the prose — `Inst. 3.4.39` is fifty paragraphs averaging 183 characters, `2.8.59` thirty-five
-averaging 187 — and the adapter already names those lists as a hazard for a different reason. Each
-becomes its own chunk, its own vector, and its own citable locator.
+**443 of the 2,292 chunks fall under 100 characters.** They are not, in the main, the numbered
+lists that run inside the prose — only 44 of the 443 are numbered-list shaped. The bulk is editorial
+apparatus and headings: 47 are forty characters or fewer and four words or fewer — running heads,
+datelines, and commandment headings; `Inst. 2.8.16.p4` is the text "Second Commandment". A further
+17 are section-final scripture-reference blocks. And `Inst. Pref.7` alone yields 88 chunks, of which
+59 are under 120 characters and 27 carry "Ed. 15xx" variant-reading notes — every chunk in the whole
+corpus that contains "Ed. 15" is one of those 27. A variant-reading note is the same class of
+material the adapter already strips elsewhere on stated licensing grounds — footnote anchors,
+horizontal rules — and the re-chunk instead promotes it to a first-class, separately citable chunk.
+
+The concrete risk is not dilution but substance. A chunk whose whole text is "Second Commandment"
+passes verification check 2 — the text is real and the quote matches it — and renders a citation
+that resolves and supports nothing. That is the one gap the verifier structurally cannot close,
+because it checks that a quote is real, not that it is substantive.
 
 Two alternatives were considered and rejected.
 
@@ -85,8 +95,12 @@ that embed to one diluted vector, and it makes the chunk boundary a function of 
 so a model swap would re-chunk the corpus. ADR-0006 exists to make a model swap a re-index rather
 than a re-acquisition.
 
-The 443 short chunks are a real cost and Phase 3's reranking is where it will be felt. It is
-accepted here in exchange for a boundary that no parameter moves.
+The 443 short chunks are a real cost. Some of it is retrieval noise that Phase 3's reranking
+exists to address; the harder part is the headings and apparatus that reranking cannot fix, because
+they are not diluted answers but citable non-answers. It is accepted here in exchange for a boundary
+that no parameter moves. Whether `Inst. Pref.7`'s variant-reading tail should be excluded outright,
+the way the anchors and rules are, is an open question this change deliberately does not settle — it
+changes what text is in the corpus, and must be decided before the corpus is blessed.
 
 ---
 
@@ -122,7 +136,8 @@ it needs no argument about what survives NFC.
 ## The apparatus this uncovered
 
 The corpus carries **172 identical 66-character underscore rules** — CCEL's horizontal separators —
-sitting inside the text of 81 blessed chunks, 81 of them at a section's last line and 91 mid-section.
+sitting inside the text of 81 sections: 81 of the rules fall at a section's last line and 91 fall
+mid-section.
 They are apparatus in exactly the sense the module's docstring already uses of footnote anchors:
 "taking the apparatus is what turns a public-domain text into someone's copyrighted arrangement of
 it." They are also live in verification, because a quote spanning one must reproduce sixty-six

@@ -748,6 +748,8 @@ change.
 - Modify: `specs/001-phase-1-pca-baseline/TECHNICAL-SPEC.md:46`
 - Modify: `specs/001-phase-1-pca-baseline/ACQUISITION-DESIGN.md:363-414`
 - Modify: `specs/001-phase-1-pca-baseline/PLAN.md:396`, and Task 4's item list
+- Modify: `specs/001-phase-1-pca-baseline/PLAN.md:373` — the per-corpus edition diagnostic list names
+  `Inst. 4.17.10` for this corpus, which the bless makes false
 - Modify: `.agents/skills/ingest-corpus/SKILL.md:136`
 - Modify: `specs/001-phase-1-pca-baseline/RECHUNK-INSTITUTES-DESIGN.md` — the Status section
 
@@ -801,6 +803,10 @@ paragraph (`Inst. 4.17.10.p1`)`. Add to Task 4's item list:
       blank-line paragraph breaks were being discarded by the segmenter. 2,292 chunks. This
       unblocks Task 5, which refuses a corpus carrying a chunk the embedder cannot read whole
 ```
+
+Line 373 names each corpus's edition diagnostic and gives this one as `calvin-institutes-1559-beveridge`
+(Inst. 4.17.10). That becomes `calvin-institutes-1559-beveridge` (Inst. 4.17.10.p1) — after the
+bless, `Inst. 4.17.10` on its own is no longer a chunk this corpus has.
 
 - [ ] **Step 5: The ingest-corpus skill, line 136**
 
