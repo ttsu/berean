@@ -370,7 +370,7 @@ schema.** Design, and the decisions implementation and review revised, are in
 [ACQUISITION-DESIGN.md](ACQUISITION-DESIGN.md).
 
 `wcf-1788-american` (WCF 23.3), `wlc-1788-american` (WLC Q&A 109), `wsc-1788-american`
-(WSC Q&A 6), `calvin-institutes-1559-beveridge` (Inst. 4.17.10), `wcf-1646-epcew-modernised`
+(WSC Q&A 6), `calvin-institutes-1559-beveridge` (Inst. 4.17.10.p1), `wcf-1646-epcew-modernised`
 (WCF 23.3), `pca-ga28-2000-creation-study` (GA28 Rec.2), `web-2020` (Deut 6:4) and
 `pca-bco-2026` (BCO 21-4). The confession was blessed once before ADR-0021 changed the manifest
 schema — `edition_check` now records the hash of the text the verifier read rather than the text
@@ -393,8 +393,8 @@ Pipeline:
       of something not yet fetched. Only fetch caches: the pure stages recompute, so an adapter fix
       cannot land while verification still runs against the output of the code it replaced
 - [x] Structural chunking lives in the segment stage — WCF per numbered section, WLC/WSC per Q&A
-      pair never split, BCO per numbered paragraph, WEB per verse, the *Institutes* per numbered
-      section (`Inst. 4.17.10`), the 2000 report per numbered section with its recommendations
+      pair never split, BCO per numbered paragraph, WEB per verse, the *Institutes* per paragraph
+      (`Inst. 4.17.10.p1`), the 2000 report per numbered section with its recommendations
       segmented separately from the expository body. **All eight corpora are done.** The BCO is
       `BCO <chapter>-<paragraph>`, 430 paragraphs across chapters 1–63; chapter 44 is `(Vacated)`
       and has none, so chapter numbering is deliberately not asserted contiguous
@@ -463,13 +463,18 @@ Provenance and licensing:
       eighteenth-century text, recorded because a licence is evidence and not a label
 - [x] The *Institutes* is taken in the Beveridge 1845 translation, not Battles (1960), which is in
       copyright. Acquired from CCEL as plain text: 4 books, 80 chapters, 1,277 sections plus the
-      seven of Calvin's prefatory address, 1,284 chunks. Three source hazards are handled and
-      tested — every chapter opens with a numbered synopsis of itself that must be discarded (six
+      seven of Calvin's prefatory address, chunked per paragraph to 2,260 chunks (see below). Three
+      source hazards are handled and tested — every chapter opens with a numbered synopsis of
+      itself that must be discarded (six
       carry none, so its presence cannot be assumed), Book IV chapter 18's number is missing from
       the source and is recovered positionally, and 1,283 footnote anchors are stripped. Murray's
       20th-century introduction is excluded as apparatus still in copyright. Note the practical consequence for Task 11: Battles is the translation a model is
       most likely to have memorised, so UC-6 may fail check 2 on passages the model genuinely knows.
       That is a finding about the generator, not a defect in the verifier
+- [x] The *Institutes* is chunked per paragraph rather than per numbered section. Four sections
+      exceeded BGE-M3's 8,192-token window, the longest at 16,714 tokens, and the source's own
+      blank-line paragraph breaks were being discarded by the segmenter. 2,260 chunks. This
+      unblocks Task 5, which refuses a corpus carrying a chunk the embedder cannot read whole
 - [ ] Bare text only, never a modern edition's apparatus — footnotes, cross-references, modernised
       spelling, and proof-text selections can carry fresh copyright over public-domain text. Apparatus
       is stripped everywhere: the confession's proof-texts, 1,283 footnote anchors and every chapter

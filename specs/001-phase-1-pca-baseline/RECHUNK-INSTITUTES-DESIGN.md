@@ -349,7 +349,12 @@ is below them, and a failure there means paragraph splitting perturbed section d
 
 ## Status
 
-Designed, not implemented. The prototype that produced every figure above was run against the local
-staged corpus and discarded; nothing in it was committed. Token counts are from
-`models/bge-m3/tokenizer.json` loaded directly, so the claim that this chunking clears the window is
-a measurement and not an inference from a characters-per-token ratio.
+Implemented. The adapter chunks at paragraphs, the rules are stripped, and the corpus was re-blessed
+at 2,260 chunks with `edition_check.expected_sha256` unchanged.
+
+The figures above are counts over the local staged corpus; the prototype that produced them was
+discarded and nothing from it was committed. Token counts are from `models/bge-m3/tokenizer.json`
+loaded directly, so the claim that this chunking clears the window is a measurement and not an
+inference from a characters-per-token ratio.
+
+Still owed: the INGESTION-DESIGN edit in item 7 above, which cannot be made from this branch.

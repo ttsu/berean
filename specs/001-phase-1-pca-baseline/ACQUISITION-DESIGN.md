@@ -366,8 +366,10 @@ reach is whoever reads the module before blessing it.
 first that shares nothing with what came before. CCEL serves it as 4.6 MB of plain text, so `_opc`
 does not apply and `extract` decodes and trims regions rather than parsing markup.
 
-1,284 chunks: 1,277 body sections across four books of 18, 17, 25 and 20 chapters, plus the seven
-sections of Calvin's prefatory address.
+2,260 chunks — 2,177 body and 83 prefatory — across 1,277 body sections spanning four books of 18,
+17, 25 and 20 chapters, plus the seven sections of Calvin's prefatory address. A chunk is a
+paragraph rather than a section; see *Three locator forms, for one corpus* below and
+[RECHUNK-INSTITUTES-DESIGN.md](RECHUNK-INSTITUTES-DESIGN.md) for the measurements behind the rule.
 
 ### Three hazards, none of which announces itself
 
@@ -395,7 +397,9 @@ every chapter after it. It is recovered **positionally**: a chapter marker with 
 takes the next expected one, and the 18/17/25/20 shape is asserted. Recognising it by its title
 would commit corpus text, which ADR-0014 forbids.
 
-**1,283 footnote anchors inside the four books** are CCEL apparatus and are stripped in extraction.
+**1,283 footnote anchors inside the four books** are CCEL apparatus and are stripped in extraction,
+as are **172 horizontal rules** of sixty-six underscores, which sat inside the chunk text rather
+than beside it.
 
 ### What is not the corpus
 
@@ -404,15 +408,27 @@ a tidiness one. **John Murray's introduction is 20th-century and in copyright** 
 `Rights: Public Domain` covers Calvin and Beveridge, not the apparatus a later edition wraps around
 them, and `license_terms` records that distinction rather than leaving it to be inferred. Also
 dropped: Norton's 1581 translator's preface, the scripture and author indexes, each book's editorial
-`ARGUMENT`, and the One Hundred Aphorisms appended at the end.
+`ARGUMENT`, and the One Hundred Aphorisms appended at the end. Also dropped, four further
+front-matter works that run between Calvin's prefatory address and the general index and had been
+silently absorbed into it before the address was bounded at its own real end: THE EPISTLE TO THE
+READER, SUBJECT OF THE PRESENT WORK, a second EPISTLE TO THE READER, and METHOD AND ARRANGEMENT, OR
+SUBJECT OF THE WHOLE WORK. They are excluded on the same ground as Norton's preface and the
+indexes: they are not the work.
 
-### Two locator forms, for one corpus
+### Three locator forms, for one corpus
 
 Calvin's prefatory address to Francis I opens the work but sits outside the book/chapter scheme.
 Rather than exclude it or give it a fake book number, it takes `Inst. Pref.1` through `Inst. Pref.7`
-— recorded in GLOSSARY, and the only Phase 1 corpus with two locator forms. The alternative that was
-rejected, `Inst. 0.0.<n>`, keeps one shape at the cost of a locator that reads as a real address and
-is not one.
+— recorded in GLOSSARY, and the only Phase 1 corpus with more than one locator form. The alternative
+that was rejected, `Inst. 0.0.<n>`, keeps one shape at the cost of a locator that reads as a real
+address and is not one.
+
+The third form is a suffix on both of the others: every chunk is a paragraph, not a section, and
+carries a `.p<n>` ordinal — `Inst. 4.17.10.p1` in the body, `Inst. Pref.7.p56` in the prefatory
+address. The same reasoning that rejected `Inst. 0.0.<n>` is why the ordinal carries a `p` rather
+than standing as a bare fourth component: `Inst. 4.17.10.1` would read as a subdivision of the
+canonical citation that Calvin's work does not have. See
+[RECHUNK-INSTITUTES-DESIGN.md](RECHUNK-INSTITUTES-DESIGN.md) for the measurements behind the rule.
 
 ---
 
