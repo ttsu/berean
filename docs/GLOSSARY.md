@@ -91,7 +91,7 @@ Canonical, per-work, resolvable, stable.
 - Calvin's *Institutes*: `Inst. 4.17.10.p1` — book.chapter.section, then the paragraph within it.
   A chunk is a paragraph, because four sections exceeded the embedder's window and the longest was
   16,714 tokens against 8,192. Calvin's prefatory address to Francis I opens the work outside the
-  book/chapter scheme, so it takes a second form, `Inst. Pref.1.p1` through `Inst. Pref.7.p56` —
+  book/chapter scheme, so it takes a second form, `Inst. Pref.1.p1` through `Inst. Pref.7.pN` —
   the only corpus in Phase 1 with more than one locator form. The `p` is load-bearing: a bare
   fourth component, `Inst. 4.17.10.1`, reads as a subdivision the work does not have, which is the
   defect `Inst. 0.0.<n>` was rejected for

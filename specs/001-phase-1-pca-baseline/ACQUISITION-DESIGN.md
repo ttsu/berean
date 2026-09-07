@@ -424,7 +424,7 @@ that was rejected, `Inst. 0.0.<n>`, keeps one shape at the cost of a locator tha
 address and is not one.
 
 The third form is a suffix on both of the others: every chunk is a paragraph, not a section, and
-carries a `.p<n>` ordinal — `Inst. 4.17.10.p1` in the body, `Inst. Pref.7.p56` in the prefatory
+carries a `.p<n>` ordinal — `Inst. 4.17.10.p1` in the body, `Inst. Pref.7.p1` in the prefatory
 address. The same reasoning that rejected `Inst. 0.0.<n>` is why the ordinal carries a `p` rather
 than standing as a bare fourth component: `Inst. 4.17.10.1` would read as a subdivision of the
 canonical citation that Calvin's work does not have. See

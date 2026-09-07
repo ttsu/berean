@@ -122,7 +122,7 @@ because the alternative is inventing a boundary the source does not have.
 
 ```
 Inst. 4.17.10.p1        body:       book . chapter . section . p paragraph
-Inst. Pref.7.p56        prefatory:  Pref . section . p paragraph
+Inst. Pref.7.p1         prefatory:  Pref . section . p paragraph
 ```
 
 Uniform: every chunk carries a paragraph ordinal, including the 1,133 sections that hold exactly
@@ -335,7 +335,7 @@ is below them, and a failure there means paragraph splitting perturbed section d
 ## Spec changes in the same change
 
 1. **GLOSSARY**, *Locators* — the *Institutes* now has three forms, not two. Record
-   `Inst. 4.17.10.p1` and `Inst. Pref.7.p56`, and why the `p` is there.
+   `Inst. 4.17.10.p1` and `Inst. Pref.7.p1`, and why the `p` is there.
 2. **TECHNICAL-SPEC:46** — "one chunk per numbered section (`Inst. 4.17.10`)" becomes one chunk per
    paragraph, with book, chapter and section as the locator path.
 3. **ACQUISITION-DESIGN**, *The* Institutes — the chunk count, the paragraph rule, the rules as a
