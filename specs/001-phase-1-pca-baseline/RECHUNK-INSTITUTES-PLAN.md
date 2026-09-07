@@ -513,7 +513,7 @@ paragraph and add the paragraph rule and the rules-as-apparatus note:
 
 ```python
 **A chunk is a paragraph, not a numbered section.** The section is the path in
-the locator: `Inst. 4.17.10.p1`, and `Inst. Pref.7.p88`. The `p` is what keeps a
+the locator: `Inst. 4.17.10.p1`, and `Inst. Pref.7.p1`. The `p` is what keeps a
 fourth numeric component from reading as a subdivision Calvin does not have,
 which is the same defect `Inst. 0.0.<n>` was rejected for. Sections were the
 chunk until the corpus was measured against the embedder: four exceeded BGE-M3's
@@ -866,7 +866,8 @@ what unblocks it. The claim that every chunk now fits the window is checked here
 `MAX_CHUNK_CHARACTERS` and by the measurement in the design; ingestion will check it again with the
 tokeniser, which is the check that counts.
 
-**No retrieval tuning.** The uniform paragraph rule produces 443 chunks under 100 characters — the
-numbered lists that run inside the prose. That is a known, accepted cost recorded in the design, and
-Phase 3's reranking is where it will be felt. Do not add a minimum-size rule to soften it: a chunk
-boundary that depends on a tunable is the alternative the design rejected.
+**No retrieval tuning.** The uniform paragraph rule produces 431 chunks under 100 characters, only
+44 of them the numbered lists that run inside the prose — the rest are headings and editorial
+apparatus, and the design says what they are. That is a known, accepted cost, and Phase 3's
+reranking is where it will be felt. Do not add a minimum-size rule to soften it: a chunk boundary
+that depends on a tunable is the alternative the design rejected.

@@ -1,7 +1,7 @@
 """Calvin's *Institutes of the Christian Religion*, 1559, Beveridge translation.
 
 **A chunk is a paragraph, not a numbered section.** The section is the path in
-the locator: `Inst. 4.17.10.p1`, and `Inst. Pref.7.p88`. The `p` is what keeps a
+the locator: `Inst. 4.17.10.p1`, and `Inst. Pref.7.p1`. The `p` is what keeps a
 fourth numeric component from reading as a subdivision Calvin does not have,
 which is the same defect `Inst. 0.0.<n>` was rejected for. Sections were the
 chunk until the corpus was measured against the embedder: four exceeded BGE-M3's
