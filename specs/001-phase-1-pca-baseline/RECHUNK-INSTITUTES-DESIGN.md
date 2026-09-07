@@ -73,17 +73,18 @@ lives in the locator.
 **431 of the 2,260 chunks fall under 100 characters.** They are not, in the main, the numbered
 lists that run inside the prose — only 44 of the 431 are numbered-list shaped. The bulk is editorial
 apparatus and headings: 44 are forty characters or fewer and four words or fewer — running heads,
-datelines, and commandment headings; `Inst. 2.8.16.p4` is the text "Second Commandment". A further
+datelines, and commandment headings; `Inst. 2.8.16.p4` is a two-word commandment heading. A further
 17 are section-final scripture-reference blocks. And `Inst. Pref.7` alone yields 56 chunks, of which
 45 are under 120 characters and 27 carry "Ed. 15xx" variant-reading notes — every chunk in the whole
 corpus that contains "Ed. 15" is one of those 27. A variant-reading note is the same class of
 material the adapter already strips elsewhere on stated licensing grounds — footnote anchors,
 horizontal rules — and the re-chunk instead promotes it to a first-class, separately citable chunk.
 
-The concrete risk is not dilution but substance. A chunk whose whole text is "Second Commandment"
-passes verification check 2 — the text is real and the quote matches it — and renders a citation
-that resolves and supports nothing. That is the one gap the verifier structurally cannot close,
-because it checks that a quote is real, not that it is substantive.
+The concrete risk is not dilution but substance. A chunk like `Inst. 2.8.16.p4` — a two-word
+commandment heading and nothing else — passes verification check 2 — the text is real and the
+quote matches it — and renders a citation that resolves and supports nothing. That is the one gap
+the verifier structurally cannot close, because it checks that a quote is real, not that it is
+substantive.
 
 Two alternatives were considered and rejected.
 

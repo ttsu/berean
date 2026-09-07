@@ -65,7 +65,7 @@ EXPECTED_CHAPTERS = (18, 17, 25, 20)
 EXPECTED_PREFATORY_SECTIONS = 7
 
 #: The longest a chunk may be. A canary rather than a limit: the longest this
-#: source produces is 11,498 characters and BGE-M3's window is 8,192 tokens at a
+#: source produces is 11,499 characters and BGE-M3's window is 8,192 tokens at a
 #: measured 3.93 characters per token, so this sits well above the corpus and
 #: well below the window and never argues with the ratio. What it catches is a
 #: CCEL reflow that removes the blank lines, which is the one change that

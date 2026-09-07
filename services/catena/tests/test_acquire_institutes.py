@@ -6,7 +6,7 @@ Westminster Standards -- there is no `_opc` here.
 
 ADR-0014 bars corpus text from fixtures, so every document below is invented
 text in the source's layout. The layout is the whole point: this source carries
-four hazards that a parser gets silently wrong, and each has a test.
+five hazards that a parser gets silently wrong, and each has a test.
 
 1. **Every chapter opens with a numbered synopsis of itself** -- a list of
    one-line section titles numbered 1..N -- and then repeats 1..N as the real
@@ -17,7 +17,11 @@ four hazards that a parser gets silently wrong, and each has a test.
    footnote anchor: `CHAPTER [653]`. Dropped, it loses a chapter; mishandled, it
    renumbers every chapter after it.
 3. **Numbered lists inside the prose** look exactly like section openings.
-4. **Footnote anchors** -- 1,283 inside the four books -- are CCEL apparatus.
+4. **Footnote anchors and horizontal rules** -- 1,283 anchors inside the four
+   books, and 172 rules -- are CCEL apparatus, not Calvin's text.
+5. **The prefatory address has no closing marker of its own.** Section 7 runs
+   on into four further front-matter works unless each of their headings is
+   found, exactly once and in order, before the general index.
 
 What is not the corpus is as decided as what is: the CCEL header, John Murray's
 20th-century introduction (which is in copyright), Norton's 1581 translator's
@@ -381,6 +385,38 @@ class TestTheEndOfTheAddress(unittest.TestCase):
         with self.assertRaises(AcquisitionError) as caught:
             segments(text)
         self.assertIn("out of order", str(caught.exception))
+
+    def test_a_heading_appearing_twice_fails(self) -> None:
+        """Both other failure tests reach the guard at zero occurrences; this
+        pins the other side. A CCEL running header repeating one of the four
+        headings would otherwise make the parser cut silently at the first
+        occurrence rather than raise."""
+        text = document(WHOLE).replace(
+            "THE EPISTLE TO THE READER",
+            "THE EPISTLE TO THE READER\n\n"
+            "   A repeated running header.\n\n"
+            "THE EPISTLE TO THE READER",
+            1,
+        )
+        with self.assertRaises(AcquisitionError) as caught:
+            segments(text)
+        self.assertIn("2 times", str(caught.exception))
+
+    def test_the_boundary_is_exact_when_no_blank_line_precedes_the_heading(self) -> None:
+        """The fixture otherwise carries a blank line before `THE EPISTLE TO
+        THE READER`, which hides an off-by-one at this boundary: paragraphs
+        are already split on blank lines, so dropping only the blank changes
+        no chunk's text. Closing that gap pins the boundary exactly. On a real
+        source where the heading follows content directly, an off-by-one here
+        would drop the address's last line, changing a chunk's text and hash,
+        with only a human bless to catch it."""
+        text = document(WHOLE).replace(
+            "\n\nTHE EPISTLE TO THE READER", "\nTHE EPISTLE TO THE READER", 1
+        )
+        found = {s.locator: s.text for s in segments(text)}
+        self.assertIn(
+            "continuation line 1 of an invented section.", found["Inst. Pref.7.p1"]
+        )
 
 
 class TestAdapterContract(unittest.TestCase):
