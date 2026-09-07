@@ -187,6 +187,17 @@ class TestApparatus(unittest.TestCase):
         text = document(WHOLE).replace("Invented section 1,", "Invented section 1,[653]")
         self.assertNotIn("[653]", " ".join(s.text for s in segments(text)))
 
+    def test_horizontal_rules_do_not_survive(self) -> None:
+        """172 of them, 66 underscores each. CCEL's apparatus, not Calvin's text,
+        and live in verification -- a quote spanning one would have to reproduce
+        sixty-six underscores to pass check 2."""
+        text = document(WHOLE).replace(
+            "   continuation line 1 of an invented section.",
+            "   __________________________________________\n"
+            "   continuation line 1 of an invented section.",
+        )
+        self.assertNotIn("__", " ".join(s.text for s in segments(text)))
+
 
 class TestAdapterContract(unittest.TestCase):
     def test_the_corpus_id_is_edition_and_translation_specific(self) -> None:

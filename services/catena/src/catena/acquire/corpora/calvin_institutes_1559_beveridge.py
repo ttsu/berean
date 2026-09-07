@@ -109,6 +109,12 @@ def fetch_plan() -> FetchPlan:
 #: 18's number.
 _ANCHOR = re.compile(r"\[\d+\]")
 
+#: A CCEL horizontal rule -- 172 of them, 66 underscores each. Apparatus in
+#: exactly the sense `_ANCHOR` is, and worse: it is inside the chunk text, so a
+#: quote spanning one has to reproduce sixty-six underscores to pass
+#: verification check 2.
+_RULE = re.compile(r"^_{3,}$")
+
 _PREFATORY = re.compile(r"^\s*PREFATORY ADDRESS\s*$")
 _INDEX = re.compile(r"^\s*GENERAL INDEX OF CHAPTERS\.\s*$")
 _START = re.compile(r"^\s*INSTITUTES OF THE CHRISTIAN RELIGION\s*$")
@@ -132,6 +138,11 @@ def extract(raw: bytes) -> str:
         ) from error
 
     lines = [_ANCHOR.sub("", line).rstrip() for line in text.splitlines()]
+    # A rule becomes an empty line rather than nothing. On this source the two
+    # are indistinguishable -- both were measured and produce identical output
+    # -- so the choice is made against a source that changes: a rule is a
+    # divider, and blanking it preserves a division that dropping would fuse.
+    lines = ["" if _RULE.match(line.strip()) else line for line in lines]
 
     prefatory = _find(lines, _PREFATORY, "the prefatory address")
     index = _find(lines, _INDEX, "the general index of chapters", after=prefatory)
