@@ -165,7 +165,8 @@ preserved rather than fused."
 ### Task 2: Split sections into paragraphs, under `Inst. <section>.p<n>`
 
 The core of the change. `_sections` filtered the source's blank lines out before joining, so
-paragraph structure never reached a `Segment`. The 1,284 sections hold 2,292 paragraphs.
+paragraph structure never reached a `Segment`. The 1,284 sections hold 2,260 paragraphs — 2,292 as
+this task left them, before Task 6 bounded the prefatory address and removed 32.
 
 **Files:**
 - Modify: `services/catena/src/catena/acquire/corpora/calvin_institutes_1559_beveridge.py`
@@ -416,9 +417,10 @@ def _paragraphs(lines: list[str]) -> list[str]:
 
     The blank lines are the source's own paragraph breaks, and `_sections` used
     to filter them out before joining -- which is how the structure that makes
-    this corpus embeddable was thrown away. Of the 1,008 breaks inside sections,
-    five split a sentence; that was measured rather than assumed, and five in a
-    thousand is a rate at which a blank line is a paragraph break.
+    this corpus embeddable was thrown away. Of the 976 breaks inside sections,
+    five split a sentence; that was measured rather than assumed, and five in
+    nine hundred and seventy-six is a rate at which a blank line is a paragraph
+    break.
     """
     found: list[str] = []
     current: list[str] = []

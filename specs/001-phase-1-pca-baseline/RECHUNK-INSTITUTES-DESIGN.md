@@ -45,12 +45,16 @@ CCEL serves this file with blank-line paragraph breaks intact. `_sections` filte
 before joining, so paragraph structure never reached a `Segment`. The 1,284 sections contain 2,260
 paragraphs.
 
-Those breaks are trustworthy, which had to be established rather than assumed. Of the 1,008
-paragraph breaks inside sections, 852 close one sentence and open another cleanly, 135 end without
+Those breaks are trustworthy, which had to be established rather than assumed. Of the 976
+paragraph breaks inside sections, 910 close one sentence and open another cleanly, 45 end without
 terminal punctuation but capitalise the next paragraph, 16 close cleanly but continue in lower case,
-and **5 split a sentence** — four in `Inst. Pref.7`, one in `Inst. 3.17.7`. Five in a thousand is a
-rate at which the blank line is a paragraph break, and the five are recorded here so that a later
-reader finds a measurement rather than an assumption.
+and **5 split a sentence** — four in `Inst. Pref.7`, one in `Inst. 3.17.7`. Five in nine hundred and
+seventy-six is a rate at which the blank line is a paragraph break, and the five are recorded here
+so that a later reader finds a measurement rather than an assumption.
+
+These counts were re-measured after the prefatory address was bounded at its real end, below; the
+four absorbed works accounted for 32 of the breaks and most of the untidy ones. The five
+sentence-splitting breaks are the same five either way, which is the point of recording them.
 
 ---
 

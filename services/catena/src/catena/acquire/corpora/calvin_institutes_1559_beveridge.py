@@ -310,9 +310,10 @@ def _paragraphs(lines: list[str]) -> list[str]:
 
     The blank lines are the source's own paragraph breaks, and `_sections` used
     to filter them out before joining -- which is how the structure that makes
-    this corpus embeddable was thrown away. Of the 1,008 breaks inside sections,
-    five split a sentence; that was measured rather than assumed, and five in a
-    thousand is a rate at which a blank line is a paragraph break.
+    this corpus embeddable was thrown away. Of the 976 breaks inside sections,
+    five split a sentence; that was measured rather than assumed, and five in
+    nine hundred and seventy-six is a rate at which a blank line is a paragraph
+    break.
     """
     found: list[str] = []
     current: list[str] = []
