@@ -75,10 +75,69 @@ because chunking has already happened when they are computed.
 Ingestion is idempotent and re-runnable, keyed on the per-chunk hash. It is a batch job invoked by
 hand in Phase 1; it is never in the request path.
 
-Text is normalised at ingestion per the normalisation contract in INTEGRATION-SPEC, and quote
-comparison at verification applies the identical steps. The two run in different languages, so what
-is shared is the contract and its test vectors rather than a function. A mismatch here produces
-verification failures on visually identical text and is extremely annoying to diagnose.
+Text is normalised during **acquisition** per the normalisation contract in INTEGRATION-SPEC, and
+quote comparison at verification applies the identical steps. The staged records ingestion reads are
+already post-normalisation, and `corpus.chunks.text` is what acquisition hashed. The two ends run in
+different languages, so what is shared is the contract and its test vectors rather than a function. A
+mismatch here produces verification failures on visually identical text and is extremely annoying to
+diagnose.
+
+### Ingestion converges; it does not insert
+
+`catena ingest (--corpus <id> | --all) [--apply]` makes the database agree with the blessed staging
+directory. A database that is behind staging is behind staging, and it does not matter why: a killed
+run, a re-bless under a corrected parser, a fresh clone and a half-applied migration all produce the
+same disagreement, and one diff resolves all of them. There is no recovery path separate from the
+normal path.
+
+`corpus.chunks` is UNIQUE on `(corpus_id, locator)` and idempotence is keyed on `content_hash`.
+Those are different keys, and the plan falls out of the difference — **the locator says which chunk
+this is, the hash says what it currently says**: a locator with no row is an insert, the same
+locator saying something else is an update, the same locator saying the same thing is a skip, and a
+row whose locator staging no longer has is a delete.
+
+**An update MUST drop the embeddings it invalidates, in the same transaction.** Deleting a chunk
+cascades; updating one does not, and nothing in the schema notices. An update that rewrites `text`
+and `content_hash` while leaving the old vector in place produces a chunk retrieved for what it used
+to say and quoted for what it now says — and verification passes, because check 2 matches the quote
+against `corpus.chunks.text`, which is the new text.
+
+**It writes only under `--apply`**, inverting `catena acquire`, which writes unless told otherwise.
+Acquisition writes into gitignored `/data` and a mistake costs minutes of re-fetching; ingestion
+updates and deletes rows that cascade to embeddings, and a mistake costs hours of embedding no cache
+can return. The plan is recomputed by both paths rather than carried in a file between them, so it
+has one implementation and is never stale.
+
+Applying is two phases, and the boundary is load-bearing. Phase one upserts `corpus.works` and
+applies every insert, update and delete to `corpus.chunks` in one transaction per corpus; phase two
+embeds the backlog in batches, one transaction per batch. Once phase one commits, the database holds
+complete, correct, blessed text whether or not phase two ever runs — which is the boundary
+`corpus.chunk_metadata`'s inner join already chose.
+
+Resumption is a query, not a checkpoint: the chunks carrying no `chunk_embeddings` row for the
+active `embedding_model`. There is no progress file, no checkpoint table and no run ledger — nothing
+to leave stale and nothing to reconcile after a hard kill. The `embedding_model` predicate makes
+resumption model-aware, so a re-index under a second model sees a full backlog rather than an empty
+one.
+
+Embedding batches are filled to a budget of **padded tokens**, not to a chunk count. A transformer
+pads every sequence in a batch to the longest one in it, and the corpus spans roughly 14x by median
+chunk length — 34 tokens for a median WEB verse against 408 for a median *Institutes* paragraph — so
+a fixed count makes memory, time per batch, and the work a crash destroys all depend on which corpus
+the run is in. The backlog is length-sorted in memory before batches are filled, which is ours to do
+because the commit granularity is ours: `sentence-transformers`' `encode()` sorts internally and
+returns only when the whole input is done, so a kill at 95% would lose everything.
+
+**Ingestion refuses a corpus carrying any chunk over the embedder's context window**, measured with
+the model's own tokeniser. Not a warning: BGE-M3 truncates silently at 8,192 tokens and returns a
+vector, so the chunk is retrieved on its opening fraction and quoted from its whole text, and
+verification passes. This makes ingestion a check on acquisition's chunking, which is where the
+defect lives — the fix is always to re-chunk on a smaller structural boundary. All eight Phase 1
+corpora pass; the longest chunk is an *Institutes* paragraph at 2,890 tokens.
+
+Ingestion also refuses a corpus that was never blessed, and one whose staging disagrees with
+`corpora/<corpus-id>/fingerprints.txt` in any of the three directions. Staging is allowed to hold
+work in progress; the database is not.
 
 ## Retrieval — deliberately naive
 

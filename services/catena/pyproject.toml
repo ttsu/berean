@@ -30,6 +30,24 @@ dependencies = [
     # Python, and has no runtime dependencies of its own, so the offline
     # overlay stays honest and `docker compose up` still needs no account.
     "pypdf>=6.0,<7",
+    # Task 5's two. Ingestion is the first thing in this project that writes the
+    # corpus tables and the first that runs a model, so it is the first that
+    # needs a driver or an encoder.
+    #
+    # psycopg 3 is the Postgres driver. LGPL-3.0, which permits the commercial
+    # downstream use CLAUDE.md tells us to assume: it is a library used through
+    # its published interface, not linked-and-modified, so it places no term on
+    # this project's Apache-2.0 licence. `[binary]` ships the wheels, so the
+    # image needs no libpq build step.
+    "psycopg[binary]>=3.2,<4",
+    # BGE-M3 runs in-process from /models/ rather than through Ollama, whose
+    # `bge-m3` exposes dense vectors only and drops the learned sparse
+    # representation the model was chosen for (ADR-0006, TECHNICAL-SPEC).
+    # sentence-transformers is Apache-2.0 and reads the weights layout the
+    # pinned download already has -- modules.json, 1_Pooling,
+    # sentence_bert_config.json -- so `max_seq_length` comes from the model
+    # rather than from a constant this repository would have to keep true.
+    "sentence-transformers>=3.0,<6",
 ]
 
 [project.scripts]
