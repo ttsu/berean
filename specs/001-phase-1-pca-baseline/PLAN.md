@@ -496,9 +496,13 @@ Getting the edition wrong here silently poisons everything downstream. Verify by
 Chunking and normalisation happen in acquisition, so ingestion never parses an upstream format and
 never touches the network. It reads staged records, enriches, embeds, and loads.
 
-- [ ] Reads staged records from gitignored `/data/staged/<corpus-id>/`; no network in this path
-- [ ] Records re-verified against committed fingerprints before insert — ingestion refuses text
-      that does not match what was blessed
+- [x] Reads staged records from gitignored `data/acquire/<corpus-id>/stage/`; no network in this
+      path. **Corrected from `/data/staged/<corpus-id>/`**, which was never built — the seam
+      acquisition actually writes is `stage/` under the per-corpus acquisition tree
+- [x] Records re-verified against committed fingerprints before insert — ingestion refuses text
+      that does not match what was blessed. Every run rather than only on insert: it costs under a
+      second across all 8.2 MB, and a conditional check is one whose skipped path is untested. The
+      hash each record carries is recomputed rather than trusted
 - [ ] WEB ingested as `web-2020`, the corpus ID the PCA profile names. **Renamed from `web-2000`,
       which named an edition nobody published.** eBible.org's FAQ says the translation "started out
       as just one Bible translation that was continuously revised until 2020" and that "The World
@@ -506,20 +510,47 @@ never touches the network. It reads staged records, enriches, embeds, and loads.
       edition". The Protestant edition (`engwebp`) is taken rather than the Classic (`eng-web`):
       66 books, the canon WCF 1.2 enumerates, and "LORD" rather than "Yahweh"
 - [ ] `calvin-institutes-1559-beveridge` ingested at `advisory`, so UC-6 has a source that carries
-      no binding authority. Roughly 1,700 section chunks, and the largest embedding job after WEB
+      no binding authority. **2,260 paragraph chunks** since the re-chunk, not the ~1,700 sections
+      this line was written against, and the largest embedding job after WEB
 - [ ] `wcf-1646-epcew-modernised` ingested, so the profile's `contrary` entry resolves and UC-3 has a
       counterpart to contrast against
 - [ ] Every metadata field populated on every chunk, including `source_language` (`la` for
       the *Institutes*, equal to `language` elsewhere) and `text_form` (`majority` for WEB, whose NT
       follows the Majority Text; `not-applicable` for every non-Scripture corpus)
 - [ ] Corpus IDs edition-specific (`wcf-1788-american`)
-- [ ] The Python suite asserts the shared normalisation fixture committed in Task 2 — it is not
+- [x] The Python suite asserts the shared normalisation fixture committed in Task 2 — it is not
       created here, because Task 4 blesses fingerprints against it
-- [ ] Ingestion is resumable per corpus. Roughly 35,000 chunks embed on a clean clone, dominated by
-      WEB's ~31,100 verses, and an interrupted multi-hour run must continue rather than restart
-- [ ] BGE-M3 behind an embedder interface; `embedding_model` and `dim` written per chunk
-- [ ] Re-running ingestion is idempotent, keyed on the per-chunk hash
+- [x] Ingestion is resumable per corpus. 34,947 chunks embed on a clean clone, dominated by WEB's
+      31,098 verses, and an interrupted multi-hour run must continue rather than restart.
+      Resumption is a query — the anti-join for chunks carrying no vector under the active model —
+      rather than a checkpoint, so there is no progress file to leave stale and no cleanup step
+      after a hard kill
+- [x] BGE-M3 behind an embedder interface; `embedding_model` and `dim` written per chunk
+- [x] Re-running ingestion is idempotent, keyed on the per-chunk hash. The locator says which chunk
+      this is and the hash says what it currently says, so a re-blessed corpus is an update rather
+      than a skip — and an update drops the embeddings it invalidates in the same transaction
+- [x] Refuses any corpus carrying a chunk over BGE-M3's 8,192-token window, measured with the
+      model's own tokeniser. All eight corpora pass: the longest is an *Institutes* paragraph at
+      2,890 tokens
 - [ ] Spot-check: `WCF 7.2` and `WSC Q&A 1` retrieve and read correctly
+
+The command is `catena ingest (--corpus <id> | --all) [--apply]`, and it **writes only under
+`--apply`** — inverting `catena acquire`, which writes unless told otherwise. The asymmetry is about
+what a wrong run costs: acquisition re-fetches into gitignored `/data` in minutes, while ingestion
+updates and deletes rows that cascade to embeddings, and that costs hours no cache can return. The
+dry run is also the progress report. See [INGESTION-DESIGN](INGESTION-DESIGN.md).
+
+Three things the implementation did not anticipate:
+
+- **A blessed locator missing from staging refuses**, where the design named only mismatched and
+  unexpected ones. Left to the diff it becomes a *delete* of a blessed chunk — the BCO's truncated
+  bless executed against the database — so all three classes of the fingerprint diff refuse.
+- **`work.json`'s `chunk_count` is checked against `records.jsonl`.** The two are written by the
+  same step and disagree only when one is half-written, and a truncated `records.jsonl` read as
+  complete is a plan that deletes every chunk past the truncation.
+- **`make ingest` keeps the `--apply` inversion** rather than applying: `make ingest CORPUS=<id>`
+  prints the plan and `make ingest CORPUS=<id> APPLY=1` executes it. A wrapper that silently applied
+  would put the whole safety argument one keystroke from being lost.
 
 ---
 

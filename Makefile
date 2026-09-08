@@ -138,6 +138,34 @@ browse: env dirs ## Read the acquired corpora in a browser (loopback only)
 	    $(UV) run --quiet --project services/catena catena browse $(if $(PORT),--port $(PORT),)
 
 # ---------------------------------------------------------------------------
+# Ingestion -- make the database agree with the blessed staging directory
+# ---------------------------------------------------------------------------
+
+# Unlike the acquisition targets these need the database, so no `--no-deps`:
+# ingestion reads /data, loads BGE-M3 from /models, and writes the corpus
+# tables. `build` for the same reason acquisition depends on it -- the image
+# COPYs services/catena/src, so a stale image ingests through the code it was
+# built with.
+#
+# `catena ingest` writes only under `--apply`, and this wrapper keeps that
+# inversion rather than papering over it: `make ingest` prints the plan, and
+# `make ingest APPLY=1` executes it. A make target that silently applied would
+# put the whole safety argument one keystroke from being lost -- ingestion
+# updates and deletes rows that cascade to embeddings, and a wrong run costs
+# hours no cache can return.
+INGEST = $(COMPOSE) run --rm catena ingest
+APPLY_FLAG = $(if $(APPLY),--apply,)
+
+.PHONY: ingest
+ingest: env dirs build ## Plan one corpus into the database; APPLY=1 to execute: make ingest CORPUS=<id>
+	$(call require_corpus,ingest)
+	$(INGEST) --corpus $(CORPUS) $(APPLY_FLAG)
+
+.PHONY: ingest-all
+ingest-all: env dirs build ## Plan every staged corpus, smallest first; APPLY=1 to execute
+	$(INGEST) --all $(APPLY_FLAG)
+
+# ---------------------------------------------------------------------------
 # The contract -- proto/ is normative, and its output is gitignored
 # ---------------------------------------------------------------------------
 

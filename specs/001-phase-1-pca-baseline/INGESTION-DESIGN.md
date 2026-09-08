@@ -368,11 +368,50 @@ asserts the shared normalisation fixture committed in Task 2, as PLAN requires.
 
 ## Status
 
-Designed, not implemented, and **no longer blocked**. The *Institutes* re-chunk it waited on is
-done, blessed and merged: 2,260 chunks, longest 2,890 tokens against a window of 8,192, so every one
-of the eight corpora now passes the over-limit refusal this design specifies. See
-[RECHUNK-INSTITUTES-DESIGN](RECHUNK-INSTITUTES-DESIGN.md), which also records two defects that
-re-chunk exposed — 172 CCEL rules inside the chunk text, and a prefatory address with no end that
-had been absorbing four other works.
+**Implemented.** `services/catena/src/catena/ingest/` carries the plan, the apply path, the embedder
+interface, the Postgres store, the BGE-M3 adapter and the CLI; `make ingest` and `make ingest-all`
+wrap them. The design above is unchanged by the implementation except where noted below.
 
-Implementation is the next thing to start.
+The window claim is now measured rather than asserted. Across all eight staged corpora — 34,947
+chunks — nothing exceeds BGE-M3's 8,192-token window, measured with the model's own tokeniser:
+
+| corpus | chunks | median | longest |
+| --- | ---: | ---: | ---: |
+| calvin-institutes-1559-beveridge | 2,260 | 408 | 2,890 |
+| web-2020 | 31,098 | 34 | 121 |
+| pca-ga28-2000-creation-study | 513 | 91 | 450 |
+| pca-bco-2026 | 430 | 94 | 1,470 |
+| wlc-1788-american | 196 | 101 | 494 |
+| wcf-1646-epcew-modernised | 172 | 90 | 333 |
+| wcf-1788-american | 171 | 91 | 330 |
+| wsc-1788-american | 107 | 55 | 157 |
+
+The two medians the batching argument rests on — 34 tokens for a WEB verse and 408 for an
+*Institutes* paragraph — are these, so the 14x span is measured too.
+
+Three decisions the design did not anticipate, folded into PLAN and TECHNICAL-SPEC:
+
+1. **A blessed locator missing from staging refuses.** The design named mismatched and unexpected
+   locators; `missing` refuses for a sharper reason — left to the diff it becomes a *delete* of a
+   blessed chunk, which is the BCO's truncated bless executed against the database.
+2. **`work.json`'s `chunk_count` is checked against `records.jsonl`.** They are written by the same
+   step and disagree only when one is half-written, and a truncated `records.jsonl` read as complete
+   is a plan that deletes every chunk past the truncation.
+3. **`make ingest` keeps the `--apply` inversion.** `make ingest CORPUS=<id>` prints the plan;
+   `APPLY=1` executes it. A wrapper that silently applied would put the whole safety argument one
+   keystroke from being lost.
+
+### What is verified, and what is not
+
+The unit suite covers both tests this design names as the ones that prove it — apply/kill/re-apply
+converging with no duplicate embedding row, and a changed record having its vector dropped and
+re-created. Both were confirmed by mutation: removing the embedding drop fails the second and only
+the second, and dropping the `embedding_model` predicate from the resume query fails the
+model-awareness test and only that one. A refusal nobody has seen fire is a refusal nobody has seen
+work, and the same is true of an assertion.
+
+One corpus has been ingested end to end against live Postgres and the real 2.3 GB model —
+`wsc-1788-american`, 107 chunks, inserted in phase one and embedded in two batches — which is what
+exercises the SQL, the enum casts and the pgvector literal. **Not yet done:** the full `--all` run,
+the PLAN spot-check of `WCF 7.2` and `WSC Q&A 1`, and a live-Postgres integration suite on the
+`make test-schema` precedent.
