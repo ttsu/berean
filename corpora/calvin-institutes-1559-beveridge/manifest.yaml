@@ -1,7 +1,7 @@
 corpus_id: calvin-institutes-1559-beveridge
 source_url: https://www.ccel.org/ccel/c/calvin/institutes/cache/institutes.txt
 archive_url: https://web.archive.org/web/20260904id_/https://www.ccel.org/ccel/c/calvin/institutes/cache/institutes.txt
-retrieved: '2026-09-05'
+retrieved: '2026-09-07'
 upstream_sha256: b527a27e234bc4a8cdbbbfb82d9243677d645d35f82d4762faf5e3f8cfc4085e
 license: public-domain
 license_terms: |
@@ -23,9 +23,9 @@ license_terms: |
   statement about the apparatus a later edition wraps around it.
 attribution: John Calvin, Institutes of the Christian Religion, 1559 edition, translated by Henry Beveridge (1845). Public domain. Text obtained from the Christian Classics Ethereal Library, https://www.ccel.org/ccel/c/calvin/institutes/.
 normalisation_version: 1
-chunk_count: 1284
+chunk_count: 2260
 edition_check:
-  diagnostic: Inst. 4.17.10
+  diagnostic: Inst. 4.17.10.p1
   expected_sha256: a5df0abf601b76d470873aab22e60b36bc35d6fc7d2dc0fa6688f05ec891775e
   verified_by: tim
-  verified: '2026-09-05'
+  verified: '2026-09-07'

@@ -1,7 +1,7 @@
 """The World English Bible, 2020 stable text, Protestant 66-book edition.
 
 The Phase 1 Scripture corpus, and by far the largest: 31,098 verses against the
-*Institutes*' 1,284. Scripture is not structurally special in the acquisition
+*Institutes*' 2,260. Scripture is not structurally special in the acquisition
 contract — chunks are retrieved, cited and verified exactly like any other
 corpus, and `scripture.corpus_id` is appended to the profile's corpora list at a
 resolved stance (INTEGRATION-SPEC). Only the scale is different.

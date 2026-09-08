@@ -133,7 +133,7 @@ denomination-specific (`pca-bco-2026`), omit it where it is not (`wcf-1788-ameri
 | Church order | Numbered paragraph | `BCO 21-4` |
 | Scripture | Verse | `Gen 1:1` |
 | Aquinas | Question / objection / reply | `ST I-II q.94 a.2` |
-| Calvin's *Institutes* | Numbered section | `Inst. 4.17.10` |
+| Calvin's *Institutes* | Paragraph | `Inst. 4.17.10.p1` |
 
 If a document's structure does not fit these, work out the right unit and document it here before
 writing the parser.
