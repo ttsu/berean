@@ -48,10 +48,37 @@ dependencies = [
     # sentence_bert_config.json -- so `max_seq_length` comes from the model
     # rather than from a constant this repository would have to keep true.
     "sentence-transformers>=3.0,<6",
+    # Declared even though sentence-transformers already pulls it. `tool.uv.sources`
+    # below applies to a project's *direct* dependencies only, and torch arriving
+    # transitively is what let the CUDA build in -- so naming it here is what makes
+    # the CPU pin take effect at all, not a restatement of something implied.
+    "torch>=2.0",
 ]
 
 [project.scripts]
 catena = "catena.__main__:main"
+
+# torch, pulled in by sentence-transformers, resolves to the CUDA build on Linux
+# by default -- several GB of nvidia-* wheels that cannot execute on the machine
+# the acceptance test targets. SHARED §1 is `docker compose up` on a 16 GB host
+# with Ollama holding Qwen3-8B resident, and ADR-0006 chose BGE-M3 for being
+# CPU-tolerable, so the CUDA libraries are dead weight in the one image that has
+# to fit. This pins the CPU wheel for the platforms that have a CUDA default.
+#
+# macOS is deliberately not in the marker: PyPI's macOS wheels are already
+# CPU-only, and download.pytorch.org does not carry an arm64 build for every
+# release, so routing darwin through the CPU index would break the dev host to
+# fix the container. Nothing about the model layer differs between the two --
+# the weights, the tokeniser and `max_seq_length` are the same either way.
+[tool.uv.sources]
+torch = [
+    { index = "pytorch-cpu", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
+]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
 
 [build-system]
 requires = ["hatchling"]
