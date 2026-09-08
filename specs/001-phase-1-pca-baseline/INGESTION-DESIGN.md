@@ -175,16 +175,17 @@ predicate the migration requires of retrieval, because one HNSW index spans ever
 ### The budget is tokens, not chunks
 
 A transformer pads every sequence in a batch to the longest one in it, and that padding is work the
-model does and discards. The corpus spans roughly 20x by median chunk length — 119 characters for a
-WEB verse against 2,413 for an *Institutes* section — so a fixed chunk count behaves badly at both
+model does and discards. The corpus spans roughly 14x by median chunk length — 119 characters for a
+WEB verse against 1,636 for an *Institutes* paragraph — so a fixed chunk count behaves badly at both
 ends. A mixed batch of 255 short chunks and one long one pads everything to the long one. Sorting
-fixes the padding but not the variance: 256 short chunks and 256 long ones differ 20x in memory and
+fixes the padding but not the variance: 256 short chunks and 256 long ones differ 14x in memory and
 in wall-clock, so the amount of work a crash destroys depends on which corpus the run happened to be
 in.
 
 Filling each batch to a fixed budget of padded tokens makes the batch size float — at a budget of 16k
-padded tokens, roughly 545 short chunks or 27 long ones — so memory, time per batch, and crash loss all stay
-flat across corpora.
+padded tokens, roughly 470 short chunks or 39 long ones — so memory, time per batch, and crash loss all stay
+flat across corpora. Those two are measured with BGE-M3's own tokeniser: a median WEB verse is 34
+tokens and a median *Institutes* paragraph is 408.
 
 The starting budget is a tunable to be measured on the reference machine, not asserted here. The
 ceiling is the 16 GB host floor with Ollama holding Qwen3-8B resident, and attention cost grows with
@@ -215,10 +216,15 @@ run, and there is no argument here for large batches. Bound the crash loss; the 
 
 Smallest first, WEB last.
 
-The seven non-WEB corpora total 2,873 chunks, under 10% of the work, so a spot-checkable system
-arrives within minutes and WEB's 31,098 verses run as an unattended tail of uniformly short,
-best-behaved text. PLAN's spot-check locators both land in the first few hundred chunks. An
-interrupted first run leaves the corpora a human wants to look at already finished.
+The seven non-WEB corpora total 3,849 chunks of 34,947, just over a tenth of the work, so a
+spot-checkable system arrives within minutes and WEB's 31,098 verses run as an unattended tail of
+uniformly short, best-behaved text. PLAN's spot-check locators both land in the first few hundred
+chunks. An interrupted first run leaves the corpora a human wants to look at already finished.
+
+The *Institutes* re-chunk moved this: it is 2,260 chunks where it was 1,284, so it is now well over
+half the non-WEB work rather than under half, and "smallest first" puts it last of the seven. The
+ordering is unchanged because the argument was never about that corpus — it is that WEB is 89% of
+the work and the least interesting to watch.
 
 ---
 
@@ -236,10 +242,19 @@ warning: a truncated embedding is a chunk that silently is not what the index sa
 project does not have a category for that.
 
 This makes ingestion a check on acquisition's chunking, which is where the defect actually lives.
-The creation-study report already hit this and was re-chunked to paragraphs; the *Institutes* kept
-one chunk per numbered section and nobody re-measured. Its longest section is 66,614 characters,
-about twice the window on any plausible characters-per-token ratio. **Task 5 is blocked on re-chunking that corpus**, which needs its own
-design pass: the corpus already carries two locator forms, and splitting sections needs a third.
+Both corpora that hit it have been re-chunked to paragraphs: the creation-study report first, and
+the *Institutes* since — its longest section was 66,614 characters, which BGE-M3's own tokeniser
+makes 16,714 tokens against a window of 8,192, and four of its chunks were over. **That re-chunk is
+done and this task is no longer blocked.** The corpus is 2,260 chunks under a third locator form,
+`Inst. 4.17.10.p1`, and its longest chunk is 2,890 tokens — 35% of the window, and a true bound,
+because it is one paragraph with no internal break. See
+[RECHUNK-INSTITUTES-DESIGN](RECHUNK-INSTITUTES-DESIGN.md).
+
+The check stays exactly as specified. It is not a check on the *Institutes*; it is a check on every
+corpus, and the corpus that motivated it is precisely the one that will now pass it silently. A
+refusal that has never fired against real input is a refusal nobody has seen work, so the tests
+below exercise it against an invented over-long record rather than relying on the corpus to
+misbehave.
 
 The exact number of offending chunks is deliberately not recorded here. It depends on the
 tokeniser's characters-per-token ratio, which is not knowable without the tokeniser, and the
@@ -348,9 +363,16 @@ asserts the shared normalisation fixture committed in Task 2, as PLAN requires.
    acquisition and the staged records are already post-normalisation. Corrected.
 3. The convergence policy, the `--apply` inversion and its justification, and the over-limit refusal
    are decisions the specs did not anticipate. Folded into TECHNICAL-SPEC.
-4. **PLAN Task 5** gains its dependency on the *Institutes* re-chunk, and Task 4 gains that item.
+4. **PLAN Task 5** gained its dependency on the *Institutes* re-chunk, and Task 4 gained that item.
+   Both are now discharged: the re-chunk landed on `main` and Task 4's item is ticked.
 
 ## Status
 
-Designed, not implemented. Blocked on the *Institutes* re-chunk, which is a Task 4 change and needs
-its own design pass before this one can run against all eight corpora.
+Designed, not implemented, and **no longer blocked**. The *Institutes* re-chunk it waited on is
+done, blessed and merged: 2,260 chunks, longest 2,890 tokens against a window of 8,192, so every one
+of the eight corpora now passes the over-limit refusal this design specifies. See
+[RECHUNK-INSTITUTES-DESIGN](RECHUNK-INSTITUTES-DESIGN.md), which also records two defects that
+re-chunk exposed — 172 CCEL rules inside the chunk text, and a prefatory address with no end that
+had been absorbing four other works.
+
+Implementation is the next thing to start.
