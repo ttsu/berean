@@ -43,7 +43,9 @@ Structural chunking only:
 - **WLC / WSC** — one chunk per question and answer pair (`WSC Q&A 1`). Never split a Q from its A.
 - **BCO** — one chunk per numbered paragraph (`BCO 21-4`).
 - **WEB Scripture** — one chunk per verse. Proof texts in the Standards resolve to these.
-- **Institutes** — one chunk per numbered section (`Inst. 4.17.10`), book and chapter as metadata.
+- **Institutes** — one chunk per paragraph (`Inst. 4.17.10.p1`), book, chapter and section as the
+  locator path and as metadata. Sections were the chunk until the corpus was measured against
+  BGE-M3: four exceeded its 8,192-token window.
 
 Required metadata on every chunk, with one exception — `author` may be null for corporate
 documents, which is most of the Phase 1 corpus. Nothing else may be:

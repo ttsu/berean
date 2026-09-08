@@ -1,7 +1,12 @@
 """Calvin's *Institutes of the Christian Religion*, 1559, Beveridge translation.
 
-The largest Phase 1 corpus and the only translated one, so it is what actually
-exercises `source_language` and the book/chapter/section locator.
+**A chunk is a paragraph, not a numbered section.** The section is the path in
+the locator: `Inst. 4.17.10.p1`, and `Inst. Pref.7.p1`. The `p` is what keeps a
+fourth numeric component from reading as a subdivision Calvin does not have,
+which is the same defect `Inst. 0.0.<n>` was rejected for. Sections were the
+chunk until the corpus was measured against the embedder: four exceeded BGE-M3's
+8,192-token window and the longest was 16,714 tokens. See
+specs/001-phase-1-pca-baseline/RECHUNK-INSTITUTES-DESIGN.md.
 
 **Beveridge (1845), never Battles (1960).** Battles is in copyright. It is also
 the translation a model is most likely to have memorised, which PLAN records as
@@ -22,14 +27,18 @@ The source's shape carries four hazards, each of which fails silently:
    footnote anchor: `CHAPTER [653]`. It is recognised positionally.
 3. **Numbered lists inside the prose** open lines that look like sections.
    Matching only the next expected number steps over them.
-4. **Footnote anchors** — 1,283 inside the four books — are CCEL apparatus, and
-   taking the apparatus is what turns a public-domain text into someone's
-   copyrighted arrangement of it.
+4. **Footnote anchors** — 1,283 inside the four books — and **172 horizontal
+   rules** of sixty-six underscores each are CCEL apparatus, and taking the
+   apparatus is what turns a public-domain text into someone's copyrighted
+   arrangement of it. The rules are worse than the anchors, because they sat
+   inside the chunk text rather than beside it.
 
 What is excluded is as decided as what is kept: the CCEL header, **John Murray's
 20th-century introduction, which is in copyright**, Norton's 1581 translator's
-preface, the scripture and author indexes, each book's editorial ARGUMENT, and
-the One Hundred Aphorisms appended at the end.
+preface, the scripture and author indexes, each book's editorial ARGUMENT, the
+One Hundred Aphorisms appended at the end, and the four front-matter works that
+follow Calvin's address to Francis I — see `_AFTER_ADDRESS`, which is also what
+stops the address running on into them.
 """
 
 from __future__ import annotations
@@ -57,10 +66,21 @@ EXPECTED_CHAPTERS = (18, 17, 25, 20)
 #: outside the book/chapter scheme.
 EXPECTED_PREFATORY_SECTIONS = 7
 
+#: The longest a chunk may be. A canary rather than a limit: the longest this
+#: source produces is 11,499 characters and BGE-M3's window is 8,192 tokens at a
+#: measured 3.93 characters per token, so this sits well above the corpus and
+#: well below the window and never argues with the ratio. What it catches is a
+#: CCEL reflow that removes the blank lines, which is the one change that
+#: silently reinstates the defect paragraph chunking exists to remove. The real
+#: check is ingestion's, where the tokeniser is; this one fails where the defect
+#: lives.
+MAX_CHUNK_CHARACTERS = 20_000
+
 #: The locator whose text separates Beveridge from Battles. The specs' own
 #: example locator, and it sits where Beveridge's Victorian register diverges
-#: most visibly from a modern translation.
-diagnostic = "Inst. 4.17.10"
+#: most visibly from a modern translation. It is a single-paragraph section, so
+#: the re-chunk moved its locator and left its text and its hash untouched.
+diagnostic = "Inst. 4.17.10.p1"
 
 work = WorkFacts(
     work="Institutes of the Christian Religion",
@@ -109,10 +129,34 @@ def fetch_plan() -> FetchPlan:
 #: 18's number.
 _ANCHOR = re.compile(r"\[\d+\]")
 
+#: A CCEL horizontal rule -- 172 of them, 66 underscores each. Apparatus in
+#: exactly the sense `_ANCHOR` is, and worse: it is inside the chunk text, so a
+#: quote spanning one has to reproduce sixty-six underscores to pass
+#: verification check 2.
+_RULE = re.compile(r"^_{3,}$")
+
 _PREFATORY = re.compile(r"^\s*PREFATORY ADDRESS\s*$")
 _INDEX = re.compile(r"^\s*GENERAL INDEX OF CHAPTERS\.\s*$")
 _START = re.compile(r"^\s*INSTITUTES OF THE CHRISTIAN RELIGION\s*$")
 _APHORISMS = re.compile(r"^\s*ONE HUNDRED APHORISMS,?\s*$")
+
+#: The four front-matter pieces that follow Calvin's address to Francis I and
+#: precede the general index. Nothing in the address's own numbering closes it,
+#: so section 7 ran on and absorbed all four -- 32 paragraphs of four other
+#: works addressable as `Inst. Pref.7.pN`, a locator that resolves to text it
+#: does not name. They are excluded on the ground Norton's preface and the
+#: aphorisms already are: they are not the work.
+#:
+#: All four are asserted rather than only the first. Cutting at whichever
+#: happened to be found would silently keep three whole works if CCEL renamed
+#: one heading, and the wrong locators are invisible downstream -- they hash,
+#: bless and verify clean.
+_AFTER_ADDRESS = (
+    re.compile(r"^THE EPISTLE TO THE READER\s*$"),
+    re.compile(r"^SUBJECT OF THE PRESENT WORK\.\s*$"),
+    re.compile(r"^EPISTLE TO THE READER\.\s*$"),
+    re.compile(r"^METHOD AND ARRANGEMENT, OR SUBJECT OF THE WHOLE WORK\.\s*$"),
+)
 
 
 def extract(raw: bytes) -> str:
@@ -120,7 +164,12 @@ def extract(raw: bytes) -> str:
 
     Region selection happens here rather than in `segment` because it is a
     property of this file's shape: extraction fails on the shape of a source,
-    and taking the Murray introduction would be exactly that failure.
+    and taking the Murray introduction would be exactly that failure. The same
+    is true at the other end of the address: four further works -- Calvin's
+    epistle to the reader, a note on the subject of the work, Norton's own
+    epistle to the reader, and a note on the method and arrangement of the
+    whole work -- sit between it and the general index, and section 7 absorbs
+    them unless stopped.
     """
     try:
         text = raw.decode("utf-8", errors="strict")
@@ -132,13 +181,19 @@ def extract(raw: bytes) -> str:
         ) from error
 
     lines = [_ANCHOR.sub("", line).rstrip() for line in text.splitlines()]
+    # A rule becomes an empty line rather than nothing. On this source the two
+    # are indistinguishable -- both were measured and produce identical output
+    # -- so the choice is made against a source that changes: a rule is a
+    # divider, and blanking it preserves a division that dropping would fuse.
+    lines = ["" if _RULE.match(line.strip()) else line for line in lines]
 
     prefatory = _find(lines, _PREFATORY, "the prefatory address")
     index = _find(lines, _INDEX, "the general index of chapters", after=prefatory)
     start = _find(lines, _START, "the start of the four books", after=index)
     end = _find_optional(lines, _APHORISMS, after=start) or len(lines)
 
-    kept = lines[prefatory:index] + ["INSTITUTES"] + lines[start:end]
+    address = _address_ends(lines, prefatory, index)
+    kept = lines[prefatory:address] + ["INSTITUTES"] + lines[start:end]
     return "\n".join(kept) + "\n"
 
 
@@ -160,6 +215,31 @@ def _find_optional(lines: list[str], pattern: re.Pattern[str], *, after: int = 0
     return None
 
 
+def _address_ends(lines: list[str], prefatory: int, index: int) -> int:
+    """Where Calvin's address to Francis I stops and the other front matter starts.
+
+    Each of `_AFTER_ADDRESS` must appear exactly once between the address and
+    the general index, in order. The address ends at the first.
+    """
+    found = []
+    for pattern in _AFTER_ADDRESS:
+        at = [i for i in range(prefatory, index) if pattern.match(lines[i])]
+        if len(at) != 1:
+            raise AcquisitionError(
+                f"{corpus_id}: the front matter heading {pattern.pattern!r} appears "
+                f"{len(at)} times between the prefatory address and the general index, "
+                "expected once. The address has no closing marker of its own, so these "
+                "headings are the only thing stopping section 7 absorbing four other works."
+            )
+        found.append(at[0])
+    if found != sorted(found):
+        raise AcquisitionError(
+            f"{corpus_id}: the four front-matter headings are out of order at {found}; "
+            "the region between the address and the index is not shaped as expected"
+        )
+    return found[0]
+
+
 # --- segment ---------------------------------------------------------------
 
 _BOOK = re.compile(r"^\s*BOOK (FIRST|SECOND|THIRD|FOURTH)\.?\s*$")
@@ -172,9 +252,10 @@ _ORDINALS = {"FIRST": 1, "SECOND": 2, "THIRD": 3, "FOURTH": 4}
 
 
 def segment(document: str) -> Iterator[Segment]:
-    """One chunk per numbered section: `Inst. 4.17.10`, and `Inst. Pref.1`.
+    """One chunk per paragraph: `Inst. 4.17.10.p1`, and `Inst. Pref.1.p1`.
 
-    Structural, never fixed-token.
+    Structural, never fixed-token. The section is the path in the locator, not
+    the chunk.
     """
     lines = document.splitlines()
     split = next((i for i, line in enumerate(lines) if _MARKER.match(line)), None)
@@ -226,8 +307,37 @@ def _chapters(lines: list[str], book: int) -> Iterator[Segment]:
         yield from _sections(lines[first:last], f"Inst. {book}.{number}.", None)
 
 
+def _paragraphs(lines: list[str]) -> list[str]:
+    """Blank-line-delimited runs, each joined to one line.
+
+    The blank lines are the source's own paragraph breaks, and `_sections` used
+    to filter them out before joining -- which is how the structure that makes
+    this corpus embeddable was thrown away. Of the 976 breaks inside sections,
+    five split a sentence; that was measured rather than assumed, and five in
+    nine hundred and seventy-six is a rate at which a blank line is a paragraph
+    break.
+    """
+    found: list[str] = []
+    current: list[str] = []
+    for line in lines:
+        if _ARGUMENT.match(line):
+            continue
+        if line.strip():
+            current.append(line.strip())
+        elif current:
+            found.append(" ".join(current))
+            current = []
+    if current:
+        found.append(" ".join(current))
+    return found
+
+
 def _sections(lines: list[str], prefix: str, expected: int | None) -> Iterator[Segment]:
-    """The body sections of one chapter, with its own synopsis discarded.
+    """One chunk per paragraph: `Inst. 4.17.10.p1`, and `Inst. Pref.1.p1`.
+
+    Structural, never fixed-token. The section is no longer the chunk; it is the
+    path in the locator, which is what `pca-ga28-2000-creation-study` already
+    does, having hit the same window.
 
     A chapter lists its sections by title before setting them out in full, so
     the numbers 1..N run twice. The first ascending run is taken, then a second
@@ -251,14 +361,33 @@ def _sections(lines: list[str], prefix: str, expected: int | None) -> Iterator[S
 
     stops = [i for i, _ in body[1:]] + [len(lines)]
     for (start, number), stop in zip(body, stops):
-        text = "\n".join(
-            line.strip()
-            for line in lines[start:stop]
-            if line.strip() and not _ARGUMENT.match(line)
-        )
-        # The opener carries its own number, which is the locator's.
-        text = re.sub(rf"^{number}\.\s+", "", text)
-        yield Segment(f"{prefix}{number}", text)
+        paragraphs = _paragraphs(lines[start:stop])
+        if not paragraphs:
+            raise AcquisitionError(
+                f"{corpus_id}: {prefix}{number} has no paragraphs — a section that opens "
+                "and holds nothing is a broken parser, not a chunk"
+            )
+        # The opener carries its own number, which is the locator's. Every one
+        # of the 1,284 sections opens this way, so a section that does not is a
+        # source change rather than a variation: left unchecked it puts a stray
+        # number at the head of a chunk that would hash, bless and verify clean.
+        head = re.sub(rf"^{number}\.\s+", "", paragraphs[0])
+        if head == paragraphs[0]:
+            raise AcquisitionError(
+                f"{corpus_id}: {prefix}{number} does not open with its own number, so the "
+                "opener strip would leave it in the text"
+            )
+        paragraphs[0] = head
+
+        for ordinal, text in enumerate(paragraphs, start=1):
+            if len(text) > MAX_CHUNK_CHARACTERS:
+                raise AcquisitionError(
+                    f"{corpus_id}: {prefix}{number}.p{ordinal} is {len(text)} characters, "
+                    f"past the {MAX_CHUNK_CHARACTERS} ceiling. The source's paragraph breaks "
+                    "are what keep every chunk inside the embedder's window, so a chunk this "
+                    "long means they moved."
+                )
+            yield Segment(f"{prefix}{number}.p{ordinal}", text)
 
 
 def _ascending(openings: list[tuple[int, int]]) -> list[tuple[int, int]]:
