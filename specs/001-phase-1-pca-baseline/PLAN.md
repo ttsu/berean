@@ -196,6 +196,12 @@ needed.
       configuration is written in `buf.yaml` so enabling it is a CI change.
       `services/catena/tests/test_proto_contract.py` stands in until then: with no break check,
       nothing else would notice a field being dropped
+- [x] CI exists as of `.github/workflows/check.yml`: `make proto` then `make check`, on every pull
+      request and every push to `main`. It does not turn on `buf breaking` — that stays deferred,
+      and is now the one-line change `buf.yaml` was written for. It *does* run `make proto` before
+      the suites, because the stubs are gitignored and
+      `services/catena/tests/test_proto_contract.py` skips itself without them: the suite standing
+      in for the break check is the one suite that must not silently skip on a clean runner
 
 Three things the task did not anticipate, each resolved and propagated to INTEGRATION-SPEC:
 

@@ -168,6 +168,13 @@ Two guards run in `make check` and are not optional:
 - **`make guard-make-targets`** rejects any `make <target>` named in documentation that has no rule
   in the Makefile.
 
+`make check` is also what CI runs, on every pull request and every push to `main`
+([`.github/workflows/check.yml`](.github/workflows/check.yml)). The workflow installs `uv`, runs
+`make proto`, and then calls that one target — `buf` and Go stay in their pinned containers there
+too. So a green run means the checks you run locally passed, rather than a parallel set of checks
+that has drifted from them. Nothing in the path touches `./data/`, `./models/` or an upstream
+corpus, which is how ADR-0014 survives having a CI log at all.
+
 ## Bible translations
 
 Retrieval runs on the public-domain WEB text. Copyrighted translations are never ingested.
