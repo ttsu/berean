@@ -260,6 +260,21 @@ migrate-version: env ## Print the applied migration version, and whether it is d
 test-schema: ## Assert the schema, its constraints and both roles' grants (needs `make dev`)
 	@./tools/db/tests/test_schema.sh
 
+# Not part of `make check`, for the same reason `test-schema` is not: `check`
+# runs with nothing started, and every assertion here is about a live database.
+#
+# It exists because a fake store cannot answer the question that matters --
+# whether psycopg committed. Writes are visible to the session that made them
+# whether or not they commit, so a store that never commits passes every
+# in-process assertion, embeds its backlog and reports success over rows no
+# other connection will ever see. That is exactly what shipped, and it took a
+# second connection to notice.
+.PHONY: test-ingest-db
+test-ingest-db: ## Assert ingestion against a live database (needs `make dev`)
+	@CATENA_DATABASE_URL="postgresql://catena:$$(sed -n 's/^BEREAN_DB_CATENA_PASSWORD=//p' .env | tail -1)@127.0.0.1:$$(sed -n 's/^POSTGRES_PORT=//p' .env | tail -1)/$$(sed -n 's/^POSTGRES_DB=//p' .env | tail -1)" \
+	    $(UV) run --quiet --project services/catena \
+	    python services/catena/tests/integration/test_ingest_postgres.py -q
+
 # ---------------------------------------------------------------------------
 # Checks
 # ---------------------------------------------------------------------------
