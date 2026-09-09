@@ -1,0 +1,48 @@
+# Every check that needs no image build, on the same targets a contributor runs.
+#
+# The job deliberately installs almost nothing. `buf` and the Go toolchain run in
+# the pinned containers the Makefile already defines, so CI's toolchain is the
+# one a contributor gets rather than a second stack that drifts from it -- and
+# the README's claim that neither is a host prerequisite is tested here rather
+# than asserted. `uv` is the exception: `make test-catena` needs it on the host.
+#
+# Nothing in this path touches ./data/, ./models/ or an upstream corpus, so no
+# corpus text can reach a CI log (ADR-0014). No secrets, and no account.
+name: check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Read-only. Nothing here publishes, comments, or writes to the repository.
+permissions:
+  contents: read
+
+concurrency:
+  group: check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # Pinned to a commit for the reason the images are: "the same commit" has
+      # to mean the same stack. uv provisions its own interpreter against
+      # catena's requires-python, so there is no setup-python step to keep true.
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          enable-cache: true
+          cache-dependency-glob: services/catena/uv.lock
+
+      # `make check` lints the contract but does not generate it, and the stubs
+      # are gitignored (ADR-0013). Without this step `test_proto_contract.py`
+      # skips itself on a clean runner -- and with `buf breaking` deferred to
+      # Phase 2, that suite is the only mechanical guard the contract has, so
+      # the one place it must not silently skip is CI.
+      - run: make proto
+
+      - run: make check
