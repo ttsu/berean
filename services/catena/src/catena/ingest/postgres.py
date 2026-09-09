@@ -41,9 +41,21 @@ def connect(url: str | None = None) -> "PostgresStore":
             "installs it from the lockfile — run it through `make ingest`."
         ) from error
 
-    # Autocommit off is psycopg's default; `transaction()` below is what commits,
-    # and every write in this module happens inside one.
-    return PostgresStore(psycopg.connect(dsn))
+    # **Autocommit on, deliberately, and it is what makes the writes durable.**
+    #
+    # With psycopg's default of autocommit off, the first statement on the
+    # connection opens an implicit transaction. Ingestion's first statement is a
+    # read -- `existing_chunks`, which the plan needs -- so by the time
+    # `transaction()` is entered there is already a transaction in progress, and
+    # psycopg makes the block a SAVEPOINT rather than the outermost one. Exiting
+    # it releases the savepoint and commits nothing; the connection is left
+    # INTRANS and the server rolls the whole run back when the process exits.
+    #
+    # The failure is silent and total: every row is visible to the session that
+    # wrote it, so phase two finds its backlog, embeds it, and reports success
+    # over rows no other connection will ever see. With autocommit on, each
+    # `transaction()` is a real BEGIN/COMMIT and a bare read holds nothing open.
+    return PostgresStore(psycopg.connect(dsn, autocommit=True))
 
 
 class PostgresStore:

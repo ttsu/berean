@@ -401,6 +401,36 @@ Three decisions the design did not anticipate, folded into PLAN and TECHNICAL-SP
    `APPLY=1` executes it. A wrapper that silently applied would put the whole safety argument one
    keystroke from being lost.
 
+### The defect the unit suite could not see
+
+The first implementation left every write uncommitted, and reported success.
+
+`postgres.connect()` used psycopg's default of autocommit off. Ingestion's first
+statement is a *read* — `existing_chunks`, which the plan needs — and with
+autocommit off that opens an implicit transaction. By the time `transaction()`
+was entered a transaction was already in progress, so psycopg made the block a
+SAVEPOINT rather than the outermost one; exiting released the savepoint and
+committed nothing. The connection was left INTRANS and the server rolled the
+whole run back at process exit.
+
+**It is silent and total.** Uncommitted rows are visible to the session that
+wrote them, so phase one "succeeded", phase two's resume query found its
+backlog, embedded it, and printed `107/107 embedded` — over rows no other
+connection would ever see. Every in-process assertion passes. The fake store
+passes them too, because a fake models what the code *does* and this is a
+question about what the database *keeps*.
+
+The fix is `autocommit=True`, which makes each `transaction()` a real
+BEGIN/COMMIT and leaves a bare read holding nothing open.
+
+The lesson is about the testing strategy above, not about psycopg. This design
+argued that the plan is a pure function and the embedder sits behind an
+interface, and concluded that a fake store covers the apply path. It does not:
+durability is invisible from inside the session that wrote it, and asserting it
+requires a second connection. `make test-ingest-db` is that suite, and its first
+two tests fail against the original code — `0 != 2` durable rows, and
+`INTRANS != IDLE`.
+
 ### What is verified, and what is not
 
 The unit suite covers both tests this design names as the ones that prove it — apply/kill/re-apply
@@ -410,8 +440,14 @@ the second, and dropping the `embedding_model` predicate from the resume query f
 model-awareness test and only that one. A refusal nobody has seen fire is a refusal nobody has seen
 work, and the same is true of an assertion.
 
-One corpus has been ingested end to end against live Postgres and the real 2.3 GB model —
-`wsc-1788-american`, 107 chunks, inserted in phase one and embedded in two batches — which is what
-exercises the SQL, the enum casts and the pgvector literal. **Not yet done:** the full `--all` run,
-the PLAN spot-check of `WCF 7.2` and `WSC Q&A 1`, and a live-Postgres integration suite on the
-`make test-schema` precedent.
+`wsc-1788-american` is ingested through the containerised path — `make ingest CORPUS=<id>
+APPLY=1` — and the database holds 107 chunks, 107 embeddings and 107 `chunk_metadata` rows at
+dim 1024 under `bge-m3`, counted from outside the run. Re-running reports `0 insert, 0 update,
+0 delete, 0 embeddings remaining`, which is the convergence claim proven against real rows rather
+than against a fake.
+
+`make ingest-all` plans all eight corpora: every one passes the fingerprint, blessed and
+over-limit refusals, and the order is smallest-first with WEB last as specified.
+
+**Not yet done:** the full `--all --apply` run (34,840 chunks remain, dominated by WEB) and the
+PLAN spot-check of `WCF 7.2` and `WSC Q&A 1`, which needs retrieval.
