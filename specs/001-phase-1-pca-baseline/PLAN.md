@@ -503,21 +503,24 @@ never touches the network. It reads staged records, enriches, embeds, and loads.
       that does not match what was blessed. Every run rather than only on insert: it costs under a
       second across all 8.2 MB, and a conditional check is one whose skipped path is untested. The
       hash each record carries is recomputed rather than trusted
-- [ ] WEB ingested as `web-2020`, the corpus ID the PCA profile names. **Renamed from `web-2000`,
+- [x] WEB ingested as `web-2020`, the corpus ID the PCA profile names. **Renamed from `web-2000`,
       which named an edition nobody published.** eBible.org's FAQ says the translation "started out
       as just one Bible translation that was continuously revised until 2020" and that "The World
       English Bible was completed in 2020"; the archive's own about file ends "2020 stable text
       edition". The Protestant edition (`engwebp`) is taken rather than the Classic (`eng-web`):
       66 books, the canon WCF 1.2 enumerates, and "LORD" rather than "Yahweh"
-- [ ] `calvin-institutes-1559-beveridge` ingested at `advisory`, so UC-6 has a source that carries
-      no binding authority. **2,260 paragraph chunks** since the re-chunk, not the ~1,700 sections
-      this line was written against, and the largest embedding job after WEB
-- [ ] `wcf-1646-epcew-modernised` ingested, so the profile's `contrary` entry resolves and UC-3 has a
+- [x] `calvin-institutes-1559-beveridge` ingested, so UC-6 has a source that carries no binding
+      authority. **2,260 paragraph chunks** since the re-chunk, not the ~1,700 sections this line
+      was written against, and the largest embedding job after WEB. The `advisory` stance is not
+      set here: authority tier is a profile's N:M relation (Task 6), and `corpus.works` carries no
+      originating-tradition column, deliberately
+- [x] `wcf-1646-epcew-modernised` ingested, so the profile's `contrary` entry resolves and UC-3 has a
       counterpart to contrast against
-- [ ] Every metadata field populated on every chunk, including `source_language` (`la` for
+- [x] Every metadata field populated on every chunk, including `source_language` (`la` for
       the *Institutes*, equal to `language` elsewhere) and `text_form` (`majority` for WEB, whose NT
-      follows the Majority Text; `not-applicable` for every non-Scripture corpus)
-- [ ] Corpus IDs edition-specific (`wcf-1788-american`)
+      follows the Majority Text; `not-applicable` for every non-Scripture corpus). Asserted against
+      the live database: 34,947 `chunk_metadata` rows, none carrying a NULL contract field
+- [x] Corpus IDs edition-specific (`wcf-1788-american`)
 - [x] The Python suite asserts the shared normalisation fixture committed in Task 2 — it is not
       created here, because Task 4 blesses fingerprints against it
 - [x] Ingestion is resumable per corpus. 34,947 chunks embed on a clean clone, dominated by WEB's
@@ -532,7 +535,15 @@ never touches the network. It reads staged records, enriches, embeds, and loads.
 - [x] Refuses any corpus carrying a chunk over BGE-M3's 8,192-token window, measured with the
       model's own tokeniser. All eight corpora pass: the longest is an *Institutes* paragraph at
       2,890 tokens
-- [ ] Spot-check: `WCF 7.2` and `WSC Q&A 1` retrieve and read correctly
+- [ ] Spot-check: `WCF 7.2` and `WSC Q&A 1` retrieve and read correctly. Both resolve in
+      `corpus.chunk_metadata` carrying every field, and their stored `content_hash` matches the
+      committed fingerprint (`a7749e84ceb7…`, `7d862e906a47…`) — so what the database holds is what
+      was blessed. *Retrieving* them is Task 7, and that is what this item still waits on
+
+All eight corpora are ingested: 34,947 chunks, 34,947 embeddings, no chunk missing a vector, one
+`embedding_model` (`bge-m3`) at dim 1024, every vector L2-normalised as the cosine index requires.
+`make ingest-all` re-runs to `0 insert, 0 update, 0 delete, 0 embeddings remaining` for every
+corpus, which is convergence measured rather than argued.
 
 The command is `catena ingest (--corpus <id> | --all) [--apply]`, and it **writes only under
 `--apply`** — inverting `catena acquire`, which writes unless told otherwise. The asymmetry is about
