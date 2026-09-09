@@ -449,5 +449,11 @@ than against a fake.
 `make ingest-all` plans all eight corpora: every one passes the fingerprint, blessed and
 over-limit refusals, and the order is smallest-first with WEB last as specified.
 
-**Not yet done:** the full `--all --apply` run (34,840 chunks remain, dominated by WEB) and the
-PLAN spot-check of `WCF 7.2` and `WSC Q&A 1`, which needs retrieval.
+The full `--all --apply` run is done. All eight corpora are ingested — 34,947 chunks, 34,947
+embeddings, no chunk missing a vector, dim 1024 under `bge-m3`, every vector L2-normalised as the
+cosine index requires — and `make ingest-all` now reports `0 insert, 0 update, 0 delete, 0
+embeddings remaining` for every one of them.
+
+**Not yet done:** the PLAN spot-check of `WCF 7.2` and `WSC Q&A 1`. Both resolve in
+`corpus.chunk_metadata` carrying every contract field, and their stored `content_hash` matches the
+committed fingerprint, so the text in the database is the blessed text. *Retrieving* them is Task 7.
