@@ -12,9 +12,16 @@ ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy
 COPY services/catena/pyproject.toml services/catena/uv.lock ./
 RUN uv sync --frozen --no-dev --no-install-project
 
+# Source and the generated contract together, because both are packaged into
+# the wheel. The stubs are committed rather than generated here (ADR-0022): the
+# image needs no `buf` and the build reaches no network beyond the base image,
+# which is what lets `docker compose up` work on a clean clone now that catena
+# is part of the default `up`.
+COPY services/catena/src ./src
+COPY services/catena/gen ./gen
+
 # `--no-editable` so the package lands in site-packages rather than as a link
 # back to /app/src, which the runtime stage does not carry.
-COPY services/catena/src ./src
 RUN uv sync --frozen --no-dev --no-editable
 
 FROM python:3.12-slim

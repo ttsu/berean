@@ -1,4 +1,4 @@
-"""Test doubles shared by the ingestion suites.
+"""Test doubles shared by the ingestion and request-path suites.
 
 The embedder sits behind an interface (ADR-0006, which requires it for
 swappability anyway), so a fake returning deterministic vectors exercises the
@@ -248,3 +248,71 @@ class _Transaction:
         else:
             self.store._rollback()
         return False
+
+
+# ---------------------------------------------------------------------------
+# The request path (Task 7)
+# ---------------------------------------------------------------------------
+
+
+class FakeCorpusReader:
+    """An in-memory stand-in for the two retrieval statements.
+
+    It does not rank: the caller supplies hits in the order it wants them back,
+    because the ordering under test is the *selection's*, not pgvector's. The
+    SQL is asserted against a live database by `make test-catena-db`, which is
+    the only place a fake cannot stand in for the query planner.
+    """
+
+    def __init__(self, hits=(), by_locator=None) -> None:
+        self.hits = list(hits)
+        self.locators = dict(by_locator or {})
+        #: Every search this reader was asked for, so a suite can assert that
+        #: `embedding_model` was constrained — the predicate a re-index window
+        #: makes load-bearing.
+        self.searches: list[tuple] = []
+        self.locator_lookups: list[tuple] = []
+
+    def search(self, vector, corpus_ids, limit, embedding_model):
+        self.searches.append((tuple(corpus_ids), limit, embedding_model))
+        return [h for h in self.hits if h.corpus_id in set(corpus_ids)][:limit]
+
+    def by_locator(self, corpus_id, locator, vector, embedding_model):
+        self.locator_lookups.append((corpus_id, locator, embedding_model))
+        return self.locators.get((corpus_id, locator))
+
+    def close(self) -> None:
+        return None
+
+    # Used as `store_factory()` directly, so it is its own context manager.
+    def __call__(self):
+        return self
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_):
+        return False
+
+
+class FakeGenerator:
+    """Returns a canned payload and records what it was asked."""
+
+    def __init__(self, payload=None, error=None, model="fake-generator") -> None:
+        self.model = model
+        self._payload = payload if payload is not None else {}
+        self._error = error
+        self.messages = None
+        self.schema = None
+
+    def generate(self, messages, schema):
+        from catena.serve.generate import Generation
+
+        self.messages = list(messages)
+        self.schema = schema
+        if self._error is not None:
+            raise self._error
+        return Generation(
+            payload=dict(self._payload), model=self.model,
+            prompt_tokens=100, completion_tokens=50,
+        )

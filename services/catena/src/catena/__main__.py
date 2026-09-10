@@ -1,8 +1,9 @@
 """The `catena` command.
 
-`acquire`, `browse` and `ingest` are implemented. The rest are planned and exit 69
-(EX_UNAVAILABLE) rather than 0, because a provisioning step that reports
-success while acquiring nothing is the failure this project can least afford.
+Every subcommand is implemented as of Task 7. The `NOT_IMPLEMENTED` mechanism
+stays: a planned command exits 69 (EX_UNAVAILABLE) rather than 0, because a
+provisioning step that reports success while doing nothing is the failure this
+project can least afford, and the next phase will want it again.
 """
 
 from __future__ import annotations
@@ -16,15 +17,15 @@ Usage:
                  [--show-diagnostic] [--from-file PATH]
   catena browse  [--port N] [--data-dir PATH] [--corpora-dir PATH]
   catena ingest  (--corpus <id> | --all) [--apply] [--budget N]
-  catena serve                                                (Task 7)
+  catena serve   [--port N] [--probe]
   catena version
 
 Phase 1 is under construction. See specs/001-phase-1-pca-baseline/PLAN.md.
 """
 
-NOT_IMPLEMENTED = {
-    "serve": "the gRPC server is not implemented yet (PLAN Task 7)",
-}
+#: Planned commands, so a caller gets 69 rather than a silent success. Empty
+#: while every documented command is implemented.
+NOT_IMPLEMENTED: dict[str, str] = {}
 
 EX_UNAVAILABLE = 69
 EX_USAGE = 64
@@ -54,6 +55,10 @@ def main(argv: list[str] | None = None) -> int:
         from catena.ingest import cli as ingest_cli
 
         return ingest_cli.main(args[1:])
+    if command == "serve":
+        from catena.serve import cli as serve_cli
+
+        return serve_cli.main(args[1:])
     if command in NOT_IMPLEMENTED:
         print(f"catena: {NOT_IMPLEMENTED[command]}", file=sys.stderr)
         return EX_UNAVAILABLE

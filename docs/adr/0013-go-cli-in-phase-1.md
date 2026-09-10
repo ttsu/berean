@@ -1,6 +1,6 @@
 # ADR-0013: Phase 1 includes a minimal Go CLI, not a Python-only one
 
-- **Status:** Accepted
+- **Status:** Accepted (the commit-or-generate deferral is resolved by ADR-0022)
 - **Date:** 2026-08-30
 - **Phase:** 1 — blocks Task 1; cheap now, structural after Task 5
 

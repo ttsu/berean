@@ -155,6 +155,25 @@ measured, not pre-empted.** The trace records every candidate with its corpus an
 produces the evidence directly. If WCF 18 does not surface, the fix lands as an ADR with numbers
 behind it — most likely a per-corpus retrieval quota, which is policy rather than reranking.
 
+`top_k` candidates do not all reach the generator, and the gap is recorded rather than hidden.
+Retrieval fits them to a **context budget** derived from the generator's window; what does not fit
+is excluded whole — never truncated, because a quote spanning a cut fails check 2 while looking like
+a paraphrase — and appears in the trace as `included: false` with `exclusion_reason: "context
+budget"`. On a live Phase 1 query 11 of 20 candidates reached the generator. This is the one
+judgement retrieval makes in Phase 1, and it is the reason `exclusion_reason` is not permanently
+empty.
+
+A **contested locus's ruling is pinned** ahead of the budget. It is fetched by `(corpus_id,
+locator)` rather than by similarity — a pointer resolves to exactly one chunk — because
+`state_of_debate` must quote it verbatim, so dropping it would guarantee the failure ADR-0019
+exists to prevent. It still enters the trace carrying its real similarity score: the trace is an
+audit log, and a fabricated score is worse than an honest low one.
+
+Retrieval sets `hnsw.iterative_scan` per transaction. pgvector's default is `off` and HNSW
+post-filters, so a corpus filter can return fewer than `top_k` rows — `top_k` would then quietly
+mean "up to `top_k`, depending which corpora you asked for", and Phase 2 cannot attribute a
+retrieval change to a number that meant something different per profile.
+
 The embedder sits behind an interface from day one (ADR-0006). Swapping is a config change plus a
 re-index job.
 
@@ -298,13 +317,58 @@ largest single variable in the Phase 2 baseline, and a silent change to it would
 invisibly. Provisional on the same terms as the embedder — re-decided at Phase 2 against the golden
 set (ADR-0018, ADR-0006).
 
+The constraint travels as `response_format: {type: json_schema}` on the OpenAI-compatible endpoint
+rather than as Ollama's native `format` field, so the provider stays interchangeable. **The schema
+is derived from `AnswerObject`'s protobuf descriptor, never hand-written** — a hand-written copy is
+a second place the contract lives. It departs from a naive translation in three ways, each measured
+rather than assumed (ADR-0023):
+
+- `confidence` is subtracted, so Go's field is *unpopulatable* rather than merely unpopulated.
+- `required` follows the **list-only rule**: fields are required in messages reachable only through
+  a repeated field, and nothing is required in messages reachable as a singular field or at the
+  root. Requiring everything makes the decoder narrate into slots whose correct value is nothing —
+  a live probe produced `position: "no_position"` beside empty `arguments`, which fails the
+  empty-when-descriptive rule outright.
+- **No count constraints.** `minItems` is honoured by the decoder, and what it buys is a fabricated
+  citation to pad the count. An uncitable argument emits `citations: []`, which Go fails loudly.
+
+**Thinking is disabled** (`reasoning_effort: "none"`). Qwen3's reasoning trace is not covered by the
+decoding constraint, and it is the model's narrative about its own reasoning — SHARED §4 forbids
+emitting that, and nothing in Catena reads the field. It is also not optional in practice: with
+thinking on, a schema-constrained probe spent its entire token budget inside `reasoning` and
+returned empty content.
+
+The generator's context window is set on the Ollama service (`OLLAMA_CONTEXT_LENGTH`, 8192).
+Ollama's own default is 4096 and it **truncates silently** past it, which would drop most of what
+retrieval found while recording nothing — so Catena fits candidates to a budget derived from that
+window and records what did not fit.
+
+**A measured Phase 1 limit.** On a broad question — UC-4, the creation days — the generator answers
+21 retrieved passages with a single argument whose `warrant` summarises a dozen sources in one
+string, and runs past the completion ceiling. The truncation is refused rather than shown, so the
+guarantee holds and the answer degrades; but the answer degrades. Prompting is the prescribed
+response and did not bind: neither a limit on the number of claims nor a per-field sentence limit
+changed the output, and the same instructions on a two-passage prompt produce a compact, correctly
+routed answer. The runaway scales with how much source material is in front of the model, which
+points at a per-corpus retrieval quota — policy, not reranking — as the first thing Phase 2 should
+cost. It is recorded here rather than fixed, because fixing it before Phase 2 measures it is the
+optimisation the phase ordering exists to prevent.
+
 The live risk is verbatim quoting. Check 2 is exact substring containment with no case, quote or
 dash folding, and Westminster is dense with archaic spelling and curly apostrophes. A model that
 paraphrases by one character fails every citation it emits. That rate is measured in Phase 1 for
 free, and the response is a better generator or better prompting — **never a looser check 2.**
 
-The prompt injects the profile summary and citation rules. Prompting is layer 2 of 3 and is not
-trusted on its own; layer 3 is what makes it real.
+The prompt injects the **filter spec** summary — the corpora in scope and the stance taken toward
+each — and the citation rules. Not the profile: Python never receives one, and the corpora list is
+the whole of what can be said there about who asked (ADR-0015). An earlier draft of this line said
+"profile summary", which was never implementable.
+
+Prompting is layer 2 of 3 and is not trusted on its own; layer 3 is what makes it real. One thing
+layer 2 must get right, because no later layer can: **passage text is delimited by whole lines, never
+wrapped in quotation marks.** A probe that wrapped passages in `"` got the quotation marks back
+inside the quote, which fails exact substring containment while reading exactly like a paraphrase
+failure.
 
 ## Data model
 

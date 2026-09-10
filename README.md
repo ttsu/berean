@@ -94,6 +94,7 @@ corpus.
 | Docker memory | **12 GiB allocated to the Docker VM**, and this is the constraint that actually bites on macOS and Windows — see below |
 | Disk | **30 GB** free. ~7.5 GB of weights, ~8 GB of container images, and the rest for acquired text, staged records, and the vector index |
 | Time | **2–4 hours** on CPU for a clean provision, almost all of it embedding. Estimated, not yet measured — Task 11 records the wall-clock figure on the reference machine |
+| Per answer | **2–4 minutes** on CPU. Measured, not estimated — see below |
 
 **On macOS and Windows, host RAM is not the binding constraint — the Docker VM's allocation is.**
 Docker Desktop runs a Linux VM with its own memory ceiling, commonly defaulting to around 8 GiB
@@ -108,6 +109,14 @@ llama-server process has terminated: signal: killed
 That reads as a broken model or a bad pin, and it is neither. Raise Docker Desktop's memory limit to
 **12 GiB** (Settings → Resources → Memory) before running anything that generates. Linux hosts run
 containers natively and are bounded by host RAM alone, so the 16 GB floor is the whole story there.
+
+**An answer takes minutes, not seconds, and that is expected.** On the reference machine Qwen3-8B
+q4_K_M generates at roughly **3.4 tokens per second** against a full retrieval prompt — the context
+makes each token dearer than a bare prompt's ~9 t/s — so a Phase 1 answer lands in two to four
+minutes. Retrieval itself is three orders of magnitude faster: embedding and search together take
+about three seconds, and the trace records each stage separately, so a slow answer can be attributed
+rather than guessed at. A GPU changes this picture entirely; the acceptance test does not assume
+one.
 
 `make provision` acquires seven corpora and embeds roughly 35,000 chunks, dominated by the ~31,100
 verses of the WEB Bible. It is resumable per corpus, so an interrupted run continues rather than

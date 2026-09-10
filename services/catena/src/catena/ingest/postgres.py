@@ -21,6 +21,7 @@ from catena.acquire.record import StagedRecord, WorkFacts
 from catena.ingest import IngestionError
 from catena.ingest.embed import Pending
 from catena.ingest.plan import ExistingChunk
+from catena.vectors import literal as vector_literal
 
 DATABASE_URL_ENV = "CATENA_DATABASE_URL"
 
@@ -243,16 +244,6 @@ class PostgresStore:
                     embedding_model,
                     dim,
                     [chunk_id for chunk_id, _ in pairs],
-                    [_literal(vector) for _, vector in pairs],
+                    [vector_literal(vector) for _, vector in pairs],
                 ),
             )
-
-
-def _literal(vector: Sequence[float]) -> str:
-    """pgvector's text input form.
-
-    Written by hand rather than through pgvector's adapter, which would be a
-    dependency for one string. `repr` of a Python float round-trips exactly, and
-    the values arrive as float32 from the encoder, so nothing is lost.
-    """
-    return "[" + ",".join(repr(float(component)) for component in vector) + "]"

@@ -56,3 +56,5 @@ Use [0000-template.md](0000-template.md).
 | [0019](0019-a-contested-locus-admits-no-arguments.md) | A contested locus admits no affirmative arguments | Accepted |
 | [0020](0020-the-uncited-surface-of-the-answer-object.md) | The answer object's uncited surface, and what verification guarantees | Accepted |
 | [0021](0021-the-edition-diagnostic-is-verified-not-quoted.md) | The edition diagnostic is verified, not quoted | Accepted |
+| [0022](0022-generated-code-is-committed.md) | The generated protobuf is committed, not gitignored | Accepted (resolves 0013's deferral) |
+| [0023](0023-the-decoding-constraint-is-derived-and-permissive.md) | The decoding constraint is derived, permissive, and unthinking | Accepted |

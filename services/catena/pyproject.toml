@@ -53,6 +53,27 @@ dependencies = [
     # transitively is what let the CUDA build in -- so naming it here is what makes
     # the CPU pin take effect at all, not a restatement of something implied.
     "torch>=2.0",
+    # Task 7's one dependency, and the first thing in this project to call a
+    # model in the request path. SHARED §6 requires Langfuse instrumentation
+    # "from Phase 1" and ADR-0009 chose it over LangSmith; retrofitting means
+    # the Phase 1 baseline is unmeasured, which defeats measuring Phase 3
+    # against it.
+    #
+    # MIT, and it brings OpenTelemetry with it -- which SHARED §6 also asks for
+    # on the non-LLM path, so the transitive weight is a dependency this project
+    # owes anyway rather than one Langfuse imposes. Roughly 30 MB against the
+    # ~2.3 GB of encoder already in this image.
+    #
+    # Generation itself is stdlib `urllib` (see catena/serve/generate.py): the
+    # OpenAI-compatible *wire format* is what makes providers interchangeable,
+    # not a vendor SDK, and the same reasoning keeps `acquire.fetch` on stdlib.
+    "langfuse>=4.15,<5",
+    # The standard gRPC health service, so compose can tell "the port is open"
+    # from "the encoder is loaded". Catena joins the default `up` in Task 7 and
+    # the gateway depends on it, and BGE-M3 takes tens of seconds to load from
+    # /models -- a TCP check would report healthy through the whole of it. It is
+    # the generated health stubs and a servicer, nothing more.
+    "grpcio-health-checking>=1.76,<2",
 ]
 
 [project.scripts]
@@ -84,8 +105,13 @@ explicit = true
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
+# `berean` is the generated contract, committed rather than generated at build
+# time (ADR-0022). It is packaged here rather than reached through PYTHONPATH so
+# that an editable dev install and the wheel in the image resolve it the same
+# way -- an import that works in one and not the other is the kind of difference
+# that surfaces two tasks later as something else.
 [tool.hatch.build.targets.wheel]
-packages = ["src/catena"]
+packages = ["src/catena", "gen/berean"]
 
 [tool.ruff]
 line-length = 100
