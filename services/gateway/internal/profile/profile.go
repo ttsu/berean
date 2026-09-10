@@ -211,6 +211,12 @@ func corpusIDs(doc document) []string {
 	return ids
 }
 
+// Name is the profile's own name — `pca`. It is how `--profile` selects this
+// document and how a trace records which tradition was asked, and it is the
+// one field that must never cross the boundary: Python receives a search
+// policy, not an identity (ADR-0015).
+func (p *Profile) Name() string { return p.doc.Profile }
+
 // ContestedLoci resolves the loci this tradition holds open. A sibling of the
 // filter spec, never part of it: the filter is retrieval policy and these are
 // generation context, and mixing them would make the filter mean two things.

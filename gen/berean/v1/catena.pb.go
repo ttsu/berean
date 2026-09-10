@@ -48,6 +48,16 @@ type AnswerRequest struct {
 	// carried them; this reuses the message Go already produces and persists, so
 	// Go emits only what it actually found and composes no prose.
 	PreviousFailures []*VerificationResult `protobuf:"bytes,6,rep,name=previous_failures,json=previousFailures,proto3" json:"previous_failures,omitempty"`
+	// The answer-level rules the previous attempt broke, alongside
+	// `previous_failures`. Empty on the first attempt.
+	//
+	// A separate field rather than more `VerificationResult`s, because several
+	// of the rules Go enforces are about a slot rather than a citation and one
+	// of them — the omission check — fires on an answer whose every citation
+	// passed all four checks. Folding those into `VerificationResult` would
+	// mean emitting a result whose four booleans all say "passed" beside a
+	// detail saying the answer failed (ADR-0024).
+	AnswerFailures []*AnswerFailure `protobuf:"bytes,8,rep,name=answer_failures,json=answerFailures,proto3" json:"answer_failures,omitempty"`
 	// 1 on the first call, 2 on the regeneration. Nothing else is valid.
 	//
 	// Required for metrics rather than for generation: first-attempt and
@@ -126,6 +136,13 @@ func (x *AnswerRequest) GetRequestId() string {
 func (x *AnswerRequest) GetPreviousFailures() []*VerificationResult {
 	if x != nil {
 		return x.PreviousFailures
+	}
+	return nil
+}
+
+func (x *AnswerRequest) GetAnswerFailures() []*AnswerFailure {
+	if x != nil {
+		return x.AnswerFailures
 	}
 	return nil
 }
@@ -234,7 +251,7 @@ var File_berean_v1_catena_proto protoreflect.FileDescriptor
 
 const file_berean_v1_catena_proto_rawDesc = "" +
 	"\n" +
-	"\x16berean/v1/catena.proto\x12\tberean.v1\x1a\x16berean/v1/answer.proto\x1a\x16berean/v1/filter.proto\x1a\x15berean/v1/trace.proto\x1a\x1cberean/v1/verification.proto\"\xf4\x02\n" +
+	"\x16berean/v1/catena.proto\x12\tberean.v1\x1a\x16berean/v1/answer.proto\x1a\x16berean/v1/filter.proto\x1a\x15berean/v1/trace.proto\x1a\x1cberean/v1/verification.proto\"\xb7\x03\n" +
 	"\rAnswerRequest\x12\x14\n" +
 	"\x05query\x18\x01 \x01(\tR\x05query\x12N\n" +
 	"\x14conversation_context\x18\x02 \x03(\v2\x1b.berean.v1.ConversationTurnR\x13conversationContext\x126\n" +
@@ -243,7 +260,8 @@ const file_berean_v1_catena_proto_rawDesc = "" +
 	"\x0econtested_loci\x18\x04 \x03(\v2\x19.berean.v1.ContestedLocusR\rcontestedLoci\x12\x1d\n" +
 	"\n" +
 	"request_id\x18\x05 \x01(\tR\trequestId\x12J\n" +
-	"\x11previous_failures\x18\x06 \x03(\v2\x1d.berean.v1.VerificationResultR\x10previousFailures\x12\x18\n" +
+	"\x11previous_failures\x18\x06 \x03(\v2\x1d.berean.v1.VerificationResultR\x10previousFailures\x12A\n" +
+	"\x0fanswer_failures\x18\b \x03(\v2\x18.berean.v1.AnswerFailureR\x0eanswerFailures\x12\x18\n" +
 	"\aattempt\x18\a \x01(\x05R\aattempt\"\x12\n" +
 	"\x10ConversationTurn\"r\n" +
 	"\x0eAnswerResponse\x12/\n" +
@@ -272,23 +290,25 @@ var file_berean_v1_catena_proto_goTypes = []any{
 	(*FilterSpec)(nil),         // 3: berean.v1.FilterSpec
 	(*ContestedLocus)(nil),     // 4: berean.v1.ContestedLocus
 	(*VerificationResult)(nil), // 5: berean.v1.VerificationResult
-	(*AnswerObject)(nil),       // 6: berean.v1.AnswerObject
-	(*RetrievalTrace)(nil),     // 7: berean.v1.RetrievalTrace
+	(*AnswerFailure)(nil),      // 6: berean.v1.AnswerFailure
+	(*AnswerObject)(nil),       // 7: berean.v1.AnswerObject
+	(*RetrievalTrace)(nil),     // 8: berean.v1.RetrievalTrace
 }
 var file_berean_v1_catena_proto_depIdxs = []int32{
 	1, // 0: berean.v1.AnswerRequest.conversation_context:type_name -> berean.v1.ConversationTurn
 	3, // 1: berean.v1.AnswerRequest.filter_spec:type_name -> berean.v1.FilterSpec
 	4, // 2: berean.v1.AnswerRequest.contested_loci:type_name -> berean.v1.ContestedLocus
 	5, // 3: berean.v1.AnswerRequest.previous_failures:type_name -> berean.v1.VerificationResult
-	6, // 4: berean.v1.AnswerResponse.answer:type_name -> berean.v1.AnswerObject
-	7, // 5: berean.v1.AnswerResponse.trace:type_name -> berean.v1.RetrievalTrace
-	0, // 6: berean.v1.CatenaService.Answer:input_type -> berean.v1.AnswerRequest
-	2, // 7: berean.v1.CatenaService.Answer:output_type -> berean.v1.AnswerResponse
-	7, // [7:8] is the sub-list for method output_type
-	6, // [6:7] is the sub-list for method input_type
-	6, // [6:6] is the sub-list for extension type_name
-	6, // [6:6] is the sub-list for extension extendee
-	0, // [0:6] is the sub-list for field type_name
+	6, // 4: berean.v1.AnswerRequest.answer_failures:type_name -> berean.v1.AnswerFailure
+	7, // 5: berean.v1.AnswerResponse.answer:type_name -> berean.v1.AnswerObject
+	8, // 6: berean.v1.AnswerResponse.trace:type_name -> berean.v1.RetrievalTrace
+	0, // 7: berean.v1.CatenaService.Answer:input_type -> berean.v1.AnswerRequest
+	2, // 8: berean.v1.CatenaService.Answer:output_type -> berean.v1.AnswerResponse
+	8, // [8:9] is the sub-list for method output_type
+	7, // [7:8] is the sub-list for method input_type
+	7, // [7:7] is the sub-list for extension type_name
+	7, // [7:7] is the sub-list for extension extendee
+	0, // [0:7] is the sub-list for field type_name
 }
 
 func init() { file_berean_v1_catena_proto_init() }

@@ -47,6 +47,17 @@ message AnswerRequest {
   // Go emits only what it actually found and composes no prose.
   repeated VerificationResult previous_failures = 6;
 
+  // The answer-level rules the previous attempt broke, alongside
+  // `previous_failures`. Empty on the first attempt.
+  //
+  // A separate field rather than more `VerificationResult`s, because several
+  // of the rules Go enforces are about a slot rather than a citation and one
+  // of them — the omission check — fires on an answer whose every citation
+  // passed all four checks. Folding those into `VerificationResult` would
+  // mean emitting a result whose four booleans all say "passed" beside a
+  // detail saying the answer failed (ADR-0024).
+  repeated AnswerFailure answer_failures = 8;
+
   // 1 on the first call, 2 on the regeneration. Nothing else is valid.
   //
   // Required for metrics rather than for generation: first-attempt and

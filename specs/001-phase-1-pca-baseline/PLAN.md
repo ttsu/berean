@@ -802,54 +802,131 @@ embedder makes the move pay for itself.
 
 The phase's reason for existing.
 
-- [ ] Locator resolution: corpus ID + locator → exactly one chunk
-- [ ] Quote match: exact substring containment after normalisation, with a **40-character floor**.
+**Status:** landed. The engine, the turn that drives it, and the contract change the engine forced
+(ADR-0024). Persistence is Task 9's, and rendering is Task 10's.
+
+- [x] Locator resolution: corpus ID + locator → exactly one chunk. `internal/corpus.Lookup`, over
+      `corpus.chunks` rather than the `chunk_metadata` view: the view inner-joins the embeddings,
+      which is right for "is this corpus ingested" and wrong here — a chunk whose vector has not
+      landed is still real text at a real locator, and refusing it would report a fabricated
+      citation where the truth is a half-finished ingestion
+- [x] Quote match: exact substring containment after normalisation, with a **40-character floor**.
       The four checks prove a citation is real, never that its quote supports the claim; the floor
-      blocks the degenerate case without any semantic judgement (ADR-0020)
-- [ ] Go asserts the same shared normalisation vectors the Python ingestion suite asserts
-- [ ] Tier check against the **resolved profile**, not the tier Python claimed
-- [ ] Every `Argument` carries a `binding` or `governing` citation; advisory-only fails
-- [ ] `contrary` or `excluded` appearing in `arguments[]` fails; both permitted in the descriptive
+      blocks the degenerate case without any semantic judgement (ADR-0020). Counted in characters,
+      not bytes, and there is a test that fails on a byte count
+- [x] Go asserts the same shared normalisation vectors the Python ingestion suite asserts — landed
+      at Task 2, and check 2 routes through that package rather than through `strings.TrimSpace`
+- [x] Tier check against the **resolved profile**, not the tier Python claimed. `Citation.tier` is
+      read nowhere in the engine, which is the point of it
+- [x] Every `Argument` carries a `binding` or `governing` citation; advisory-only fails
+- [x] `contrary` or `excluded` appearing in `arguments[]` fails; both permitted in the descriptive
       slots with their labels
-- [ ] `descriptions[].citations` non-empty; `position` empty when `arguments` is empty
-- [ ] License check reads the enum: `public-domain`, `cc-by`, `cc-by-sa` pass; `local-only` passes
-      only under the deployer opt-in; `refused` never passes (ADR-0017)
-- [ ] Citation to a corpus not in the sent FilterSpec fails immediately
-- [ ] `contested.locus` not among the loci sent fails immediately, as an unsent corpus does
-- [ ] When `is_contested`, the locus's ruling is cited and quoted verbatim in `state_of_debate`
-- [ ] When `is_contested`, `arguments` is empty. Flagging a locus contested and resolving it in the
+- [x] `descriptions[].citations` non-empty; `position` empty when `arguments` is empty
+- [x] License check reads the enum: `public-domain`, `cc-by`, `cc-by-sa` pass; `local-only` passes
+      only under the deployer opt-in; `refused` never passes (ADR-0017). A licence outside the enum
+      fails closed, because the only safe reading of one this build does not know is that it
+      permits nothing
+- [x] Citation to a corpus not in the sent FilterSpec fails immediately
+- [x] `contested.locus` not among the loci sent fails immediately, as an unsent corpus does
+- [x] When `is_contested`, the locus's ruling is cited and quoted verbatim in `state_of_debate`
+- [x] When `is_contested`, `arguments` is empty. Flagging a locus contested and resolving it in the
       same answer otherwise passes every check, and WCF 4.1 is the most retrievable chunk for the
       UC-4 question while reading as settled (ADR-0019)
-- [ ] A verified citation resolving to a locus's ruling while `is_contested` is false fails — the
-      system's only omission check
-- [ ] `no_answer_reason` non-empty only when every content slot is empty, and ≤ 200 characters.
+- [x] A verified citation resolving to a locus's ruling while `is_contested` is false fails — the
+      system's only omission check. It fires on *verified* citations only: a fabricated quote at the
+      ruling's locator has already failed check 2, and firing here as well would report one mistake
+      as two rules broken
+- [x] `no_answer_reason` non-empty only when every content slot is empty, and ≤ 200 characters.
       Every slot empty with no reason FAILS and regenerates — a truncated generation must not render
       as considered silence
-- [ ] `confidence.level` and `confidence.reason` both derived from the verification result by the
+- [x] `confidence.level` and `confidence.reason` both derived from the verification result by the
       rule in INTEGRATION-SPEC, overwriting whatever Python sent
-- [ ] Go never rewrites the answer; contested failures regenerate then degrade like any other
-- [ ] Empty `citations` on any argument fails the answer
-- [ ] Regenerate once on failure, sending `previous_failures` and `attempt = 2`; degrade on the
+- [x] Go never rewrites the answer; contested failures regenerate then degrade like any other
+- [x] Empty `citations` on any argument fails the answer
+- [x] Regenerate once on failure, sending `previous_failures` and `attempt = 2`; degrade on the
       second failure. Go sends verification results, never composed prose instructions
-- [ ] Degraded output is "I can't source this adequately" with no partial unverified content
-- [ ] `VerificationResult` persisted per citation
-- [ ] An honest non-answer is recorded as `VERIFIED` with `no_answer_reason` set, tracked separately
+- [x] Degraded output carries no partial unverified content and no `no_answer_reason`. The string
+      "I can't source this adequately" is Task 10's to print: the turn returns `DEGRADED` with an
+      empty answer object, and a renderer that has to be told which words to use is a renderer that
+      cannot accidentally show the failed attempt
+- [x] `VerificationResult` **produced** per citation per attempt, alongside `AnswerFailure` for the
+      answer-level rules. Task 9 writes both — `trace.verification_results` has a foreign key into
+      `trace.traces`, so nothing can be persisted before the trace row is, and the whole turn is one
+      transaction at the end (INTEGRATION-SPEC). The checkbox previously read "persisted"
+- [x] An honest non-answer is recorded as `VERIFIED` with `no_answer_reason` set, tracked separately
       from `DEGRADED`. UC-2 and UC-5 mean opposite things and must not share a metric
-- [ ] Unit tests use **invented text only**, never corpus text — substring containment and NFC are
+- [x] Unit tests use **invented text only**, never corpus text — substring containment and NFC are
       indifferent to provenance, and pasting WCF 7.2 into a fixture is the ADR-0014 violation the
-      policy specifically warns about
-- [ ] Latency measured against synthetic load, not the ten acceptance questions — ten hand-run
-      queries do not produce a p95. Target remains ≤ 200 ms
+      policy specifically warns about. The live-database suite borrows real chunks at run time and
+      keeps them in memory; nothing it reads is written down
+- [x] Latency measured against synthetic load, not the ten acceptance questions — ten hand-run
+      queries do not produce a p95. Target ≤ 200 ms, and both measurements are assertions in the
+      suite rather than numbers in a report: **p95 0.68 ms** for the engine over eight citations
+      against 4,000-character chunks, **p95 1.28 ms** for the same load against the live index
 
----
+**Decisions Task 8 made that the spec did not anticipate**, recorded in ADR-0024, INTEGRATION-SPEC,
+TECHNICAL-SPEC and `services/gateway/AGENTS.md`:
+
+- **Answer-level failures needed a channel of their own** (ADR-0024). `VerificationResult` is shaped
+  for the four checks — one citation, four booleans, a detail empty exactly when all four passed —
+  and several rules Go enforces are about a *slot* rather than a citation. The omission check forced
+  it: every one of the four checks passes and the answer fails, so recording it as a verification
+  result means a row whose booleans all say "passed" beside a detail saying the answer did not,
+  which `verification_results_detail_iff_failure` rejects. `AnswerFailure`,
+  `AnswerRequest.answer_failures` and `trace.answer_failures` are the result. INTEGRATION-SPEC's
+  line that the retry "defines nothing new" was written about a narrower case than the one that
+  exists, and is corrected
+- **The tier floor on an argument is answer-level, not per-citation.** Advisory inside an argument is
+  *permitted* — it corroborates — and becomes a failure only when it is the argument's whole
+  support. That is a property of the argument, so check 3 stays true of each citation on its own.
+  Encoding the floor per citation would mark a legitimate corroborating citation failed and send the
+  regeneration hunting for a quote that is fine
+- **Degradation always follows exactly two generation attempts**, which Task 3 explicitly left for
+  this task and `responses_degraded_is_second_attempt` now holds. An unreachable Catena or database
+  is an *error*, not a degraded answer: `DEGRADED` is a successful outcome of the verification
+  system, and folding an outage into it makes the one rate ADR-0010 needs kept clean unreadable
+- **A fifth uncited surface, closed rather than enumerated.** `state_of_debate` is bound to a
+  verbatim quote only when `is_contested` is true, and by nothing when it is false — so an answer
+  leaving the flag unset and filling the field carried unbounded prose past every check.
+  `STATE_OF_DEBATE_WITHOUT_CONTEST` closes it, which is what keeps INTEGRATION-SPEC's enumeration of
+  exactly four true
+- **Each of the four checks records what it actually found, and a check that could not run says so.**
+  A citation to an out-of-scope corpus is still looked up, so its locator, quote and licence results
+  are true rather than borrowed from the tier failure. That costs one indexed lookup on a citation
+  already doomed, and it buys a regeneration that is told the right mistake: an out-of-scope corpus
+  with a real locator and a real quote is not a fabricated locator, and a result reading "all four
+  failed" would send the generator after the wrong one
+- **Verification is complete rather than short-circuited.** Every citation is checked and every
+  broken rule reported, because the regeneration carries them back and telling the generator about
+  the first of three buys an attempt that fixes one third of the problem
+- **Confidence counts distinct `{corpus_id, locator}` pairs, inside `arguments` only.** "Two or more"
+  is otherwise satisfiable by citing one passage twice, which is a corroboration nobody performed;
+  and a binding citation inside a `description` rests on no authority, so counting it would raise the
+  confidence of an answer that argues nothing
+- **The turn is its own package** (`internal/turn`), separate from the engine. The engine judges one
+  answer; the turn owns how many times Catena may be asked and what survives. Keeping the count in
+  one small file is what makes "at most two calls, and only ever two" reviewable
+- **`internal/config`** reads `BEREAN_SERVE_LOCAL_ONLY` and `BEREAN_TOP_K`. The opt-in accepts
+  exactly the set Catena's own reader accepts, written out on both sides for the reason the
+  normalisation contract is written out on both sides: two standard libraries' idea of "truthy" is
+  two different functions, and the one thing that must not vary between them is whether this
+  deployment may serve restricted text. A malformed `BEREAN_TOP_K` is an error rather than a silent
+  fallback to 20, because `top_k` is recorded in every trace and is one of the two settings most
+  likely to move the Phase 2 baseline invisibly
+- **`Profile.Name()`**, which Task 6 did not need. `trace.responses.profile` does, and Phase 2 slices
+  on it before it slices on anything else
 
 ## Task 9: Trace persistence
 
 **Depends on:** Tasks 7, 8
 
-Tables come from Task 3; this task is the persistence path that writes them.
+Tables come from Task 3, plus `trace.answer_failures` from Task 8 (ADR-0024); this task is the
+persistence path that writes them. Task 8 produces everything they hold — per-citation
+`VerificationResult`s, per-slot `AnswerFailure`s, the retrieval trace for each attempt, the overall
+result and the derived confidence — and writes nothing.
 
 - [ ] Trace persisted for every response including degraded ones
+- [ ] `trace.answer_failures` written alongside `trace.verification_results`, from the same attempt
 - [ ] Schema reviewed against Phase 2's needs before merge — revise the Task 3 migration if short
 - [ ] Gateway role only; Catena has no write access
 

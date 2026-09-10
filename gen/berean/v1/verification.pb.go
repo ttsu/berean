@@ -87,6 +87,120 @@ func (OverallResult) EnumDescriptor() ([]byte, []int) {
 	return file_berean_v1_verification_proto_rawDescGZIP(), []int{0}
 }
 
+// AnswerFailureCode enumerates the answer-level rules.
+//
+// Closed rather than open for the reason every other enum in this contract is:
+// a free-text code reduces "which rule failed" to string comparison against
+// spellings nobody agreed on.
+type AnswerFailureCode int32
+
+const (
+	AnswerFailureCode_ANSWER_FAILURE_CODE_UNSPECIFIED AnswerFailureCode = 0
+	// A claim slot that must carry citations carries none. Every claim is cited
+	// or it is not shown (SHARED §3).
+	AnswerFailureCode_ANSWER_FAILURE_CODE_CITATIONS_REQUIRED AnswerFailureCode = 1
+	// An `Argument` carries citations but none at `binding` or `governing`.
+	// Advisory corroborates; it never establishes. Per-citation check 3 cannot
+	// see this: an advisory citation inside an argument is permitted, and only
+	// becomes a failure when it is the argument's whole support.
+	AnswerFailureCode_ANSWER_FAILURE_CODE_ARGUMENT_LACKS_AUTHORITY AnswerFailureCode = 2
+	// `position` is non-empty while `arguments` is empty. A purely descriptive
+	// answer reports what sources say and states no position of its own.
+	AnswerFailureCode_ANSWER_FAILURE_CODE_POSITION_WITHOUT_ARGUMENTS AnswerFailureCode = 3
+	// `is_contested` is true and `arguments` is not empty. Flagging a locus
+	// contested and resolving it in the same answer passes every other check,
+	// and it is the worst outcome the product can produce (ADR-0019).
+	AnswerFailureCode_ANSWER_FAILURE_CODE_CONTESTED_WITH_ARGUMENTS AnswerFailureCode = 4
+	// `contested.locus` names a locus that was not sent. An unsent locus is a
+	// fabrication, exactly as an unsent corpus ID is.
+	AnswerFailureCode_ANSWER_FAILURE_CODE_CONTESTED_LOCUS_UNKNOWN AnswerFailureCode = 5
+	// `is_contested` is true and `contested.citations` does not include the
+	// ruling named for that locus.
+	AnswerFailureCode_ANSWER_FAILURE_CODE_CONTESTED_RULING_UNCITED AnswerFailureCode = 6
+	// `is_contested` is true and `state_of_debate` does not contain the ruling's
+	// quote verbatim. A contested claim is a cited claim or it is not shown.
+	AnswerFailureCode_ANSWER_FAILURE_CODE_CONTESTED_RULING_UNQUOTED AnswerFailureCode = 7
+	// A verified citation resolves to a locus's ruling while `is_contested` is
+	// false. The system's only omission check, and the only rule that fires on
+	// an answer whose every citation passed all four checks.
+	AnswerFailureCode_ANSWER_FAILURE_CODE_RULING_CITED_WHILE_UNCONTESTED AnswerFailureCode = 8
+	// `state_of_debate` is non-empty while `is_contested` is false. It is
+	// bounded by the verbatim-quote rule only when the flag is set, so without
+	// this it is a fifth uncited surface and INTEGRATION-SPEC's enumeration of
+	// exactly four stops being true.
+	AnswerFailureCode_ANSWER_FAILURE_CODE_STATE_OF_DEBATE_WITHOUT_CONTEST AnswerFailureCode = 9
+	// `no_answer_reason` is non-empty while some content slot is not, or while
+	// the answer is contested.
+	AnswerFailureCode_ANSWER_FAILURE_CODE_NO_ANSWER_REASON_NOT_ALONE AnswerFailureCode = 10
+	// `no_answer_reason` is longer than 200 characters.
+	AnswerFailureCode_ANSWER_FAILURE_CODE_NO_ANSWER_REASON_TOO_LONG AnswerFailureCode = 11
+	// Every content slot is empty, the answer is not contested, and no
+	// `no_answer_reason` was given. A truncated generation must not render as
+	// considered silence (ADR-0020).
+	AnswerFailureCode_ANSWER_FAILURE_CODE_EMPTY_ANSWER AnswerFailureCode = 12
+)
+
+// Enum value maps for AnswerFailureCode.
+var (
+	AnswerFailureCode_name = map[int32]string{
+		0:  "ANSWER_FAILURE_CODE_UNSPECIFIED",
+		1:  "ANSWER_FAILURE_CODE_CITATIONS_REQUIRED",
+		2:  "ANSWER_FAILURE_CODE_ARGUMENT_LACKS_AUTHORITY",
+		3:  "ANSWER_FAILURE_CODE_POSITION_WITHOUT_ARGUMENTS",
+		4:  "ANSWER_FAILURE_CODE_CONTESTED_WITH_ARGUMENTS",
+		5:  "ANSWER_FAILURE_CODE_CONTESTED_LOCUS_UNKNOWN",
+		6:  "ANSWER_FAILURE_CODE_CONTESTED_RULING_UNCITED",
+		7:  "ANSWER_FAILURE_CODE_CONTESTED_RULING_UNQUOTED",
+		8:  "ANSWER_FAILURE_CODE_RULING_CITED_WHILE_UNCONTESTED",
+		9:  "ANSWER_FAILURE_CODE_STATE_OF_DEBATE_WITHOUT_CONTEST",
+		10: "ANSWER_FAILURE_CODE_NO_ANSWER_REASON_NOT_ALONE",
+		11: "ANSWER_FAILURE_CODE_NO_ANSWER_REASON_TOO_LONG",
+		12: "ANSWER_FAILURE_CODE_EMPTY_ANSWER",
+	}
+	AnswerFailureCode_value = map[string]int32{
+		"ANSWER_FAILURE_CODE_UNSPECIFIED":                     0,
+		"ANSWER_FAILURE_CODE_CITATIONS_REQUIRED":              1,
+		"ANSWER_FAILURE_CODE_ARGUMENT_LACKS_AUTHORITY":        2,
+		"ANSWER_FAILURE_CODE_POSITION_WITHOUT_ARGUMENTS":      3,
+		"ANSWER_FAILURE_CODE_CONTESTED_WITH_ARGUMENTS":        4,
+		"ANSWER_FAILURE_CODE_CONTESTED_LOCUS_UNKNOWN":         5,
+		"ANSWER_FAILURE_CODE_CONTESTED_RULING_UNCITED":        6,
+		"ANSWER_FAILURE_CODE_CONTESTED_RULING_UNQUOTED":       7,
+		"ANSWER_FAILURE_CODE_RULING_CITED_WHILE_UNCONTESTED":  8,
+		"ANSWER_FAILURE_CODE_STATE_OF_DEBATE_WITHOUT_CONTEST": 9,
+		"ANSWER_FAILURE_CODE_NO_ANSWER_REASON_NOT_ALONE":      10,
+		"ANSWER_FAILURE_CODE_NO_ANSWER_REASON_TOO_LONG":       11,
+		"ANSWER_FAILURE_CODE_EMPTY_ANSWER":                    12,
+	}
+)
+
+func (x AnswerFailureCode) Enum() *AnswerFailureCode {
+	p := new(AnswerFailureCode)
+	*p = x
+	return p
+}
+
+func (x AnswerFailureCode) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (AnswerFailureCode) Descriptor() protoreflect.EnumDescriptor {
+	return file_berean_v1_verification_proto_enumTypes[1].Descriptor()
+}
+
+func (AnswerFailureCode) Type() protoreflect.EnumType {
+	return &file_berean_v1_verification_proto_enumTypes[1]
+}
+
+func (x AnswerFailureCode) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use AnswerFailureCode.Descriptor instead.
+func (AnswerFailureCode) EnumDescriptor() ([]byte, []int) {
+	return file_berean_v1_verification_proto_rawDescGZIP(), []int{1}
+}
+
 // VerificationResult is one citation's outcome under the four checks.
 //
 // It is verification metadata, never instructions. Go MUST NOT compose prose
@@ -185,6 +299,97 @@ func (x *VerificationResult) GetFailureDetail() string {
 	return ""
 }
 
+// AnswerFailure is a rule the answer broke that no citation can carry.
+//
+// The four checks are per citation, and `VerificationResult` is shaped for
+// them. Several rules the trust boundary enforces are answer-level and have no
+// citation to attach to: an argument with no citations at all, `position`
+// stated where nothing affirmative was argued, a locus flagged contested and
+// resolved anyway, the bounds on `no_answer_reason`. The omission check is the
+// sharpest case — every one of the four checks passes and the answer still
+// fails, so recording it as a `VerificationResult` would mean writing a row
+// whose booleans all say "passed" beside a detail saying "failed" (ADR-0024).
+//
+// Like `VerificationResult`, this is metadata rather than instructions. `code`
+// and `slot` say which rule broke and where; `detail` states the fact. Nothing
+// here tells Python how to fix an answer, and `Confidence.reason` remains the
+// only Go-authored string a user ever reads.
+type AnswerFailure struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Which rule broke. A closed set, so a regeneration prompt and a Phase 2
+	// query can both count them without parsing prose.
+	Code AnswerFailureCode `protobuf:"varint,1,opt,name=code,proto3,enum=berean.v1.AnswerFailureCode" json:"code,omitempty"`
+	// Where, in the answer object's own terms: `arguments[2]`,
+	// `contested.locus`, `no_answer_reason`.
+	Slot string `protobuf:"bytes,2,opt,name=slot,proto3" json:"slot,omitempty"`
+	// The citation this is about, when one is. Absent for the rules that are
+	// about a slot's emptiness rather than about any citation in it.
+	CitationRef *CitationRef `protobuf:"bytes,3,opt,name=citation_ref,json=citationRef,proto3" json:"citation_ref,omitempty"`
+	// What broke, factually. Never empty: a failure nobody can act on is a
+	// failure that was not really recorded.
+	Detail        string `protobuf:"bytes,4,opt,name=detail,proto3" json:"detail,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AnswerFailure) Reset() {
+	*x = AnswerFailure{}
+	mi := &file_berean_v1_verification_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AnswerFailure) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AnswerFailure) ProtoMessage() {}
+
+func (x *AnswerFailure) ProtoReflect() protoreflect.Message {
+	mi := &file_berean_v1_verification_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AnswerFailure.ProtoReflect.Descriptor instead.
+func (*AnswerFailure) Descriptor() ([]byte, []int) {
+	return file_berean_v1_verification_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *AnswerFailure) GetCode() AnswerFailureCode {
+	if x != nil {
+		return x.Code
+	}
+	return AnswerFailureCode_ANSWER_FAILURE_CODE_UNSPECIFIED
+}
+
+func (x *AnswerFailure) GetSlot() string {
+	if x != nil {
+		return x.Slot
+	}
+	return ""
+}
+
+func (x *AnswerFailure) GetCitationRef() *CitationRef {
+	if x != nil {
+		return x.CitationRef
+	}
+	return nil
+}
+
+func (x *AnswerFailure) GetDetail() string {
+	if x != nil {
+		return x.Detail
+	}
+	return ""
+}
+
 var File_berean_v1_verification_proto protoreflect.FileDescriptor
 
 const file_berean_v1_verification_proto_rawDesc = "" +
@@ -196,12 +401,32 @@ const file_berean_v1_verification_proto_rawDesc = "" +
 	"\rquote_matched\x18\x03 \x01(\bR\fquoteMatched\x12%\n" +
 	"\x0etier_permitted\x18\x04 \x01(\bR\rtierPermitted\x12+\n" +
 	"\x11license_permitted\x18\x05 \x01(\bR\x10licensePermitted\x12%\n" +
-	"\x0efailure_detail\x18\x06 \x01(\tR\rfailureDetail*\x89\x01\n" +
+	"\x0efailure_detail\x18\x06 \x01(\tR\rfailureDetail\"\xa8\x01\n" +
+	"\rAnswerFailure\x120\n" +
+	"\x04code\x18\x01 \x01(\x0e2\x1c.berean.v1.AnswerFailureCodeR\x04code\x12\x12\n" +
+	"\x04slot\x18\x02 \x01(\tR\x04slot\x129\n" +
+	"\fcitation_ref\x18\x03 \x01(\v2\x16.berean.v1.CitationRefR\vcitationRef\x12\x16\n" +
+	"\x06detail\x18\x04 \x01(\tR\x06detail*\x89\x01\n" +
 	"\rOverallResult\x12\x1e\n" +
 	"\x1aOVERALL_RESULT_UNSPECIFIED\x10\x00\x12\x1b\n" +
 	"\x17OVERALL_RESULT_VERIFIED\x10\x01\x12\x1e\n" +
 	"\x1aOVERALL_RESULT_REGENERATED\x10\x02\x12\x1b\n" +
-	"\x17OVERALL_RESULT_DEGRADED\x10\x03B/Z-github.com/ttsu/berean/gen/berean/v1;bereanv1b\x06proto3"
+	"\x17OVERALL_RESULT_DEGRADED\x10\x03*\x90\x05\n" +
+	"\x11AnswerFailureCode\x12#\n" +
+	"\x1fANSWER_FAILURE_CODE_UNSPECIFIED\x10\x00\x12*\n" +
+	"&ANSWER_FAILURE_CODE_CITATIONS_REQUIRED\x10\x01\x120\n" +
+	",ANSWER_FAILURE_CODE_ARGUMENT_LACKS_AUTHORITY\x10\x02\x122\n" +
+	".ANSWER_FAILURE_CODE_POSITION_WITHOUT_ARGUMENTS\x10\x03\x120\n" +
+	",ANSWER_FAILURE_CODE_CONTESTED_WITH_ARGUMENTS\x10\x04\x12/\n" +
+	"+ANSWER_FAILURE_CODE_CONTESTED_LOCUS_UNKNOWN\x10\x05\x120\n" +
+	",ANSWER_FAILURE_CODE_CONTESTED_RULING_UNCITED\x10\x06\x121\n" +
+	"-ANSWER_FAILURE_CODE_CONTESTED_RULING_UNQUOTED\x10\a\x126\n" +
+	"2ANSWER_FAILURE_CODE_RULING_CITED_WHILE_UNCONTESTED\x10\b\x127\n" +
+	"3ANSWER_FAILURE_CODE_STATE_OF_DEBATE_WITHOUT_CONTEST\x10\t\x122\n" +
+	".ANSWER_FAILURE_CODE_NO_ANSWER_REASON_NOT_ALONE\x10\n" +
+	"\x121\n" +
+	"-ANSWER_FAILURE_CODE_NO_ANSWER_REASON_TOO_LONG\x10\v\x12$\n" +
+	" ANSWER_FAILURE_CODE_EMPTY_ANSWER\x10\fB/Z-github.com/ttsu/berean/gen/berean/v1;bereanv1b\x06proto3"
 
 var (
 	file_berean_v1_verification_proto_rawDescOnce sync.Once
@@ -215,20 +440,24 @@ func file_berean_v1_verification_proto_rawDescGZIP() []byte {
 	return file_berean_v1_verification_proto_rawDescData
 }
 
-var file_berean_v1_verification_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_berean_v1_verification_proto_msgTypes = make([]protoimpl.MessageInfo, 1)
+var file_berean_v1_verification_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
+var file_berean_v1_verification_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
 var file_berean_v1_verification_proto_goTypes = []any{
 	(OverallResult)(0),         // 0: berean.v1.OverallResult
-	(*VerificationResult)(nil), // 1: berean.v1.VerificationResult
-	(*CitationRef)(nil),        // 2: berean.v1.CitationRef
+	(AnswerFailureCode)(0),     // 1: berean.v1.AnswerFailureCode
+	(*VerificationResult)(nil), // 2: berean.v1.VerificationResult
+	(*AnswerFailure)(nil),      // 3: berean.v1.AnswerFailure
+	(*CitationRef)(nil),        // 4: berean.v1.CitationRef
 }
 var file_berean_v1_verification_proto_depIdxs = []int32{
-	2, // 0: berean.v1.VerificationResult.citation_ref:type_name -> berean.v1.CitationRef
-	1, // [1:1] is the sub-list for method output_type
-	1, // [1:1] is the sub-list for method input_type
-	1, // [1:1] is the sub-list for extension type_name
-	1, // [1:1] is the sub-list for extension extendee
-	0, // [0:1] is the sub-list for field type_name
+	4, // 0: berean.v1.VerificationResult.citation_ref:type_name -> berean.v1.CitationRef
+	1, // 1: berean.v1.AnswerFailure.code:type_name -> berean.v1.AnswerFailureCode
+	4, // 2: berean.v1.AnswerFailure.citation_ref:type_name -> berean.v1.CitationRef
+	3, // [3:3] is the sub-list for method output_type
+	3, // [3:3] is the sub-list for method input_type
+	3, // [3:3] is the sub-list for extension type_name
+	3, // [3:3] is the sub-list for extension extendee
+	0, // [0:3] is the sub-list for field type_name
 }
 
 func init() { file_berean_v1_verification_proto_init() }
@@ -242,8 +471,8 @@ func file_berean_v1_verification_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_berean_v1_verification_proto_rawDesc), len(file_berean_v1_verification_proto_rawDesc)),
-			NumEnums:      1,
-			NumMessages:   1,
+			NumEnums:      2,
+			NumMessages:   2,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

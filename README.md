@@ -147,7 +147,7 @@ make proto          # regenerate the Go and Python stubs from proto/
 make check          # guards, unit suites, contract lint, and compose validation
 make test           # the unit suites on their own
 make test-schema    # assert the schema, its constraints and both roles' grants (needs `make dev`)
-make test-gateway-db # assert the corpus registry and profile load against a live database (needs `make dev`)
+make test-gateway-db # assert the corpus reads and verification latency against a live database (needs `make dev`)
 make migrate        # apply db/migrations/ to a running Postgres
 make build          # build the gateway and catena images
 make reset          # destroy the volumes, so Postgres re-runs its init scripts
@@ -158,7 +158,9 @@ golang-migrate container. `make dev` applies them, so `make migrate` is only for
 migration without a restart. `make test-schema` is not part of `make check`: `check` runs with
 nothing started, and a grant is only demonstrated by a statement a live database actually refuses.
 `make test-gateway-db` is out for the same reason — it asserts that every corpus `profiles/pca.yaml`
-names is really ingested, which a fake registry can only agree with.
+names is really ingested, that a citation resolves to the row the corpus tables actually hold, and
+that verification stays inside its latency target against the real index. A fake can only agree
+with the first and cannot see the rest.
 
 If `make dev` fails with **`error: failed to open database: no schema`**, the Postgres volume
 predates the schemas the migrator needs. The init script that creates them runs once, on an empty
@@ -166,9 +168,9 @@ data directory, so `make reset` is the fix. Creating the missing schema by hand 
 old enough to lack it is missing others too, and repairing one hides the rest.
 
 `buf` and the Go toolchain run in pinned containers, so neither is a host prerequisite. The
-generated protobuf stubs are **not committed** (ADR-0013 defers that decision to Phase 2), so run
-`make proto` once after cloning if you are working on either service — until you do, the suite
-that checks the contract skips itself rather than failing.
+generated protobuf stubs **are committed** (ADR-0022), so a clean clone builds and `docker compose
+up` works with no codegen step. Change anything under `proto/`, run `make proto`, and commit what it
+writes: `make guard-proto-fresh` fails when the committed stubs and the contract disagree.
 
 Two guards run in `make check` and are not optional:
 

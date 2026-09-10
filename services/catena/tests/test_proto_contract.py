@@ -81,6 +81,7 @@ class RequestCarriesWhatTheRetryNeeds(unittest.TestCase):
                 "contested_loci",
                 "request_id",
                 "previous_failures",
+                "answer_failures",
                 "attempt",
             },
         )
@@ -94,6 +95,48 @@ class RequestCarriesWhatTheRetryNeeds(unittest.TestCase):
         field = catena_pb2.AnswerRequest.DESCRIPTOR.fields_by_name["previous_failures"]
         self.assertEqual(field.message_type.name, "VerificationResult")
         self.assertTrue(field.is_repeated)
+
+    def test_answer_failures_are_their_own_field(self) -> None:
+        """Several rules Go enforces are about a slot rather than a citation.
+
+        The omission check is the one that forces the field: it fires on an
+        answer whose every citation passed all four checks, so folding it into
+        `previous_failures` would mean a `VerificationResult` whose booleans all
+        say "passed" beside a detail saying the answer failed (ADR-0024).
+        """
+        field = catena_pb2.AnswerRequest.DESCRIPTOR.fields_by_name["answer_failures"]
+        self.assertEqual(field.message_type.name, "AnswerFailure")
+        self.assertTrue(field.is_repeated)
+
+    def test_every_answer_failure_code_is_named(self) -> None:
+        """A closed set, so counting a rule is a GROUP BY rather than a LIKE.
+
+        Held against the enum by name: a code added to the proto without a
+        `trace.answer_failure_code` value to match writes a row the migration
+        rejects, and this is the cheapest place to notice.
+        """
+        codes = {
+            value.name
+            for value in verification_pb2.AnswerFailureCode.DESCRIPTOR.values
+            if value.number != 0
+        }
+        self.assertEqual(
+            codes,
+            {
+                "ANSWER_FAILURE_CODE_CITATIONS_REQUIRED",
+                "ANSWER_FAILURE_CODE_ARGUMENT_LACKS_AUTHORITY",
+                "ANSWER_FAILURE_CODE_POSITION_WITHOUT_ARGUMENTS",
+                "ANSWER_FAILURE_CODE_CONTESTED_WITH_ARGUMENTS",
+                "ANSWER_FAILURE_CODE_CONTESTED_LOCUS_UNKNOWN",
+                "ANSWER_FAILURE_CODE_CONTESTED_RULING_UNCITED",
+                "ANSWER_FAILURE_CODE_CONTESTED_RULING_UNQUOTED",
+                "ANSWER_FAILURE_CODE_RULING_CITED_WHILE_UNCONTESTED",
+                "ANSWER_FAILURE_CODE_STATE_OF_DEBATE_WITHOUT_CONTEST",
+                "ANSWER_FAILURE_CODE_NO_ANSWER_REASON_NOT_ALONE",
+                "ANSWER_FAILURE_CODE_NO_ANSWER_REASON_TOO_LONG",
+                "ANSWER_FAILURE_CODE_EMPTY_ANSWER",
+            },
+        )
 
     def test_contested_loci_are_a_sibling_of_the_filter_spec(self) -> None:
         """Retrieval policy and generation context are different things (ADR-0015)."""

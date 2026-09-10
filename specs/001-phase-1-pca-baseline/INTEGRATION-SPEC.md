@@ -21,6 +21,7 @@ one regeneration on verification failure (ADR-0002, ADR-0010).
 | `contested_loci` | `[ { locus, ruling: { corpus_id, locator } } ]` — see below |
 | `request_id` | Correlates trace, response, and Langfuse span |
 | `previous_failures` | `[ VerificationResult ]` — empty on the first attempt; on a regeneration, exactly what failed and why |
+| `answer_failures` | `[ AnswerFailure ]` — the answer-level rules the previous attempt broke. Empty on the first attempt |
 | `attempt` | `1` on the first call, `2` on the regeneration. Nothing else is valid |
 
 **`filter_spec`** carries corpus IDs grouped by tier plus tier weights. It does **not** carry the
@@ -58,10 +59,20 @@ the generator at all, and Phase 2 cannot attribute a retrieval change to a const
 
 **`previous_failures` and `attempt`** exist because ADR-0010 decided the retry carries "the failure
 reasons back" and no field carried them. `previous_failures` reuses `VerificationResult` — the same
-message Go already produces and persists — so nothing new is defined and Go emits only what it
-actually found. It is verification metadata, never instructions: Go MUST NOT compose prose telling
-Python how to fix the answer. `confidence.reason` is the only Go-authored string in the system, and
-the first exception to that is the one that ends the guarantee.
+message Go already produces and persists — so Go emits only what it actually found. It is
+verification metadata, never instructions: Go MUST NOT compose prose telling Python how to fix the
+answer. `confidence.reason` is the only Go-authored string in the system, and the first exception to
+that is the one that ends the guarantee.
+
+**`answer_failures` is the second half of the same idea**, and it exists because reusing
+`VerificationResult` turned out to cover a narrower case than this document first assumed.
+`VerificationResult` is shaped for the four checks: one citation, four booleans, a detail that is
+empty exactly when all four passed. Several rules Go enforces are about a *slot* rather than a
+citation — an argument carrying none, a `position` where nothing was argued, the bounds on
+`no_answer_reason` — and the omission check fires on an answer whose every citation passed all four
+checks. None of those is expressible as a verification result without a row whose booleans all say
+"passed" beside a detail saying the answer did not, which the trace constraint rejects. So the retry
+carries two lists, and both are metadata on the same terms (ADR-0024).
 
 `attempt` is required for metrics, not for generation. ADR-0010 states that first-attempt and
 post-retry verification must be distinguishable, or a regeneration hides a rising fabrication rate.
@@ -212,6 +223,12 @@ unstated limit reads as an absent one. There are four, and Phase 2's harness mea
    all-slots-empty precondition. It is the only one of the four deliberately added rather than
    inherited, and it renders with no citation beside it (ADR-0020).
 
+There was nearly a fifth, and Task 8 closed it rather than adding it to this list.
+`state_of_debate` is bound to a verbatim quote of the ruling *when `is_contested` is true*, and by
+nothing at all when it is false — so an answer that left the flag unset and filled the field would
+have carried unbounded prose past every check. It is now a failure
+(`STATE_OF_DEBATE_WITHOUT_CONTEST`), which is what keeps this enumeration at four.
+
 **Both halves of `confidence` are derived by Go from the verification result** — citation counts by
 tier, contested flags, degraded checks — and state what was found, never how the model felt about
 it. Python MUST NOT populate `level` or `reason`, and Go MUST overwrite whatever arrives in either.
@@ -278,8 +295,54 @@ VerificationResult:
   tier_permitted: bool
   license_permitted: bool
   failure_detail: string
+
+AnswerFailure:
+  code: AnswerFailureCode      # closed set; see below
+  slot: string                 # `arguments[2]`, `contested.locus`, `no_answer_reason`
+  citation_ref: { corpus_id, locator }   # only for the rules that name a citation
+  detail: string               # never empty
+
 OverallResult: VERIFIED | REGENERATED | DEGRADED
 ```
+
+**Which findings go where is decided by what the rule is about, not by severity.** The four checks
+are per citation and produce `VerificationResult`. Everything else is per slot and produces
+`AnswerFailure`:
+
+| `AnswerFailureCode` | Fires when |
+| --- | --- |
+| `CITATIONS_REQUIRED` | An `Argument`, `Description` or `ContraryPosition` carries no citations |
+| `ARGUMENT_LACKS_AUTHORITY` | An argument's citations include none at `binding` or `governing` |
+| `POSITION_WITHOUT_ARGUMENTS` | `position` is non-empty while `arguments` is empty |
+| `CONTESTED_WITH_ARGUMENTS` | `is_contested` with a non-empty `arguments` (ADR-0019) |
+| `CONTESTED_LOCUS_UNKNOWN` | `contested.locus` was not among the loci sent |
+| `CONTESTED_RULING_UNCITED` | `is_contested` and `contested.citations` omits that locus's ruling |
+| `CONTESTED_RULING_UNQUOTED` | `state_of_debate` does not contain the ruling's quote verbatim |
+| `RULING_CITED_WHILE_UNCONTESTED` | The omission check: a **verified** citation resolves to a locus's ruling and `is_contested` is false |
+| `STATE_OF_DEBATE_WITHOUT_CONTEST` | `state_of_debate` is populated while `is_contested` is false |
+| `NO_ANSWER_REASON_NOT_ALONE` | `no_answer_reason` beside content, or beside a contested flag |
+| `NO_ANSWER_REASON_TOO_LONG` | Over 200 characters |
+| `EMPTY_ANSWER` | Every content slot empty, not contested, and no reason given |
+
+**The tier floor is answer-level and check 3 is not.** An advisory citation inside an argument is
+permitted — it corroborates — and becomes a failure only when it is the argument's whole support.
+That is a property of the argument rather than of any citation in it, so check 3 stays true of each
+citation on its own and `ARGUMENT_LACKS_AUTHORITY` carries the floor. Encoding the floor per
+citation would mark a legitimate corroborating citation failed and send the regeneration after a
+quote that is fine.
+
+**Both lists are complete rather than short-circuited.** Verification does not stop at the first bad
+citation: the regeneration carries them back, and telling the generator about the first of three
+buys a second attempt that fixes one third of the problem. Within one citation each of the four
+checks records what it actually found — a citation to an out-of-scope corpus whose locator and quote
+are both real fails check 3 alone, and its other three checks say so.
+
+**Degradation always follows exactly two generation attempts.** A citation that cannot verify
+regenerates once and then degrades, and so does an answer-level failure; there is no failure class
+that skips the retry. An unreachable Catena or an unreachable database is **not** a degraded answer
+— the gateway surfaces it as an error, because `DEGRADED` is a successful outcome of the
+verification system and folding an outage into it makes the degradation rate unreadable. This is
+what `responses_degraded_is_second_attempt` holds (ADR-0024).
 
 `DEGRADED` means the user saw "I can't source this adequately." It is a **successful** outcome of
 the verification system, not an error, and metrics must not treat it as a failure rate.
@@ -780,6 +843,12 @@ designed with that consumer in mind. `rank` has no counterpart in `RetrievalTrac
 repeated proto field carries its order positionally, a table has no order without a column, and the
 order is the whole of what @k means.
 
+`answer_failures` is one row per broken answer-level rule per attempt, keyed to the attempt like
+every other trace table. `code` is a Postgres enum mirroring `AnswerFailureCode`, so "which rule
+does this generator break most often" is a `GROUP BY` rather than a `LIKE`. Its `corpus_id` and
+`locator` are empty for the rules that name no citation, held whole-or-absent by a constraint:
+half a citation reference resolves to a whole corpus, which is not a thing any rule here is about.
+
 `verification_results` is one row per citation per attempt. It carries `corpus_id` and `locator` as
 plain columns with **no foreign key into `corpus`** — a citation to a corpus that does not exist is
 precisely what check 1 records, and a foreign key would make the fabrication unrecordable. The same
@@ -794,7 +863,8 @@ nothing.
 Constraints hold the invariants the proto states in prose: `attempts` is 1 or 2 and a third is the
 seam moving (ADR-0002, ADR-0010); a `verified` turn took one attempt and a `regenerated` turn took
 two, so the degradation rate stays readable; `failure_detail` is empty exactly when all four checks
-passed; and a candidate carries an `exclusion_reason` exactly when it was excluded.
+passed; a candidate carries an `exclusion_reason` exactly when it was excluded; and a `degraded`
+turn took two attempts, which Task 3 left open and ADR-0024 closed.
 
 ## Versioning
 

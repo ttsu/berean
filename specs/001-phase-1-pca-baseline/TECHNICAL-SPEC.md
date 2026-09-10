@@ -286,12 +286,29 @@ Answer-level: **any claim without a citation fails.** And when `is_contested` is
 MUST be empty — a contested answer is descriptive, or it is flagging a debate while settling it
 (ADR-0019).
 
+The four checks are per citation and are recorded as `VerificationResult`. The answer-level rules
+are per *slot* and are recorded as `AnswerFailure`, in a channel of their own: an argument carrying
+no citations has none to fail, and the omission check fires on an answer whose every citation passed
+all four checks. Both travel back on the regeneration and both are persisted, and neither is ever
+prose telling the model how to fix an answer (ADR-0024). The full list of answer-level codes is in
+INTEGRATION-SPEC.
+
+The tier floor on an argument is one of those answer-level rules rather than part of check 3.
+Advisory inside an argument is permitted and fails only when it is the argument's whole support,
+which is a property of the argument and not of any citation in it.
+
 **The checks prove a citation is real, never that its quote supports the claim.** That limit, and
 the three other uncited surfaces, are enumerated in INTEGRATION-SPEC and measured by Phase 2.
 
 On failure: regenerate once with the failure reasons fed back — carried as `previous_failures`, a
-list of `VerificationResult`, alongside `attempt`. On second failure, degrade to "I can't source
-this adequately." Never render with a warning.
+list of `VerificationResult`, and `answer_failures`, a list of `AnswerFailure`, alongside `attempt`.
+On second failure, degrade to "I can't source this adequately." Never render with a warning, and
+never ship partial content beside one.
+
+**Degradation always follows exactly two generation attempts.** No failure class skips the retry. An
+unreachable Catena or an unreachable database is an error rather than a degraded answer: `DEGRADED`
+means verification refused to ship, which is a successful outcome of the verification system, and
+counting an outage as one makes the degradation rate ADR-0010 needs kept clean unreadable.
 
 `confidence.level` and `confidence.reason` are both derived by Go from the verification result;
 Python populates neither. A model-authored confidence is introspection in a structured field, which
@@ -301,8 +318,12 @@ An honest non-answer is not a degraded one. When the corpus is silent the model 
 `no_answer_reason` with every content slot empty, and the result is `VERIFIED` with its own rendered
 text — tracked separately from `DEGRADED`, because UC-2 and UC-5 mean opposite things.
 
-Target ≤ 200 ms p95. It is indexed lookups and string matching; if it is slower, something is
-structurally wrong.
+Target ≤ 200 ms p95, measured against **synthetic load** rather than the acceptance questions — ten
+hand-run queries do not produce a p95. It is indexed lookups and string matching; if it is slower,
+something is structurally wrong. Measured at Task 8 on the reference machine: p95 **0.68 ms** for
+the engine over eight citations against 4,000-character chunks, and p95 **1.28 ms** for the same
+load against the live index, both roughly two orders of magnitude inside the target. Both are
+assertions in the suite rather than numbers in a report, so a regression fails a test.
 
 ## Generation
 

@@ -76,7 +76,8 @@ migrate_step down "$steps"
 gone=$(value berean_owner \
     "SELECT count(*) FROM (VALUES ('corpus.works'), ('corpus.chunks'), ('corpus.chunk_embeddings'),
                                   ('corpus.chunk_metadata'), ('trace.responses'), ('trace.traces'),
-                                  ('trace.candidates'), ('trace.verification_results')) AS t(rel)
+                                  ('trace.candidates'), ('trace.verification_results'),
+                                  ('trace.answer_failures')) AS t(rel)
       WHERE to_regclass(rel) IS NOT NULL")
 if [ "$gone" != "0" ]; then
     echo "test-schema: down left $gone relations behind" >&2
