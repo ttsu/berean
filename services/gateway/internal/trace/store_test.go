@@ -220,6 +220,52 @@ func TestValidateRefusals(t *testing.T) {
 			says: "exclusion_reason",
 		},
 		{
+			// "Missing or malformed" is one contract violation, and both
+			// halves must reach the caller as ErrIncomplete: a bug in a
+			// service and an unreachable database want opposite responses.
+			name: "a retrieval trace with no rewritten query",
+			breaks: func(t *turn.Turn) {
+				t.Attempts[0].Trace.RewrittenQuery = "   "
+			},
+			says: "rewritten_query",
+		},
+		{
+			name: "a retrieval trace naming no generation model",
+			breaks: func(t *turn.Turn) {
+				t.Attempts[0].Trace.GenerationModel = ""
+			},
+			says: "generation_model",
+		},
+		{
+			name: "a retrieval trace naming no embedding model",
+			breaks: func(t *turn.Turn) {
+				t.Attempts[0].Trace.EmbeddingModel = ""
+			},
+			says: "embedding_model",
+		},
+		{
+			// A search of depth zero retrieves nothing, which reads in the
+			// trace exactly like an empty corpus.
+			name: "a retrieval trace reporting a depth of zero",
+			breaks: func(t *turn.Turn) {
+				t.Attempts[0].Trace.TopK = 0
+			},
+			says: "top_k=0",
+		},
+		{
+			name: "a retrieval trace reporting no embedding width",
+			breaks: func(t *turn.Turn) {
+				t.Attempts[0].Trace.Dim = 0
+			},
+			says: "dim=0",
+		},
+		{
+			// A third attempt is the one-call-per-generation seam moving.
+			name:   "an attempt beyond the second",
+			breaks: func(t *turn.Turn) { t.Attempts[0].Number = 3 },
+			says:   "one regeneration",
+		},
+		{
 			// A reason of three spaces satisfies `<> ''` while recording
 			// exactly the unexplained exclusion the constraint exists to
 			// prevent, which is why both sides trim.
@@ -248,6 +294,28 @@ func TestValidateRefusals(t *testing.T) {
 	}
 }
 
+// TestValidateAcceptsAnEmptyCitationReference is the counterpart to the
+// refusals above, and the reason migration 000005 exists.
+//
+// Nothing constrains the generator to a non-empty `corpus_id` — Catena's
+// structured-output schema requires the key and sets no `minLength` — so an
+// empty one is a citation the model really can emit, and check 1 rejects it
+// correctly. Refusing to record it would lose the whole turn to the very
+// fabrication the trace tables exist to capture, and under the persist-before-
+// render rule the user would see a crash where the honest outcome was "I can't
+// source this adequately".
+func TestValidateAcceptsAnEmptyCitationReference(t *testing.T) {
+	subject := verifiedTurn()
+	subject.Attempts[0].Results = []*bereanv1.VerificationResult{{
+		CitationRef:   &bereanv1.CitationRef{CorpusId: "", Locator: ""},
+		FailureDetail: "no chunk carries that corpus ID and locator",
+	}}
+
+	if err := validate(subject); err != nil {
+		t.Fatalf("a fabricated citation was refused rather than recorded: %v", err)
+	}
+}
+
 // TestAnswerJSONUsesProtoNames pins the spelling Phase 2 queries this column
 // by. protojson's default would write `noAnswerReason`, making it a third
 // spelling of a field the proto and every document call `no_answer_reason`.
@@ -264,11 +332,9 @@ func TestAnswerJSONUsesProtoNames(t *testing.T) {
 	}
 }
 
-// TestAnswerJSONOmitsUnsetFields holds the other half of the choice. One of the
-// things this row is for is showing which fields Python populated, and emitting
-// proto3 defaults would fill it with fields nobody sent — including a
-// `confidence` on an attempt record where the contract says Python must send
-// none.
+// TestAnswerJSONOmitsUnsetFields holds the other half of the choice: omitting is
+// what proto3 means by an unset field, so the record stays the size of what the
+// answer actually said rather than carrying every slot the contract defines.
 func TestAnswerJSONOmitsUnsetFields(t *testing.T) {
 	encoded, err := answerJSON.Marshal(&bereanv1.AnswerObject{})
 	if err != nil {
@@ -308,11 +374,19 @@ func TestAnswerJSONRoundTrips(t *testing.T) {
 	}
 }
 
-// TestOpenRefusesAnUnnamedBuild. A store that cannot say which build it is
-// recording writes rows Phase 2 cannot separate, and the alternative — a
+// TestBothConstructorsRefuseAnUnnamedBuild. A store that cannot say which build
+// it is recording writes rows Phase 2 cannot separate, and the alternative — a
 // default of "unknown" — is a fabricated build identifier in an audit log.
-func TestOpenRefusesAnUnnamedBuild(t *testing.T) {
+//
+// Both constructors, because the empty string is the easiest value to arrive
+// here by accident: `go build` without the linker flag leaves `cmd/berean`'s
+// version at its default, and a store that accepted it would construct cleanly
+// and then fail at the end of every turn.
+func TestBothConstructorsRefuseAnUnnamedBuild(t *testing.T) {
 	if _, err := Open("postgres://invented/probe", "   "); err == nil {
-		t.Fatal("a store with no build version was opened")
+		t.Error("Open accepted a store with no build version")
+	}
+	if _, err := NewStore(nil, ""); err == nil {
+		t.Error("NewStore accepted a store with no build version")
 	}
 }

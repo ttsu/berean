@@ -34,7 +34,7 @@ VALUES
 
 INSERT INTO trace.traces
     (request_id, attempt, rewritten_query, embedding_model, dim,
-     generation_model, top_k, embed_ms, search_ms, generate_ms, verify_ms)
+     generation_model, top_k, embed_ms, search_ms, generate_ms, verify_us)
 VALUES
     ('00000000-0000-4000-8000-000000000001', 1, 'An invented question?',
      'probe-embedder', 1024, 'probe-generator:tag', 20, 1, 2, 3, 4),
@@ -253,6 +253,33 @@ BEGIN
     END;
 END $$;
 
+-- What migration 000005 makes recordable. Nothing constrains the generator to a
+-- non-empty corpus_id -- Catena's structured-output schema requires the key and
+-- sets no minLength -- so check 1 really does reject citations that name
+-- nothing, and this row is the only record that it happened. A CHECK refusing
+-- it made the fabrication unrecordable for the same reason a foreign key would
+-- have, and cost the whole transaction with it.
+INSERT INTO trace.verification_results
+    (request_id, attempt, corpus_id, locator,
+     locator_resolved, quote_matched, tier_permitted, license_permitted, failure_detail)
+VALUES
+    ('00000000-0000-4000-8000-000000000001', 1, '', '',
+     false, false, false, false, 'no chunk carries that corpus ID and locator');
+
+-- Retrieval's own output keeps its floor, and the difference is not an
+-- oversight: the gateway never invents a candidate, so a blank corpus_id there
+-- is a bug in Catena rather than a model fabrication worth recording.
+DO $$
+BEGIN
+    BEGIN
+        INSERT INTO trace.candidates
+            (request_id, attempt, rank, corpus_id, locator, score, included, exclusion_reason)
+        VALUES ('00000000-0000-4000-8000-000000000001', 1, 99, '', 'Probe 1.1', 0.5, true, '');
+        RAISE EXCEPTION 'a candidate naming no corpus was accepted';
+    EXCEPTION WHEN check_violation THEN NULL;
+    END;
+END $$;
+
 -- The two columns migration 000004 adds, both of which refuse a value that
 -- would read as a measurement nobody took.
 DO $$
@@ -284,16 +311,18 @@ BEGIN
     EXCEPTION WHEN not_null_violation THEN NULL;
     END;
 
-    -- Verification is the operation this phase exists for, and SHARED 9 puts
-    -- it at 200 ms p95. A negative duration is not a slow turn, it is a
-    -- clock nobody can read.
+    -- Verification is the operation this phase exists for, and SHARED 9 puts it
+    -- at 200 ms p95 -- recorded in microseconds, because Task 8 measured its
+    -- p95 at 0.68 ms and a millisecond column would read 0 for nearly every
+    -- turn. A negative duration is not a slow turn, it is a clock nobody can
+    -- read.
     BEGIN
         INSERT INTO trace.traces
             (request_id, attempt, rewritten_query, embedding_model, dim,
-             generation_model, top_k, embed_ms, search_ms, generate_ms, verify_ms)
+             generation_model, top_k, embed_ms, search_ms, generate_ms, verify_us)
         VALUES ('00000000-0000-4000-8000-000000000001', 1, 'q',
                 'probe-embedder', 1024, 'probe-generator:tag', 20, 1, 2, 3, -1);
-        RAISE EXCEPTION 'a negative verify_ms was accepted';
+        RAISE EXCEPTION 'a negative verify_us was accepted';
     EXCEPTION WHEN check_violation THEN NULL;
     END;
 END $$;

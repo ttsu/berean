@@ -50,6 +50,10 @@ import (
 // bug in the gateway or a Catena that is not honouring the contract.
 var ErrIncomplete = errors.New("the turn is not complete enough to record")
 
+// maxAttempts mirrors `internal/turn`: one generation plus at most one
+// regeneration (ADR-0010), and the bound `trace.traces.attempt` holds.
+const maxAttempts = 2
+
 // answerJSON is how the answer object reaches `trace.responses.answer`.
 //
 // `UseProtoNames` because Phase 2 queries this column in the contract's own
@@ -57,9 +61,12 @@ var ErrIncomplete = errors.New("the turn is not complete enough to record")
 // and every document that discusses it. protojson's default would spell it
 // `noAnswerReason` and make that a third spelling of one field.
 //
-// Unpopulated fields are omitted, which is what proto3 means by them. Emitting
-// defaults would fill the record with fields Python never sent, and one of the
-// things this row is for is showing which fields Python populated.
+// Unpopulated fields are omitted, which is what proto3 means by them, so the
+// record stays the size of what the answer actually said. This column holds the
+// **rendered** answer — the one the user saw, carrying Go's derived confidence
+// rather than whatever Python sent — so it is not the place to look for which
+// fields Python populated. The answers from attempts that failed are not stored
+// at all, deliberately.
 var answerJSON = protojson.MarshalOptions{UseProtoNames: true}
 
 // Store writes turns. It holds the build identifier every row it writes carries.
@@ -80,21 +87,32 @@ type Store struct {
 // which build it is recording writes rows Phase 2 cannot separate, and a
 // default of "unknown" is a fabricated build identifier in an audit log.
 func Open(dsn, version string) (*Store, error) {
-	if strings.TrimSpace(version) == "" {
-		return nil, fmt.Errorf("trace store: no build version to record")
-	}
 	db, err := sql.Open("pgx", dsn)
 	if err != nil {
 		return nil, fmt.Errorf("open trace store: %w", err)
 	}
-	return &Store{db: db, version: version}, nil
+	store, err := NewStore(db, version)
+	if err != nil {
+		db.Close()
+		return nil, err
+	}
+	return store, nil
 }
 
 // NewStore wraps an existing pool. Open is the constructor production uses;
 // this one exists for a caller that already holds a connection to the same
 // database under the same role.
-func NewStore(db *sql.DB, version string) *Store {
-	return &Store{db: db, version: version}
+//
+// It carries the version guard rather than leaving it to Open, because the
+// empty string is the easiest value to arrive here by accident: `go build`
+// without the linker flag leaves `cmd/berean`'s version at its default, and a
+// store that accepted it would construct cleanly and then fail at the end of
+// every turn — on the turn it had just spent two generations producing.
+func NewStore(db *sql.DB, version string) (*Store, error) {
+	if strings.TrimSpace(version) == "" {
+		return nil, fmt.Errorf("trace store: no build version to record")
+	}
+	return &Store{db: db, version: version}, nil
 }
 
 // Close releases the pool.
@@ -172,19 +190,20 @@ func writeAttempt(ctx context.Context, tx *sql.Tx, requestID string, attempt tur
 	trace := attempt.Trace
 	timings := trace.GetTimings()
 
-	// Milliseconds, matching the three stage timings Python reports. Truncated
-	// rather than rounded, because the column is a duration and rounding a
-	// sub-millisecond verification up to 1 ms would put a number in the trace
-	// that is larger than the thing it measured.
+	// Microseconds, unlike the three stage timings Python reports beside it.
+	// Those measure work taking tens to hundreds of milliseconds; verification
+	// is string matching and indexed lookups, and Task 8 measured its p95 at
+	// 0.68 ms. In milliseconds this column would read `0` for very nearly every
+	// turn.
 	_, err := tx.ExecContext(ctx,
 		`INSERT INTO trace.traces
 		     (request_id, attempt, rewritten_query, embedding_model, dim,
-		      generation_model, top_k, embed_ms, search_ms, generate_ms, verify_ms)
+		      generation_model, top_k, embed_ms, search_ms, generate_ms, verify_us)
 		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
 		requestID, attempt.Number, trace.GetRewrittenQuery(), trace.GetEmbeddingModel(),
 		trace.GetDim(), trace.GetGenerationModel(), trace.GetTopK(),
 		timings.GetEmbedMs(), timings.GetSearchMs(), timings.GetGenerateMs(),
-		attempt.Verify.Milliseconds())
+		attempt.Verify.Microseconds())
 	if err != nil {
 		return fmt.Errorf("trace %s attempt %d: %w", requestID, attempt.Number, err)
 	}
@@ -276,11 +295,17 @@ func enumValue(prefix, constant string) (string, error) {
 //
 // It deliberately does not restate every constraint in the schema — the
 // database is the backstop and it is the one that cannot be bypassed. What it
-// covers is the cases where a constraint violation names a column and the
-// caller needs the attempt and the field: an attempt with no retrieval trace at
-// all, a candidate whose `included` and `exclusion_reason` disagree. Those are
-// contract violations by Catena, and a message reading `null value in column
-// "rewritten_query"` sends whoever reads it to the wrong service.
+// covers is exactly the contract Catena is meant to honour, because those
+// violations must reach the caller as ErrIncomplete: a bug in a service and an
+// unreachable database want opposite responses, and a raw constraint violation
+// is indistinguishable from an outage to a caller deciding whether to retry.
+// A message reading `null value in column "rewritten_query"` also sends
+// whoever reads it to the wrong service.
+//
+// What it does **not** refuse is an empty `corpus_id` or `locator` on a
+// verification result. That is a citation the model emitted and check 1
+// rejected, the table is where fabrications are recorded, and migration 000005
+// removed the constraint that made this particular one unrecordable.
 func validate(t turn.Turn) error {
 	if strings.TrimSpace(t.RequestID) == "" {
 		return fmt.Errorf("%w: no request ID", ErrIncomplete)
@@ -295,10 +320,40 @@ func validate(t turn.Turn) error {
 	}
 
 	for _, attempt := range t.Attempts {
+		if attempt.Number < 1 || attempt.Number > maxAttempts {
+			return fmt.Errorf("trace %s: %w: attempt %d, and ADR-0010 fixes the retry at"+
+				" exactly one regeneration", t.RequestID, ErrIncomplete, attempt.Number)
+		}
 		if attempt.Trace == nil {
 			return fmt.Errorf("trace %s attempt %d: %w: catena returned no retrieval trace",
 				t.RequestID, attempt.Number, ErrIncomplete)
 		}
+
+		// The fields `trace.traces` requires. A trace that arrives half-filled
+		// is the same contract violation as one that does not arrive, and the
+		// two must not reach the caller as different kinds of error.
+		for _, field := range []struct {
+			name  string
+			value string
+		}{
+			{"rewritten_query", attempt.Trace.GetRewrittenQuery()},
+			{"embedding_model", attempt.Trace.GetEmbeddingModel()},
+			{"generation_model", attempt.Trace.GetGenerationModel()},
+		} {
+			if strings.TrimSpace(field.value) == "" {
+				return fmt.Errorf("trace %s attempt %d: %w: catena's retrieval trace carries no %s",
+					t.RequestID, attempt.Number, ErrIncomplete, field.name)
+			}
+		}
+		// Both are recorded so a Phase 2 comparison can hold them constant, and
+		// both are meaningless at zero: a search of depth zero retrieves
+		// nothing, which reads in the trace exactly like an empty corpus.
+		if attempt.Trace.GetDim() <= 0 || attempt.Trace.GetTopK() <= 0 {
+			return fmt.Errorf("trace %s attempt %d: %w: catena's retrieval trace reports dim=%d top_k=%d",
+				t.RequestID, attempt.Number, ErrIncomplete,
+				attempt.Trace.GetDim(), attempt.Trace.GetTopK())
+		}
+
 		for index, candidate := range attempt.Trace.GetCandidates() {
 			// The proto says the reason is empty exactly when the candidate was
 			// included. Held here as well as in the schema because an excluded

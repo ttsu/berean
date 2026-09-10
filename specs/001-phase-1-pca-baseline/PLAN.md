@@ -946,7 +946,7 @@ the review forced on Task 10. Rendering is still Task 10's.
       ADR-0024 split apart are reconstructible only together, and half of them is a failure nobody
       can diagnose
 - [x] Schema reviewed against Phase 2's needs before merge — **two columns short**, added in
-      migration 000004. Not a revision of the Task 3 migration, which is applied to the database all
+      migration 000004, and **one constraint wrong**, dropped in 000005. Not a revision of the Task 3 migration, which is applied to the database all
       eight corpora are ingested into; the phrase predates 000003. Both new columns are `NOT NULL`
       with no default, which the migration can only satisfy on empty tables — and they were empty,
       because this task is the first writer these tables have ever had
@@ -993,6 +993,43 @@ the review forced on Task 10. Rendering is still Task 10's.
   Unset fields stay omitted, which is what proto3 means by them — emitting defaults would fill the
   record with fields Python never sent, and one of the things this row shows is which fields Python
   populated
+
+**What review found, and what it changed:**
+
+- **`trace.verification_results` could not record the fabrication it exists to record.** Its
+  `corpus_id` and `locator` carried `CHECK (btrim(...) <> '')` beside a comment explaining why the
+  table has no foreign key into `corpus.works` — "a foreign key would make the fabrication
+  unrecordable" — and the CHECKs did that very thing one level down. Nothing constrains the
+  generator to a non-empty `corpus_id`: Catena's structured-output schema requires the citation's
+  keys and sets no `minLength`, so `"corpus_id": ""` is a generation the model can really produce.
+  Verification rejects it at check 1 correctly; persistence then could not write the row, and
+  because the whole turn is one transaction it lost the response, both attempts, every candidate
+  and every other citation with it. Under this task's own persist-before-render rule the user then
+  saw an error where the honest outcome was "I can't source this adequately". Migration 000005
+  drops both CHECKs. `candidates` and `answer_failures` keep theirs, and the asymmetry is
+  deliberate: a candidate is retrieval's own output, and every ref reaching `answer_failures` comes
+  from a locus the gateway sent or from a citation that passed all four checks, so neither can be
+  blank. The regression test is asserted both ways — with 000005 reverted it fails on the
+  constraint
+- **`verify_ms` was the wrong unit and would have recorded `0` for nearly every turn.** Task 8
+  measured verification's p95 at 0.68 ms for the engine and 1.28 ms against the live index, so a
+  millisecond column reports zero at exactly the percentile it exists to measure. It is `verify_us`,
+  in microseconds, and it is the one column here that does not match its neighbours' unit — they
+  measure work taking tens to hundreds of milliseconds. Corrected in 000004 rather than added as a
+  third migration, because the millisecond version was never merged
+- **`validate` refused a *missing* retrieval trace and not a *malformed* one**, while
+  INTEGRATION-SPEC and AGENTS.md — written in this same change — said "missing or malformed". A
+  half-filled trace reached Postgres and came back as a raw constraint violation that is not
+  `ErrIncomplete`, so a caller implementing the documented rule would retry a service bug forever
+  as an outage. It now covers the query, both model names, the width and the depth, and the attempt
+  number's bound
+- **`NewStore` skipped the version guard `Open` enforced.** `go build` without the linker flag
+  leaves `cmd/berean`'s version at its default, so the empty string is the easiest value to arrive
+  by accident — and a store that accepted it failed at the end of every turn, on the turn it had
+  just spent two generations producing. The guard moved into `NewStore`, which `Open` now calls
+- **The `answerJSON` comment justified the encoding with a claim about the wrong row**, saying the
+  record shows which fields Python populated. It holds the *rendered* answer, whose confidence Go
+  overwrote, and the answers from failed attempts are deliberately not stored at all
 
 **Three gaps the schema review found and deliberately left**, each with the reason, so a later phase
 re-opens them on purpose rather than rediscovering them:

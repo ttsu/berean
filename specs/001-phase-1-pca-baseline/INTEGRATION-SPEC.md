@@ -880,19 +880,43 @@ fields Python never sent, and one of the things this row shows is which fields P
 
 Two columns are recorded that no message carries. `responses.gateway_version` is the build that
 produced the turn — the first question asked of a verification failure, and the only thing
-separating rows from two builds in the one table Phase 2 reads. `traces.verify_ms` is how long
+separating rows from two builds in the one table Phase 2 reads. `traces.verify_us` is how long
 verification took on that attempt, measured by the gateway around its own engine and sitting beside
 the three stage timings Python reports: a turn's wall clock is the sum of the four, and with one of
-them missing these tables cannot say where a slow turn went. Neither column has a default, because a
-backfilled sentinel is a fabricated build identifier and a `verify_ms` of zero is a measurement
-rather than the absence of one.
+them missing these tables cannot say where a slow turn went. It is in **microseconds**, unlike its
+three neighbours, because they measure work taking tens to hundreds of milliseconds while
+verification is string matching and indexed lookups — measured at a p95 of 0.68 ms — so a
+millisecond column would record `0` for very nearly every turn. Neither column has a default,
+because a backfilled sentinel is a fabricated build identifier and an unmeasured duration is not
+zero.
 
 A response whose `RetrievalTrace` is missing or malformed is an **error**, not a degraded turn and
 not a row with sentinels substituted for what Catena did not send. It is the same class of event as
 an unreachable Catena: the system failed rather than the verification system succeeding, and
 laundering it into the degradation rate makes the one number ADR-0010 needs kept clean unreadable.
 The gateway distinguishes it from a database outage with a typed error, because the two want
-opposite responses — one is a bug in a service, the other is a retry.
+opposite responses — one is a bug in a service, the other is a retry. That refusal covers the whole
+of what Catena is contracted to send — the trace present, its query, models, width and depth
+populated — because a trace arriving half-filled is the same violation as one not arriving, and a
+raw constraint violation is indistinguishable from an outage to a caller deciding whether to retry.
+
+**`verification_results.corpus_id` and `.locator` accept the empty string**, and the columns'
+original non-empty CHECKs are dropped. The table already carries no foreign key into `corpus`,
+because "a citation to a corpus that does not exist is precisely what check 1 records, and a foreign
+key would make the fabrication unrecordable" — and those CHECKs did that very thing one level down.
+Nothing constrains the generator to a non-empty `corpus_id`: the structured-output schema requires
+the citation's keys and sets no `minLength`, so `"corpus_id": ""` is a generation the model can
+produce, verification rejects it at check 1, and this row is the only record it happened. Because
+the whole turn is one transaction, refusing the row cost the response, both attempts, every
+candidate and every other citation — and under persist-before-render the user then saw an error
+where the honest outcome was "I can't source this adequately".
+
+`candidates` and `answer_failures` keep their floors, and the difference is not an oversight. A
+candidate is retrieval's own output and the gateway never invents one, so a blank there is a bug in
+Catena rather than a fabrication worth recording. Every `citation_ref` reaching `answer_failures`
+comes from a `ContestedLocus` the gateway itself sent or from the citations that passed all four
+checks — which means they resolved — so neither can be blank, and the rules about a slot's emptiness
+carry no reference at all.
 
 Constraints hold the invariants the proto states in prose: `attempts` is 1 or 2 and a third is the
 seam moving (ADR-0002, ADR-0010); a `verified` turn took one attempt and a `regenerated` turn took

@@ -43,6 +43,7 @@ const (
 	verifiedID   = "00000000-0000-4000-8000-0000000009a1"
 	degradedID   = "00000000-0000-4000-8000-0000000009a2"
 	atomicID     = "00000000-0000-4000-8000-0000000009a3"
+	emptyRefID   = "00000000-0000-4000-8000-0000000009a4"
 	probeVersion = "0.0.0-probe"
 )
 
@@ -221,25 +222,25 @@ func TestWriteRecordsAVerifiedTurn(t *testing.T) {
 		t.Errorf("no_answer_reason = %q on an answer that set none", silent.String)
 	}
 
-	assertAttemptRows(t, db, verifiedID, 1, 7)
+	assertAttemptRows(t, db, verifiedID, 1, 7000)
 }
 
 // assertAttemptRows checks the per-attempt tables for one attempt.
-func assertAttemptRows(t *testing.T, db *sql.DB, requestID string, attempt, verifyMS int64) {
+func assertAttemptRows(t *testing.T, db *sql.DB, requestID string, attempt, verifyUS int64) {
 	t.Helper()
 
 	var (
 		rewritten, embedding, generation string
 		dim, topK                        int
 		embedMS, searchMS, generateMS    int64
-		storedVerifyMS                   int64
+		storedVerifyUS                   int64
 	)
 	err := db.QueryRow(
 		`SELECT rewritten_query, embedding_model, dim, generation_model, top_k,
-		        embed_ms, search_ms, generate_ms, verify_ms
+		        embed_ms, search_ms, generate_ms, verify_us
 		   FROM trace.traces WHERE request_id = $1 AND attempt = $2`, requestID, attempt).
 		Scan(&rewritten, &embedding, &dim, &generation, &topK,
-			&embedMS, &searchMS, &generateMS, &storedVerifyMS)
+			&embedMS, &searchMS, &generateMS, &storedVerifyUS)
 	if err != nil {
 		t.Fatalf("attempt %d trace: %v", attempt, err)
 	}
@@ -254,10 +255,12 @@ func assertAttemptRows(t *testing.T, db *sql.DB, requestID string, attempt, veri
 	if embedMS != 11 || searchMS != 22 || generateMS != 333 {
 		t.Errorf("attempt %d stage timings = %d/%d/%d", attempt, embedMS, searchMS, generateMS)
 	}
-	// The column migration 000004 adds. A turn's wall clock is the sum of the
-	// four, and with one missing the trace tables cannot say where it went.
-	if storedVerifyMS != verifyMS {
-		t.Errorf("attempt %d verify_ms = %d, want %d", attempt, storedVerifyMS, verifyMS)
+	// The column migration 000004 adds, in microseconds. A turn's wall clock is
+	// the sum of the four, and with one missing the trace tables cannot say
+	// where it went — but Task 8 measured verification's p95 at 0.68 ms, so a
+	// millisecond column would report `0` for very nearly every turn.
+	if storedVerifyUS != verifyUS {
+		t.Errorf("attempt %d verify_us = %d, want %d", attempt, storedVerifyUS, verifyUS)
 	}
 
 	// Rank is the order Python sent, not score order. The middle candidate is
@@ -382,7 +385,7 @@ func TestWriteRecordsADegradedTurn(t *testing.T) {
 
 	// Both attempts' traces, and both records, from each attempt.
 	for _, number := range []int64{1, 2} {
-		assertAttemptRows(t, db, degradedID, number, 3)
+		assertAttemptRows(t, db, degradedID, number, 3000)
 
 		var results, failures int
 		if err := db.QueryRow(
@@ -427,6 +430,79 @@ func TestWriteRecordsADegradedTurn(t *testing.T) {
 	}
 	if fabricated != 2 {
 		t.Errorf("the fabricated citation was recorded %d times across two attempts", fabricated)
+	}
+}
+
+// TestWriteRecordsAFabricatedCitationWithNoCorpus is what migration 000005
+// buys, asserted against the constraint that used to refuse it.
+//
+// Catena's structured-output schema requires the citation's keys and sets no
+// `minLength`, so `"corpus_id": ""` is a generation the model can really
+// produce. Verification rejects it at check 1, the turn degrades, and this row
+// is the only record that it happened. Before 000005 the insert failed, and
+// because the whole turn is one transaction it took the response, both
+// attempts, every candidate and every other citation with it.
+func TestWriteRecordsAFabricatedCitationWithNoCorpus(t *testing.T) {
+	clear(t, emptyRefID)
+
+	answer := &bereanv1.AnswerObject{
+		Confidence: confidence(bereanv1.ConfidenceLevel_CONFIDENCE_LEVEL_LOW,
+			"no content was verified on either attempt, so nothing was shown"),
+	}
+	attempt := func(number int32) turn.Attempt {
+		return turn.Attempt{
+			Number: number,
+			Answer: answer,
+			Trace:  probeTrace(),
+			Results: []*bereanv1.VerificationResult{{
+				// Exactly what verify.checkCitation builds from a citation
+				// whose corpus_id the model left empty.
+				CitationRef:     &bereanv1.CitationRef{CorpusId: "", Locator: ""},
+				LocatorResolved: false, QuoteMatched: false,
+				TierPermitted: false, LicensePermitted: false,
+				FailureDetail: "no chunk carries that corpus ID and locator",
+			}},
+			Verify: 2 * time.Millisecond,
+		}
+	}
+
+	subject := turn.Turn{
+		RequestID: emptyRefID,
+		Query:     "An invented question about an invented locus?",
+		Profile:   "probe",
+		Answer:    answer,
+		Overall:   bereanv1.OverallResult_OVERALL_RESULT_DEGRADED,
+		Attempts:  []turn.Attempt{attempt(1), attempt(2)},
+	}
+
+	if err := store(t).Write(context.Background(), subject); err != nil {
+		t.Fatalf("an empty citation cost the whole turn: %v", err)
+	}
+
+	db := reading(t)
+
+	// The turn survives in full — this is the half that matters, because the
+	// transaction is what made one bad citation lose everything.
+	var overall string
+	if err := db.QueryRow(
+		`SELECT overall_result FROM trace.responses WHERE request_id = $1`,
+		emptyRefID).Scan(&overall); err != nil {
+		t.Fatalf("the turn was lost to a fabricated citation: %v", err)
+	}
+	if overall != "degraded" {
+		t.Errorf("overall_result = %q", overall)
+	}
+
+	var recorded int
+	if err := db.QueryRow(
+		`SELECT count(*) FROM trace.verification_results
+		  WHERE request_id = $1 AND corpus_id = '' AND locator = ''
+		    AND NOT locator_resolved AND btrim(failure_detail) <> ''`,
+		emptyRefID).Scan(&recorded); err != nil {
+		t.Fatalf("count empty references: %v", err)
+	}
+	if recorded != 2 {
+		t.Errorf("the empty citation was recorded %d times across two attempts, want 2", recorded)
 	}
 }
 

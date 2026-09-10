@@ -39,11 +39,19 @@ ALTER TABLE trace.responses
 -- each of them, and because a turn's wall clock is the sum of the four -- with
 -- one of them missing, the trace tables cannot say where a slow turn went.
 --
--- No DEFAULT, for the reason above: zero is not "unmeasured", it is a
--- measurement, and a false one.
+-- **Microseconds, unlike its three neighbours.** Those measure work that takes
+-- tens to hundreds of milliseconds; this measures string matching and indexed
+-- lookups, and Task 8's own figures are a p95 of 0.68 ms for the engine and
+-- 1.28 ms against the live index. A millisecond column would therefore record
+-- `0` for very nearly every turn -- a column that reports zero at the p95 it
+-- exists to measure is not a measurement, and matching the neighbours' unit for
+-- symmetry would cost the whole of what the column is for. The suffix says
+-- which unit it is, so nothing has to remember.
+--
+-- No DEFAULT, for the reason above: an unmeasured duration is not zero.
 ALTER TABLE trace.traces
-    ADD COLUMN verify_ms bigint NOT NULL
-    CONSTRAINT traces_verify_ms_non_negative CHECK (verify_ms >= 0);
+    ADD COLUMN verify_us bigint NOT NULL
+    CONSTRAINT traces_verify_us_non_negative CHECK (verify_us >= 0);
 
 -- No grants. The two service roles' write scope is unchanged: this migration
 -- adds columns to tables `gateway` already writes and `catena` still cannot
