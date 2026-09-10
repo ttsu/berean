@@ -27,19 +27,19 @@ END $$;
 -- because `overall_result` and `confidence` are known only once the turn ends.
 INSERT INTO trace.responses
     (request_id, profile, query, answer, overall_result,
-     confidence_level, confidence_reason, attempts)
+     confidence_level, confidence_reason, attempts, gateway_version)
 VALUES
     ('00000000-0000-4000-8000-000000000001', 'probe', 'An invented question?', '{}'::jsonb,
-     'regenerated', 'medium', 'One binding citation; a regeneration occurred.', 2);
+     'regenerated', 'medium', 'One binding citation; a regeneration occurred.', 2, '0.0.0-probe');
 
 INSERT INTO trace.traces
     (request_id, attempt, rewritten_query, embedding_model, dim,
-     generation_model, top_k, embed_ms, search_ms, generate_ms)
+     generation_model, top_k, embed_ms, search_ms, generate_ms, verify_us)
 VALUES
     ('00000000-0000-4000-8000-000000000001', 1, 'An invented question?',
-     'probe-embedder', 1024, 'probe-generator:tag', 20, 1, 2, 3),
+     'probe-embedder', 1024, 'probe-generator:tag', 20, 1, 2, 3, 4),
     ('00000000-0000-4000-8000-000000000001', 2, 'An invented question?',
-     'probe-embedder', 1024, 'probe-generator:tag', 20, 1, 2, 3);
+     'probe-embedder', 1024, 'probe-generator:tag', 20, 1, 2, 3, 4);
 
 INSERT INTO trace.candidates
     (request_id, attempt, rank, corpus_id, locator, score, included, exclusion_reason)
@@ -200,9 +200,9 @@ BEGIN
     BEGIN
         INSERT INTO trace.responses
             (request_id, profile, query, answer, overall_result,
-             confidence_level, confidence_reason, attempts)
+             confidence_level, confidence_reason, attempts, gateway_version)
         VALUES ('00000000-0000-4000-8000-000000000002', 'probe', 'q', '{}'::jsonb,
-                'verified', 'high', 'r', 2);
+                'verified', 'high', 'r', 2, '0.0.0-probe');
         RAISE EXCEPTION 'a verified turn was recorded as taking two attempts';
     EXCEPTION WHEN check_violation THEN NULL;
     END;
@@ -210,9 +210,9 @@ BEGIN
     BEGIN
         INSERT INTO trace.responses
             (request_id, profile, query, answer, overall_result,
-             confidence_level, confidence_reason, attempts)
+             confidence_level, confidence_reason, attempts, gateway_version)
         VALUES ('00000000-0000-4000-8000-000000000003', 'probe', 'q', '{}'::jsonb,
-                'regenerated', 'medium', 'r', 1);
+                'regenerated', 'medium', 'r', 1, '0.0.0-probe');
         RAISE EXCEPTION 'a regenerated turn was recorded as taking one attempt';
     EXCEPTION WHEN check_violation THEN NULL;
     END;
@@ -221,9 +221,9 @@ BEGIN
     BEGIN
         INSERT INTO trace.responses
             (request_id, profile, query, answer, overall_result,
-             confidence_level, confidence_reason, attempts)
+             confidence_level, confidence_reason, attempts, gateway_version)
         VALUES ('00000000-0000-4000-8000-000000000004', 'probe', 'q', '{}'::jsonb,
-                'degraded', 'low', 'r', 3);
+                'degraded', 'low', 'r', 3, '0.0.0-probe');
         RAISE EXCEPTION 'a third attempt was accepted';
     EXCEPTION WHEN check_violation THEN NULL;
     END;
@@ -235,9 +235,9 @@ BEGIN
     BEGIN
         INSERT INTO trace.responses
             (request_id, profile, query, answer, overall_result,
-             confidence_level, confidence_reason, attempts)
+             confidence_level, confidence_reason, attempts, gateway_version)
         VALUES ('00000000-0000-4000-8000-000000000006', 'probe', 'q', '{}'::jsonb,
-                'degraded', 'low', 'r', 1);
+                'degraded', 'low', 'r', 1, '0.0.0-probe');
         RAISE EXCEPTION 'a degraded turn was recorded as taking one attempt';
     EXCEPTION WHEN check_violation THEN NULL;
     END;
@@ -245,11 +245,85 @@ BEGIN
     BEGIN
         INSERT INTO trace.responses
             (request_id, profile, query, answer, overall_result,
-             confidence_level, confidence_reason, attempts)
+             confidence_level, confidence_reason, attempts, gateway_version)
         VALUES ('00000000-0000-4000-8000-000000000005', 'probe', 'q', '{}'::jsonb,
-                'partially-verified', 'low', 'r', 1);
+                'partially-verified', 'low', 'r', 1, '0.0.0-probe');
         RAISE EXCEPTION 'an unrecognised overall_result was accepted';
     EXCEPTION WHEN invalid_text_representation THEN NULL;
+    END;
+END $$;
+
+-- What migration 000005 makes recordable. Nothing constrains the generator to a
+-- non-empty corpus_id -- Catena's structured-output schema requires the key and
+-- sets no minLength -- so check 1 really does reject citations that name
+-- nothing, and this row is the only record that it happened. A CHECK refusing
+-- it made the fabrication unrecordable for the same reason a foreign key would
+-- have, and cost the whole transaction with it.
+INSERT INTO trace.verification_results
+    (request_id, attempt, corpus_id, locator,
+     locator_resolved, quote_matched, tier_permitted, license_permitted, failure_detail)
+VALUES
+    ('00000000-0000-4000-8000-000000000001', 1, '', '',
+     false, false, false, false, 'no chunk carries that corpus ID and locator');
+
+-- Retrieval's own output keeps its floor, and the difference is not an
+-- oversight: the gateway never invents a candidate, so a blank corpus_id there
+-- is a bug in Catena rather than a model fabrication worth recording.
+DO $$
+BEGIN
+    BEGIN
+        INSERT INTO trace.candidates
+            (request_id, attempt, rank, corpus_id, locator, score, included, exclusion_reason)
+        VALUES ('00000000-0000-4000-8000-000000000001', 1, 99, '', 'Probe 1.1', 0.5, true, '');
+        RAISE EXCEPTION 'a candidate naming no corpus was accepted';
+    EXCEPTION WHEN check_violation THEN NULL;
+    END;
+END $$;
+
+-- The two columns migration 000004 adds, both of which refuse a value that
+-- would read as a measurement nobody took.
+DO $$
+BEGIN
+    -- "Which build produced this answer" is the first question asked of a
+    -- verification failure, and Phase 2 compares a later retriever against this
+    -- phase's baseline out of one table. A blank is a row neither can use, and
+    -- the alternative -- a default of 'unknown' -- is a fabricated build
+    -- identifier sitting in an audit log.
+    BEGIN
+        INSERT INTO trace.responses
+            (request_id, profile, query, answer, overall_result,
+             confidence_level, confidence_reason, attempts, gateway_version)
+        VALUES ('00000000-0000-4000-8000-000000000007', 'probe', 'q', '{}'::jsonb,
+                'verified', 'high', 'r', 1, '   ');
+        RAISE EXCEPTION 'a blank gateway_version was accepted';
+    EXCEPTION WHEN check_violation THEN NULL;
+    END;
+
+    -- No default either, for the same reason: zero is not "unmeasured", it is a
+    -- measurement, and a false one.
+    BEGIN
+        INSERT INTO trace.responses
+            (request_id, profile, query, answer, overall_result,
+             confidence_level, confidence_reason, attempts)
+        VALUES ('00000000-0000-4000-8000-000000000008', 'probe', 'q', '{}'::jsonb,
+                'verified', 'high', 'r', 1);
+        RAISE EXCEPTION 'a response with no gateway_version was accepted';
+    EXCEPTION WHEN not_null_violation THEN NULL;
+    END;
+
+    -- Verification is the operation this phase exists for, and SHARED 9 puts it
+    -- at 200 ms p95 -- recorded in microseconds, because Task 8 measured its
+    -- p95 at 0.68 ms and a millisecond column would read 0 for nearly every
+    -- turn. A negative duration is not a slow turn, it is a clock nobody can
+    -- read.
+    BEGIN
+        INSERT INTO trace.traces
+            (request_id, attempt, rewritten_query, embedding_model, dim,
+             generation_model, top_k, embed_ms, search_ms, generate_ms, verify_us)
+        VALUES ('00000000-0000-4000-8000-000000000001', 1, 'q',
+                'probe-embedder', 1024, 'probe-generator:tag', 20, 1, 2, 3, -1);
+        RAISE EXCEPTION 'a negative verify_us was accepted';
+    EXCEPTION WHEN check_violation THEN NULL;
     END;
 END $$;
 

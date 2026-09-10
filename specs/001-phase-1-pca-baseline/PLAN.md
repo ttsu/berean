@@ -933,10 +933,119 @@ persistence path that writes them. Task 8 produces everything they hold — per-
 `VerificationResult`s, per-slot `AnswerFailure`s, the retrieval trace for each attempt, the overall
 result and the derived confidence — and writes nothing.
 
-- [ ] Trace persisted for every response including degraded ones
-- [ ] `trace.answer_failures` written alongside `trace.verification_results`, from the same attempt
-- [ ] Schema reviewed against Phase 2's needs before merge — revise the Task 3 migration if short
-- [ ] Gateway role only; Catena has no write access
+**Status:** landed. `internal/trace`, migration 000004 from the schema review, and the ordering rule
+the review forced on Task 10. Rendering is still Task 10's.
+
+- [x] Trace persisted for every response including degraded ones. A degraded turn is recorded in
+      full — the answer object carrying only the derived confidence, *both* attempts' retrieval
+      traces, every citation the four checks rejected and every answer-level rule that broke. A
+      degradation nobody can inspect afterwards is indistinguishable from a system that never
+      answered, and the two mean opposite things
+- [x] `trace.answer_failures` written alongside `trace.verification_results`, from the same attempt
+      and inside the same transaction. Asserted on both attempts of a degraded turn: the two records
+      ADR-0024 split apart are reconstructible only together, and half of them is a failure nobody
+      can diagnose
+- [x] Schema reviewed against Phase 2's needs before merge — **two columns short**, added in
+      migration 000004, and **one constraint wrong**, dropped in 000005. Not a revision of the Task 3 migration, which is applied to the database all
+      eight corpora are ingested into; the phrase predates 000003. Both new columns are `NOT NULL`
+      with no default, which the migration can only satisfy on empty tables — and they were empty,
+      because this task is the first writer these tables have ever had
+- [x] Gateway role only; Catena has no write access — already asserted at the schema level in
+      `tools/db/tests/catena_assertions.sql`, and 000004 adds columns to existing tables while
+      granting nothing, so the grant surface is unchanged. Re-run and still passing rather than
+      restated in Go
+- [x] Reversible (SHARED §10), exercised down and back up against the live database rather than
+      read
+- [x] Live-database suite, in `make test-gateway-db`. Every readback is on a **second connection**:
+      writes are visible to the session that made them whether or not they commit, so a store that
+      never commits passes every in-process assertion — which is exactly what shipped once already
+      on the Python side. Atomicity is asserted by inducing a failure *after* the response row and
+      the first attempt's rows are written, and finding all five tables empty
+
+**Decisions Task 9 made that the spec did not anticipate**, recorded in INTEGRATION-SPEC and
+`services/gateway/AGENTS.md` in the same change:
+
+- **The turn is persisted before it is rendered**, which is a rule for Task 10 rather than for this
+  package. Verification refusing to ship is a recorded event; a write that failed after the answer
+  was printed is not, and a turn that reached a user without being recorded is the one outcome these
+  tables exist to prevent. "Nothing renders unverified" has a sibling and this is it
+- **A malformed `RetrievalTrace` is an error, not a degraded turn**, and never a row with sentinels
+  standing in for what Catena did not send. It is the same class of event as an unreachable Catena:
+  the system failed rather than the verification system succeeding. `ErrIncomplete` is typed and
+  distinguished from a database outage, because the two want opposite responses — one is a bug in a
+  service, the other is a retry. What it buys concretely is a message naming the attempt and the
+  field instead of `null value in column "rewritten_query"`, which sends whoever reads it to the
+  wrong service
+- **`turn.Attempt` grew a `Verify` duration**, measured in `internal/turn` around the engine. The
+  engine judges one answer and has no attempt to attribute a cost to; the turn owns the attempt
+- **The contract-to-schema enum correspondence is derived, not mapped.** The three Postgres enums
+  were written as the proto's values without their prefix, so the derivation *is* the rule, and a
+  twelve-entry table restating it is a second place for the two to disagree. What holds them
+  together is a unit test that **reads the migrations** and asserts the correspondence in both
+  directions — needing no database, so it runs in `make check`. Both directions matter: a proto
+  value with no label is an insert that fails having already spent two generations, and a label no
+  proto value produces is a `GROUP BY code` silently reporting zero for a rule nobody can raise.
+  It earned itself immediately, catching a label-extraction bug where the apostrophe in a comment's
+  "I can't source this adequately" paired with the next quote and swallowed a real label
+- **`responses.answer` is the rendered answer**, encoded with protojson's proto field names.
+  protojson's default would spell it `noAnswerReason`, making that a third spelling of a field the
+  proto and every document call `no_answer_reason`, in a column Phase 2 queries through jsonb.
+  Unset fields stay omitted, which is what proto3 means by them — emitting defaults would fill the
+  record with fields Python never sent, and one of the things this row shows is which fields Python
+  populated
+
+**What review found, and what it changed:**
+
+- **`trace.verification_results` could not record the fabrication it exists to record.** Its
+  `corpus_id` and `locator` carried `CHECK (btrim(...) <> '')` beside a comment explaining why the
+  table has no foreign key into `corpus.works` — "a foreign key would make the fabrication
+  unrecordable" — and the CHECKs did that very thing one level down. Nothing constrains the
+  generator to a non-empty `corpus_id`: Catena's structured-output schema requires the citation's
+  keys and sets no `minLength`, so `"corpus_id": ""` is a generation the model can really produce.
+  Verification rejects it at check 1 correctly; persistence then could not write the row, and
+  because the whole turn is one transaction it lost the response, both attempts, every candidate
+  and every other citation with it. Under this task's own persist-before-render rule the user then
+  saw an error where the honest outcome was "I can't source this adequately". Migration 000005
+  drops both CHECKs. `candidates` and `answer_failures` keep theirs, and the asymmetry is
+  deliberate: a candidate is retrieval's own output, and every ref reaching `answer_failures` comes
+  from a locus the gateway sent or from a citation that passed all four checks, so neither can be
+  blank. The regression test is asserted both ways — with 000005 reverted it fails on the
+  constraint
+- **`verify_ms` was the wrong unit and would have recorded `0` for nearly every turn.** Task 8
+  measured verification's p95 at 0.68 ms for the engine and 1.28 ms against the live index, so a
+  millisecond column reports zero at exactly the percentile it exists to measure. It is `verify_us`,
+  in microseconds, and it is the one column here that does not match its neighbours' unit — they
+  measure work taking tens to hundreds of milliseconds. Corrected in 000004 rather than added as a
+  third migration, because the millisecond version was never merged
+- **`validate` refused a *missing* retrieval trace and not a *malformed* one**, while
+  INTEGRATION-SPEC and AGENTS.md — written in this same change — said "missing or malformed". A
+  half-filled trace reached Postgres and came back as a raw constraint violation that is not
+  `ErrIncomplete`, so a caller implementing the documented rule would retry a service bug forever
+  as an outage. It now covers the query, both model names, the width and the depth, and the attempt
+  number's bound
+- **`NewStore` skipped the version guard `Open` enforced.** `go build` without the linker flag
+  leaves `cmd/berean`'s version at its default, so the empty string is the easiest value to arrive
+  by accident — and a store that accepted it failed at the end of every turn, on the turn it had
+  just spent two generations producing. The guard moved into `NewStore`, which `Open` now calls
+- **The `answerJSON` comment justified the encoding with a claim about the wrong row**, saying the
+  record shows which fields Python populated. It holds the *rendered* answer, whose confidence Go
+  overwrote, and the answers from failed attempts are deliberately not stored at all
+
+**Three gaps the schema review found and deliberately left**, each with the reason, so a later phase
+re-opens them on purpose rather than rediscovering them:
+
+- **The gateway's own normalisation contract version is not recorded.** Task 8 already states a skew
+  in `verification_results.failure_detail`, and a column would buy a `GROUP BY` over a case that is
+  rare and self-announcing — under a skew the message arrives on every citation to that corpus at
+  once
+- **Token counts and cost (SHARED §6) are held by Langfuse and not by these tables.** Carrying them
+  here is a proto change plus a Catena change rather than a revision of this schema, and the
+  requirement sits in the observability section the Langfuse instrumentation satisfies. Phase 2
+  re-opens it if the eval harness needs them outside the observability stack
+- **The answer objects from *failed* attempts are not stored** — only the rendered one, beside the
+  verification results and answer failures that say exactly what was wrong with each attempt. What
+  this forecloses is studying the prose a rejected generation produced, which is a Phase 2 question
+  about generator quality rather than a Phase 1 audit question
 
 ---
 
@@ -945,6 +1054,10 @@ result and the derived confidence — and writes nothing.
 **Depends on:** Tasks 6, 8
 
 - [ ] `berean ask --profile pca "question"` returns a verified answer
+- [ ] **The turn is persisted before anything is printed** (Task 9). Verification refusing to ship
+      is a recorded event; a write that failed after the answer was printed is not
+- [ ] The linker-set `version` reaches `trace.responses.gateway_version` — the store refuses to open
+      without one, so this is wiring rather than a check
 - [ ] `--show-work` prints the trace as a **log, not a narrative**
 - [ ] `--top-k` overrides the configured default
 - [ ] Citations render with corpus, edition, locator, and tier
