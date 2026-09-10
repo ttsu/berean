@@ -304,6 +304,25 @@ is an error — an unlabelled citation at either tier is exactly the failure mod
 exists to prevent. A `contested` entry whose `ruling_source.corpus_id` is absent from `corpora` is
 a load error: a locus the profile cannot cite is a locus it cannot defend.
 
+Four more rules fall out of loading the document rather than describing it, and all four fail the
+load:
+
+- **An unrecognised key is an error.** The decoder is strict. A misspelled `stance` that falls
+  through to the engine's default is a doctrinal commitment silently replaced by a default, which is
+  the one thing this document exists to make impossible.
+- **A corpus named twice is an error**, and `scripture.corpus_id` shares that namespace because
+  resolution appends it to the same list. One corpus at two stances has no resolution, and a filter
+  spec carrying both leaves Python to pick.
+- **`profile`, `scripture.corpus_id`, and every `corpora[].id` are required**, named as such in the
+  error. Left empty they reach the registry as `""` and fail as "not ingested", which reads as an
+  ingestion problem and sends the reader to the wrong place.
+- **A `contested` entry requires both `locus` and `ruling_source.locator`.** A ruling without a
+  locator resolves to no chunk.
+
+`tier_weights` is resolved **empty** in Phase 1. The profile schema carries no weights and Phase 1
+has no reranker to read them, so there is nothing to populate the field from; emitting an invented
+1.0 per tier would leave Phase 3 unable to tell configured weights from filler.
+
 Validation also reaches the database. The loader takes a **corpus registry** — an interface with a
 single `Exists(corpus_id)` method, backed by a query over distinct `corpus_id` in `chunks` — and a
 profile naming a corpus that is not ingested fails at load. So does a `contested` entry whose

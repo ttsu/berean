@@ -579,24 +579,50 @@ The dependency on Task 5 is real, not bookkeeping: the loader validates corpus I
 database, and there is nothing to validate against until a corpus is ingested. The task header
 previously said Task 2 while the parallelisation table said Tasks 2 and 5; the table was right.
 
-- [ ] PCA profile YAML per INTEGRATION-SPEC, including `calvin-institutes-1559-beveridge` at
-      `advisory`
-- [ ] Loader validates: unknown stance is an error; `contrary` or `excluded` without `label` is an error
-- [ ] `scripture.stance` defaults to `binding` when absent; `contrary`/`excluded` rejected (ADR-0011)
-- [ ] `scripture.corpus_id` appended to the corpora list carrying that stance as its tier
-- [ ] `contested` entries validated: `ruling_source.corpus_id` absent from `corpora` is a load error
-- [ ] Loader takes a `CorpusRegistry` interface (`Exists(corpus_id)`, backed by distinct `corpus_id`
+**Status:** landed. `profiles/pca.yaml` loads against the live database through the `gateway`
+role — all eight corpora it names are ingested, which is the assertion ADR-0015 rests on — and
+`make check` runs the unit suite with nothing started.
+
+- [x] PCA profile YAML per INTEGRATION-SPEC, including `calvin-institutes-1559-beveridge` at
+      `advisory` — `profiles/pca.yaml`, one file per tradition, named for what `--profile` selects
+- [x] Loader validates: unknown stance is an error; `contrary` or `excluded` without `label` is an error
+- [x] `scripture.stance` defaults to `binding` when absent; `contrary`/`excluded` rejected (ADR-0011)
+- [x] `scripture.corpus_id` appended to the corpora list carrying that stance as its tier
+- [x] `contested` entries validated: `ruling_source.corpus_id` absent from `corpora` is a load error
+- [x] Loader takes a `CorpusRegistry` interface (`Exists(corpus_id)`, backed by distinct `corpus_id`
       in `chunks`). A profile naming an un-ingested corpus fails at load, as does a `contested` entry
       whose `ruling_source` is not ingested — which is what delivers ADR-0015's honest "the
       establishing document is not ingested yet" instead of an invented ruling. Checking only the
-      profile's own `corpora` list proves internal consistency and nothing more
-- [ ] The registry is an interface, so the profile unit tests — including the no-identity-leak
-      test — need no database
-- [ ] Resolves to a `FilterSpec` carrying corpus IDs, tiers, weights — **and nothing else**
-- [ ] Unit test asserts no profile name, user identity, or session state appears in the FilterSpec
-- [ ] Contested loci resolve to a **sibling** request field, never into the FilterSpec — pointers
+      profile's own `corpora` list proves internal consistency and nothing more.
+      `internal/corpus.Registry` is the backing implementation; a registry that *errors* fails the
+      load rather than reading as `absent`, because a database that cannot answer has not said no
+- [x] The registry is an interface, so the profile unit tests — including the no-identity-leak
+      test — need no database. `make test-gateway-db` is where the live assertions run, and it is
+      not part of `make check` for the same reason `test-schema` is not
+- [x] Resolves to a `FilterSpec` carrying corpus IDs, tiers, weights — **and nothing else**.
+      `tier_weights` resolves **empty**: the profile schema carries no weights and there is no
+      reranker to read them, and an invented 1.0 per tier would be indistinguishable from
+      configuration in Phase 3
+- [x] Unit test asserts no profile name, user identity, or session state appears in the FilterSpec —
+      it marshals the whole request and scans for a sentinel profile name that cannot occur in a
+      corpus ID, since `pca` occurs inside `pca-bco-2026` and would have made the test vacuous
+- [x] Contested loci resolve to a **sibling** request field, never into the FilterSpec — pointers
       only (`locus`, `corpus_id`, `locator`), never resolved prose (ADR-0015)
-- [ ] Schema handles N profiles though only one is populated
+- [x] Schema handles N profiles though only one is populated — `profiles/<name>.yaml`, and the
+      loader knows nothing about which one it is reading
+
+Three things the implementation did not anticipate, all recorded in INTEGRATION-SPEC:
+
+- **The decoder is strict.** `stanc: binding` parses cleanly into an empty stance, and an empty
+  stance is one `default:` away from being treated as absent. An unrecognised key fails the load
+  instead, because a doctrinal commitment silently replaced by an engine default is the failure this
+  document exists to prevent.
+- **A corpus named twice is a load error, and Scripture shares that namespace.** Resolution appends
+  `scripture.corpus_id` to the same list, so naming it again in `corpora` is the same collision —
+  and one corpus at two stances would have shipped both to Python to pick between.
+- **The ruling locator is `GA28 Rec.2`, not the spec's illustrative `Recommendations 1`.** Task 4
+  made the recommendations independently addressable and established that Rec.2 is the ruling.
+  TECHNICAL-SPEC is corrected rather than left to be discovered at the first contested answer.
 
 ---
 

@@ -36,6 +36,17 @@ GO = docker run --rm \
 	  --volume berean-go-build:/root/.cache/go-build \
 	  $(GO_IMAGE)
 
+# The same container, joined to the compose network and carrying the gateway
+# role's DSN. Separate from GO because the unit suite must keep running with
+# nothing started.
+GO_DB = docker run --rm \
+	  --network berean_default \
+	  --volume "$(CURDIR):/src" --workdir /src \
+	  --volume berean-go-mod:/go/pkg/mod \
+	  --volume berean-go-build:/root/.cache/go-build \
+	  --env BEREAN_DATABASE_URL="postgresql://gateway:$$(sed -n 's/^BEREAN_DB_GATEWAY_PASSWORD=//p' .env | tail -1)@postgres:5432/$$(sed -n 's/^POSTGRES_DB=//p' .env | tail -1)" \
+	  $(GO_IMAGE)
+
 .DEFAULT_GOAL := help
 
 .PHONY: help
@@ -274,6 +285,19 @@ test-ingest-db: ## Assert ingestion against a live database (needs `make dev`)
 	@CATENA_DATABASE_URL="postgresql://catena:$$(sed -n 's/^BEREAN_DB_CATENA_PASSWORD=//p' .env | tail -1)@127.0.0.1:$$(sed -n 's/^POSTGRES_PORT=//p' .env | tail -1)/$$(sed -n 's/^POSTGRES_DB=//p' .env | tail -1)" \
 	    $(UV) run --quiet --project services/catena \
 	    python services/catena/tests/integration/test_ingest_postgres.py -q
+
+# Not part of `make check`, for the same reason the two above are not. What it
+# asserts is the one thing a fake registry cannot: that the corpora the
+# committed profile names are really ingested, read through the `gateway`
+# role's grants rather than the owner's.
+#
+# The container joins the compose network so it reaches `postgres` by name --
+# the published port is on the host, and the Go suite runs in a container.
+.PHONY: test-gateway-db
+test-gateway-db: ## Assert the corpus registry and profile load against a live database (needs `make dev`)
+	@# -count=1 because the database is an input the build cache cannot see: a
+	@# dropped corpus changes the answer while every tracked input is identical.
+	@$(GO_DB) go test -count=1 ./services/gateway/internal/corpus/
 
 # ---------------------------------------------------------------------------
 # Checks
