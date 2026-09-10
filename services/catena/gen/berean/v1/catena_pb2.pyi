@@ -18,6 +18,7 @@ class AnswerRequest(_message.Message):
     CONTESTED_LOCI_FIELD_NUMBER: _ClassVar[int]
     REQUEST_ID_FIELD_NUMBER: _ClassVar[int]
     PREVIOUS_FAILURES_FIELD_NUMBER: _ClassVar[int]
+    ANSWER_FAILURES_FIELD_NUMBER: _ClassVar[int]
     ATTEMPT_FIELD_NUMBER: _ClassVar[int]
     query: str
     conversation_context: _containers.RepeatedCompositeFieldContainer[ConversationTurn]
@@ -25,8 +26,9 @@ class AnswerRequest(_message.Message):
     contested_loci: _containers.RepeatedCompositeFieldContainer[_filter_pb2.ContestedLocus]
     request_id: str
     previous_failures: _containers.RepeatedCompositeFieldContainer[_verification_pb2.VerificationResult]
+    answer_failures: _containers.RepeatedCompositeFieldContainer[_verification_pb2.AnswerFailure]
     attempt: int
-    def __init__(self, query: _Optional[str] = ..., conversation_context: _Optional[_Iterable[_Union[ConversationTurn, _Mapping]]] = ..., filter_spec: _Optional[_Union[_filter_pb2.FilterSpec, _Mapping]] = ..., contested_loci: _Optional[_Iterable[_Union[_filter_pb2.ContestedLocus, _Mapping]]] = ..., request_id: _Optional[str] = ..., previous_failures: _Optional[_Iterable[_Union[_verification_pb2.VerificationResult, _Mapping]]] = ..., attempt: _Optional[int] = ...) -> None: ...
+    def __init__(self, query: _Optional[str] = ..., conversation_context: _Optional[_Iterable[_Union[ConversationTurn, _Mapping]]] = ..., filter_spec: _Optional[_Union[_filter_pb2.FilterSpec, _Mapping]] = ..., contested_loci: _Optional[_Iterable[_Union[_filter_pb2.ContestedLocus, _Mapping]]] = ..., request_id: _Optional[str] = ..., previous_failures: _Optional[_Iterable[_Union[_verification_pb2.VerificationResult, _Mapping]]] = ..., answer_failures: _Optional[_Iterable[_Union[_verification_pb2.AnswerFailure, _Mapping]]] = ..., attempt: _Optional[int] = ...) -> None: ...
 
 class ConversationTurn(_message.Message):
     __slots__ = ()

@@ -295,9 +295,12 @@ test-ingest-db: ## Assert ingestion against a live database (needs `make dev`)
 	    python services/catena/tests/integration/test_ingest_postgres.py -q
 
 # Not part of `make check`, for the same reason the two above are not. What it
-# asserts is the one thing a fake registry cannot: that the corpora the
-# committed profile names are really ingested, read through the `gateway`
-# role's grants rather than the owner's.
+# asserts is what a fake cannot: that the corpora the committed profile names are
+# really ingested, that a citation resolves to the row the tables actually hold,
+# and that the same locator in two editions resolves to different text -- all
+# read through the `gateway` role's grants rather than the owner's. It also
+# carries the half of the latency target a map cannot measure: the chunk lookups,
+# against the real index (SHARED 9).
 #
 # The container joins the compose network so it reaches `postgres` by name --
 # the published port is on the host, and the Go suite runs in a container.

@@ -67,6 +67,64 @@ VALUES
     ('00000000-0000-4000-8000-000000000001', 1, 'no-such-corpus-invented', 'Nowhere 1.1',
      false, false, false, false, 'corpus absent from the filter spec that was sent');
 
+-- The rules no citation can carry. `arguments[0]` has no citation to name; the
+-- omission check names one precisely because it resolved (ADR-0024).
+INSERT INTO trace.answer_failures
+    (request_id, attempt, code, slot, corpus_id, locator, detail)
+VALUES
+    ('00000000-0000-4000-8000-000000000001', 1, 'citations-required', 'arguments[0]', '', '',
+     'an argument carries no citations'),
+    ('00000000-0000-4000-8000-000000000001', 1, 'ruling-cited-while-uncontested',
+     'contested.is_contested', 'probe-0000-invented', 'Probe 1.1',
+     'this citation is the ruling that holds an invented locus open');
+
+-- Half a reference is not one, held both ways.
+DO $$
+BEGIN
+    BEGIN
+        INSERT INTO trace.answer_failures
+            (request_id, attempt, code, slot, corpus_id, locator, detail)
+        VALUES ('00000000-0000-4000-8000-000000000001', 1, 'empty-answer', 'no_answer_reason',
+                'probe-0000-invented', '', 'a corpus with no locator');
+        RAISE EXCEPTION 'a corpus id with no locator was accepted';
+    EXCEPTION WHEN check_violation THEN NULL;
+    END;
+
+    BEGIN
+        INSERT INTO trace.answer_failures
+            (request_id, attempt, code, slot, corpus_id, locator, detail)
+        VALUES ('00000000-0000-4000-8000-000000000001', 1, 'empty-answer', 'no_answer_reason',
+                '', 'Probe 1.1', 'a locator with no corpus');
+        RAISE EXCEPTION 'a locator with no corpus id was accepted';
+    EXCEPTION WHEN check_violation THEN NULL;
+    END;
+
+    -- A rule that broke somewhere unrecorded is a finding nobody can chase.
+    BEGIN
+        INSERT INTO trace.answer_failures
+            (request_id, attempt, code, slot, detail)
+        VALUES ('00000000-0000-4000-8000-000000000001', 1, 'empty-answer', '   ', 'blank slot');
+        RAISE EXCEPTION 'a blank slot was accepted';
+    EXCEPTION WHEN check_violation THEN NULL;
+    END;
+
+    BEGIN
+        INSERT INTO trace.answer_failures
+            (request_id, attempt, code, slot, detail)
+        VALUES ('00000000-0000-4000-8000-000000000001', 1, 'empty-answer', 'no_answer_reason', '   ');
+        RAISE EXCEPTION 'a blank detail was accepted';
+    EXCEPTION WHEN check_violation THEN NULL;
+    END;
+
+    BEGIN
+        INSERT INTO trace.answer_failures
+            (request_id, attempt, code, slot, detail)
+        VALUES ('00000000-0000-4000-8000-000000000001', 1, 'nearly-right', 'no_answer_reason', 'd');
+        RAISE EXCEPTION 'an unrecognised failure code was accepted';
+    EXCEPTION WHEN invalid_text_representation THEN NULL;
+    END;
+END $$;
+
 -- Empty exactly when every check passed, held both ways.
 DO $$
 BEGIN
@@ -170,6 +228,20 @@ BEGIN
     EXCEPTION WHEN check_violation THEN NULL;
     END;
 
+    -- Task 3 left this free; Task 8 decided it. Degradation always follows
+    -- exactly two generation attempts, because the only other way to reach it
+    -- would be an outage, and an outage is an error rather than a degraded
+    -- answer (ADR-0024).
+    BEGIN
+        INSERT INTO trace.responses
+            (request_id, profile, query, answer, overall_result,
+             confidence_level, confidence_reason, attempts)
+        VALUES ('00000000-0000-4000-8000-000000000006', 'probe', 'q', '{}'::jsonb,
+                'degraded', 'low', 'r', 1);
+        RAISE EXCEPTION 'a degraded turn was recorded as taking one attempt';
+    EXCEPTION WHEN check_violation THEN NULL;
+    END;
+
     BEGIN
         INSERT INTO trace.responses
             (request_id, profile, query, answer, overall_result,
@@ -198,6 +270,8 @@ BEGIN
         'candidates outlived their trace';
     ASSERT (SELECT count(*) FROM trace.verification_results WHERE request_id = probe) = 0,
         'verification results outlived their trace';
+    ASSERT (SELECT count(*) FROM trace.answer_failures WHERE request_id = probe) = 0,
+        'answer failures outlived their trace';
 END $$;
 
 ROLLBACK;

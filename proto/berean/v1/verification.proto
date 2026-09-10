@@ -49,3 +49,96 @@ enum OverallResult {
   // failure rate.
   OVERALL_RESULT_DEGRADED = 3;
 }
+
+// AnswerFailure is a rule the answer broke that no citation can carry.
+//
+// The four checks are per citation, and `VerificationResult` is shaped for
+// them. Several rules the trust boundary enforces are answer-level and have no
+// citation to attach to: an argument with no citations at all, `position`
+// stated where nothing affirmative was argued, a locus flagged contested and
+// resolved anyway, the bounds on `no_answer_reason`. The omission check is the
+// sharpest case — every one of the four checks passes and the answer still
+// fails, so recording it as a `VerificationResult` would mean writing a row
+// whose booleans all say "passed" beside a detail saying "failed" (ADR-0024).
+//
+// Like `VerificationResult`, this is metadata rather than instructions. `code`
+// and `slot` say which rule broke and where; `detail` states the fact. Nothing
+// here tells Python how to fix an answer, and `Confidence.reason` remains the
+// only Go-authored string a user ever reads.
+message AnswerFailure {
+  // Which rule broke. A closed set, so a regeneration prompt and a Phase 2
+  // query can both count them without parsing prose.
+  AnswerFailureCode code = 1;
+  // Where, in the answer object's own terms: `arguments[2]`,
+  // `contested.locus`, `no_answer_reason`.
+  string slot = 2;
+  // The citation this is about, when one is. Absent for the rules that are
+  // about a slot's emptiness rather than about any citation in it.
+  CitationRef citation_ref = 3;
+  // What broke, factually. Never empty: a failure nobody can act on is a
+  // failure that was not really recorded.
+  string detail = 4;
+}
+
+// AnswerFailureCode enumerates the answer-level rules.
+//
+// Closed rather than open for the reason every other enum in this contract is:
+// a free-text code reduces "which rule failed" to string comparison against
+// spellings nobody agreed on.
+enum AnswerFailureCode {
+  ANSWER_FAILURE_CODE_UNSPECIFIED = 0;
+
+  // A claim slot that must carry citations carries none. Every claim is cited
+  // or it is not shown (SHARED §3).
+  ANSWER_FAILURE_CODE_CITATIONS_REQUIRED = 1;
+
+  // An `Argument` carries citations but none at `binding` or `governing`.
+  // Advisory corroborates; it never establishes. Per-citation check 3 cannot
+  // see this: an advisory citation inside an argument is permitted, and only
+  // becomes a failure when it is the argument's whole support.
+  ANSWER_FAILURE_CODE_ARGUMENT_LACKS_AUTHORITY = 2;
+
+  // `position` is non-empty while `arguments` is empty. A purely descriptive
+  // answer reports what sources say and states no position of its own.
+  ANSWER_FAILURE_CODE_POSITION_WITHOUT_ARGUMENTS = 3;
+
+  // `is_contested` is true and `arguments` is not empty. Flagging a locus
+  // contested and resolving it in the same answer passes every other check,
+  // and it is the worst outcome the product can produce (ADR-0019).
+  ANSWER_FAILURE_CODE_CONTESTED_WITH_ARGUMENTS = 4;
+
+  // `contested.locus` names a locus that was not sent. An unsent locus is a
+  // fabrication, exactly as an unsent corpus ID is.
+  ANSWER_FAILURE_CODE_CONTESTED_LOCUS_UNKNOWN = 5;
+
+  // `is_contested` is true and `contested.citations` does not include the
+  // ruling named for that locus.
+  ANSWER_FAILURE_CODE_CONTESTED_RULING_UNCITED = 6;
+
+  // `is_contested` is true and `state_of_debate` does not contain the ruling's
+  // quote verbatim. A contested claim is a cited claim or it is not shown.
+  ANSWER_FAILURE_CODE_CONTESTED_RULING_UNQUOTED = 7;
+
+  // A verified citation resolves to a locus's ruling while `is_contested` is
+  // false. The system's only omission check, and the only rule that fires on
+  // an answer whose every citation passed all four checks.
+  ANSWER_FAILURE_CODE_RULING_CITED_WHILE_UNCONTESTED = 8;
+
+  // `state_of_debate` is non-empty while `is_contested` is false. It is
+  // bounded by the verbatim-quote rule only when the flag is set, so without
+  // this it is a fifth uncited surface and INTEGRATION-SPEC's enumeration of
+  // exactly four stops being true.
+  ANSWER_FAILURE_CODE_STATE_OF_DEBATE_WITHOUT_CONTEST = 9;
+
+  // `no_answer_reason` is non-empty while some content slot is not, or while
+  // the answer is contested.
+  ANSWER_FAILURE_CODE_NO_ANSWER_REASON_NOT_ALONE = 10;
+
+  // `no_answer_reason` is longer than 200 characters.
+  ANSWER_FAILURE_CODE_NO_ANSWER_REASON_TOO_LONG = 11;
+
+  // Every content slot is empty, the answer is not contested, and no
+  // `no_answer_reason` was given. A truncated generation must not render as
+  // considered silence (ADR-0020).
+  ANSWER_FAILURE_CODE_EMPTY_ANSWER = 12;
+}

@@ -148,7 +148,9 @@ def system_prompt(
 
 
 def render_failures(
-    failures: Sequence[verification_pb2.VerificationResult], attempt: int
+    failures: Sequence[verification_pb2.VerificationResult],
+    answer_failures: Sequence[verification_pb2.AnswerFailure],
+    attempt: int,
 ) -> str:
     """Last attempt's verification results, as facts.
 
@@ -157,6 +159,13 @@ def render_failures(
     the system, and the first exception to that is the one that ends the
     guarantee (ADR-0010). The wording below is therefore Python's, written once,
     from fields Go filled in.
+
+    Two lists, because the trust boundary enforces two kinds of rule. The four
+    checks are per citation and arrive as `VerificationResult`. The rules that
+    are about a *slot* — an argument with no citations, a locus flagged
+    contested and resolved anyway — have no citation to travel in, and one of
+    them fires on an answer whose every citation passed all four checks
+    (ADR-0024).
     """
     lines = []
     for result in failures:
@@ -175,6 +184,12 @@ def render_failures(
             f"- {ref.corpus_id} {ref.locator}: " + "; ".join(checks or ["failed"]) + detail
         )
 
+    for failure in answer_failures:
+        ref = failure.citation_ref
+        where = failure.slot or "the answer"
+        at = f" [{ref.corpus_id} {ref.locator}]" if ref.corpus_id else ""
+        lines.append(f"- {where}{at}: {failure.detail}")
+
     return (
         f"THE PREVIOUS ATTEMPT FAILED VERIFICATION. This is attempt {attempt}.\n"
         + "\n".join(lines)
@@ -191,12 +206,13 @@ def build(
     spec: filter_pb2.FilterSpec,
     contested_loci: Sequence[filter_pb2.ContestedLocus],
     previous_failures: Sequence[verification_pb2.VerificationResult],
+    answer_failures: Sequence[verification_pb2.AnswerFailure],
     attempt: int,
 ) -> list[dict[str, Any]]:
     """The two turns sent to the generator."""
     user = []
-    if previous_failures:
-        user.append(render_failures(previous_failures, attempt))
+    if previous_failures or answer_failures:
+        user.append(render_failures(previous_failures, answer_failures, attempt))
     user.append(render_passages(passages) if passages
                 else "No passages were retrieved for this question.")
     user.append(f"QUESTION\n{query.strip()}")

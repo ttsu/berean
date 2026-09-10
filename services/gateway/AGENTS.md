@@ -46,8 +46,19 @@ logic here, stop — it belongs in Catena.
 - `no_answer_reason` is the one model-authored string that renders uncited. Enforce its bounds
   structurally — non-empty only when every content slot is empty, and at most 200 characters — and
   never relax them. Every slot empty with no reason is a malformed generation: regenerate.
-- On verification failure: regenerate once carrying `previous_failures` and `attempt`, then degrade.
-  **Never render with a warning attached.** Go sends verification results, never composed prose.
+- On verification failure: regenerate once carrying `previous_failures`, `answer_failures` and
+  `attempt`, then degrade. **Never render with a warning attached.** Go sends verification results,
+  never composed prose.
+- **Two kinds of finding, split by what the rule is about.** The four checks are per citation and
+  produce `VerificationResult`. The rules that are about a *slot* — an argument carrying no
+  citations, `position` where nothing was argued, the bounds on `no_answer_reason`, and the omission
+  check, which fires on an answer whose every citation passed all four — produce `AnswerFailure`
+  (ADR-0024). Both are metadata; neither is ever an instruction.
+- The tier floor on an argument is answer-level, not part of check 3. Advisory inside an argument
+  is permitted and fails only when it is the argument's whole support.
+- **Degradation always follows exactly two generation attempts.** An unreachable Catena or an
+  unreachable database is an *error*, not a degraded answer: `DEGRADED` means verification refused
+  to ship, and laundering an outage into it makes the degradation rate unreadable.
 - An honest non-answer is `VERIFIED`, not `DEGRADED`, and renders differently. UC-2 and UC-5 mean
   opposite things and must not share a metric.
 - Write scope: session and trace tables only. The `gateway` DB role is read-only on corpus tables
@@ -56,8 +67,8 @@ logic here, stop — it belongs in Catena.
 ## Conventions
 
 - Generated protobuf types are the contract. Do not define a parallel struct for the answer object.
-  They are generated rather than committed — run `make proto` (ADR-0013 defers the
-  commit-or-generate decision to Phase 2).
+  They are **committed** (ADR-0022): change `proto/`, run `make proto`, and commit what it writes —
+  `make guard-proto-fresh` fails when the tree and the stubs disagree.
 - Quote comparison normalises through `internal/normalise`, never through `unicode.IsSpace` or a
   hand-rolled trim. It holds the enumerated `White_Space` set on purpose: Python's `\s` matches
   four code points Go's does not, so the two standard libraries are not the same function. Both

@@ -156,7 +156,7 @@ class PreviousFailures(unittest.TestCase):
     def test_absent_on_a_first_attempt(self) -> None:
         messages = prompt_module.build(
             query="q", passages=[PASSAGE], spec=filter_spec(),
-            contested_loci=[], previous_failures=[], attempt=1)
+            contested_loci=[], previous_failures=[], answer_failures=[], attempt=1)
         self.assertNotIn("failed verification", json_of(messages).lower())
 
     def test_renders_each_failed_check_factually(self) -> None:
@@ -173,17 +173,50 @@ class PreviousFailures(unittest.TestCase):
 
         messages = prompt_module.build(
             query="q", passages=[PASSAGE], spec=filter_spec(),
-            contested_loci=[], previous_failures=[failure], attempt=2)
+            contested_loci=[], previous_failures=[failure], answer_failures=[], attempt=2)
         text = json_of(messages)
         self.assertIn("AAA 1.1", text)
         self.assertIn("quote not found in chunk", text)
+
+    def test_renders_an_answer_level_failure_that_names_no_citation(self) -> None:
+        """An argument with no citations has no `VerificationResult` to travel in.
+
+        The retry has to be told anyway, or it regenerates blind against a rule
+        it cannot see (ADR-0024).
+        """
+        failure = verification_pb2.AnswerFailure(
+            code=verification_pb2.ANSWER_FAILURE_CODE_CITATIONS_REQUIRED,
+            slot="arguments[0]",
+            detail="an argument carries no citations")
+
+        messages = prompt_module.build(
+            query="q", passages=[PASSAGE], spec=filter_spec(),
+            contested_loci=[], previous_failures=[], answer_failures=[failure], attempt=2)
+        text = json_of(messages)
+        self.assertIn("failed verification", text.lower())
+        self.assertIn("arguments[0]", text)
+        self.assertIn("an argument carries no citations", text)
+
+    def test_an_answer_level_failure_names_its_citation_when_it_has_one(self) -> None:
+        """The omission check names the citation precisely because it resolved."""
+        failure = verification_pb2.AnswerFailure(
+            code=verification_pb2.ANSWER_FAILURE_CODE_RULING_CITED_WHILE_UNCONTESTED,
+            slot="contested.is_contested",
+            detail="this citation is the ruling that holds the locus open")
+        failure.citation_ref.corpus_id = "aaa-1111-alpha"
+        failure.citation_ref.locator = "AAA 9.9"
+
+        messages = prompt_module.build(
+            query="q", passages=[PASSAGE], spec=filter_spec(),
+            contested_loci=[], previous_failures=[], answer_failures=[failure], attempt=2)
+        self.assertIn("AAA 9.9", json_of(messages))
 
 
 class TheMessages(unittest.TestCase):
     def test_are_a_system_turn_then_a_user_turn(self) -> None:
         messages = prompt_module.build(
             query="What does Vethmoor require?", passages=[PASSAGE],
-            spec=filter_spec(), contested_loci=[], previous_failures=[], attempt=1)
+            spec=filter_spec(), contested_loci=[], previous_failures=[], answer_failures=[], attempt=1)
         self.assertEqual([m["role"] for m in messages], ["system", "user"])
         self.assertIn("What does Vethmoor require?", messages[1]["content"])
 
@@ -191,7 +224,7 @@ class TheMessages(unittest.TestCase):
         query = "  Does Vethmoor  require the third watch?  "
         messages = prompt_module.build(
             query=query, passages=[PASSAGE], spec=filter_spec(),
-            contested_loci=[], previous_failures=[], attempt=1)
+            contested_loci=[], previous_failures=[], answer_failures=[], attempt=1)
         self.assertIn(query.strip(), messages[1]["content"])
 
 

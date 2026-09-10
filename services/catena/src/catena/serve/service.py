@@ -88,6 +88,7 @@ class CatenaService(catena_pb2_grpc.CatenaServiceServicer):
                 spec=spec,
                 contested_loci=list(request.contested_loci),
                 previous_failures=list(request.previous_failures),
+                answer_failures=list(request.answer_failures),
                 attempt=attempt,
             )
 

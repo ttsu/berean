@@ -17,7 +17,7 @@ option go_package = "github.com/ttsu/berean/gen/berean/v1;bereanv1";
 | `filter.proto` | `FilterSpec`, `CorpusFilter`, `TierWeight`, `ContestedLocus` |
 | `answer.proto` | `AnswerObject` and everything under it, `Citation`, `Confidence` |
 | `trace.proto` | `RetrievalTrace`, `Candidate`, `Timings` |
-| `verification.proto` | `VerificationResult`, `OverallResult` |
+| `verification.proto` | `VerificationResult`, `AnswerFailure`, `AnswerFailureCode`, `OverallResult` |
 | `common.proto` | `Tier` and `CitationRef` — used by both sides, owned by neither |
 
 ## Generating

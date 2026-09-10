@@ -58,3 +58,4 @@ Use [0000-template.md](0000-template.md).
 | [0021](0021-the-edition-diagnostic-is-verified-not-quoted.md) | The edition diagnostic is verified, not quoted | Accepted |
 | [0022](0022-generated-code-is-committed.md) | The generated protobuf is committed, not gitignored | Accepted (resolves 0013's deferral) |
 | [0023](0023-the-decoding-constraint-is-derived-and-permissive.md) | The decoding constraint is derived, permissive, and unthinking | Accepted |
+| [0024](0024-answer-level-failures-are-their-own-channel.md) | Answer-level failures are their own channel | Accepted (amends 0010's retry payload) |

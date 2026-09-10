@@ -25,7 +25,7 @@ _sym_db = _symbol_database.Default()
 from berean.v1 import common_pb2 as berean_dot_v1_dot_common__pb2
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x1c\x62\x65rean/v1/verification.proto\x12\tberean.v1\x1a\x16\x62\x65rean/v1/common.proto\"\x9a\x02\n\x12VerificationResult\x12\x39\n\x0c\x63itation_ref\x18\x01 \x01(\x0b\x32\x16.berean.v1.CitationRefR\x0b\x63itationRef\x12)\n\x10locator_resolved\x18\x02 \x01(\x08R\x0flocatorResolved\x12#\n\rquote_matched\x18\x03 \x01(\x08R\x0cquoteMatched\x12%\n\x0etier_permitted\x18\x04 \x01(\x08R\rtierPermitted\x12+\n\x11license_permitted\x18\x05 \x01(\x08R\x10licensePermitted\x12%\n\x0e\x66\x61ilure_detail\x18\x06 \x01(\tR\rfailureDetail*\x89\x01\n\rOverallResult\x12\x1e\n\x1aOVERALL_RESULT_UNSPECIFIED\x10\x00\x12\x1b\n\x17OVERALL_RESULT_VERIFIED\x10\x01\x12\x1e\n\x1aOVERALL_RESULT_REGENERATED\x10\x02\x12\x1b\n\x17OVERALL_RESULT_DEGRADED\x10\x03\x42/Z-github.com/ttsu/berean/gen/berean/v1;bereanv1b\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x1c\x62\x65rean/v1/verification.proto\x12\tberean.v1\x1a\x16\x62\x65rean/v1/common.proto\"\x9a\x02\n\x12VerificationResult\x12\x39\n\x0c\x63itation_ref\x18\x01 \x01(\x0b\x32\x16.berean.v1.CitationRefR\x0b\x63itationRef\x12)\n\x10locator_resolved\x18\x02 \x01(\x08R\x0flocatorResolved\x12#\n\rquote_matched\x18\x03 \x01(\x08R\x0cquoteMatched\x12%\n\x0etier_permitted\x18\x04 \x01(\x08R\rtierPermitted\x12+\n\x11license_permitted\x18\x05 \x01(\x08R\x10licensePermitted\x12%\n\x0e\x66\x61ilure_detail\x18\x06 \x01(\tR\rfailureDetail\"\xa8\x01\n\rAnswerFailure\x12\x30\n\x04\x63ode\x18\x01 \x01(\x0e\x32\x1c.berean.v1.AnswerFailureCodeR\x04\x63ode\x12\x12\n\x04slot\x18\x02 \x01(\tR\x04slot\x12\x39\n\x0c\x63itation_ref\x18\x03 \x01(\x0b\x32\x16.berean.v1.CitationRefR\x0b\x63itationRef\x12\x16\n\x06\x64\x65tail\x18\x04 \x01(\tR\x06\x64\x65tail*\x89\x01\n\rOverallResult\x12\x1e\n\x1aOVERALL_RESULT_UNSPECIFIED\x10\x00\x12\x1b\n\x17OVERALL_RESULT_VERIFIED\x10\x01\x12\x1e\n\x1aOVERALL_RESULT_REGENERATED\x10\x02\x12\x1b\n\x17OVERALL_RESULT_DEGRADED\x10\x03*\x90\x05\n\x11\x41nswerFailureCode\x12#\n\x1f\x41NSWER_FAILURE_CODE_UNSPECIFIED\x10\x00\x12*\n&ANSWER_FAILURE_CODE_CITATIONS_REQUIRED\x10\x01\x12\x30\n,ANSWER_FAILURE_CODE_ARGUMENT_LACKS_AUTHORITY\x10\x02\x12\x32\n.ANSWER_FAILURE_CODE_POSITION_WITHOUT_ARGUMENTS\x10\x03\x12\x30\n,ANSWER_FAILURE_CODE_CONTESTED_WITH_ARGUMENTS\x10\x04\x12/\n+ANSWER_FAILURE_CODE_CONTESTED_LOCUS_UNKNOWN\x10\x05\x12\x30\n,ANSWER_FAILURE_CODE_CONTESTED_RULING_UNCITED\x10\x06\x12\x31\n-ANSWER_FAILURE_CODE_CONTESTED_RULING_UNQUOTED\x10\x07\x12\x36\n2ANSWER_FAILURE_CODE_RULING_CITED_WHILE_UNCONTESTED\x10\x08\x12\x37\n3ANSWER_FAILURE_CODE_STATE_OF_DEBATE_WITHOUT_CONTEST\x10\t\x12\x32\n.ANSWER_FAILURE_CODE_NO_ANSWER_REASON_NOT_ALONE\x10\n\x12\x31\n-ANSWER_FAILURE_CODE_NO_ANSWER_REASON_TOO_LONG\x10\x0b\x12$\n ANSWER_FAILURE_CODE_EMPTY_ANSWER\x10\x0c\x42/Z-github.com/ttsu/berean/gen/berean/v1;bereanv1b\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -33,8 +33,12 @@ _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'berean.v1.verification_pb2'
 if not _descriptor._USE_C_DESCRIPTORS:
   _globals['DESCRIPTOR']._loaded_options = None
   _globals['DESCRIPTOR']._serialized_options = b'Z-github.com/ttsu/berean/gen/berean/v1;bereanv1'
-  _globals['_OVERALLRESULT']._serialized_start=353
-  _globals['_OVERALLRESULT']._serialized_end=490
+  _globals['_OVERALLRESULT']._serialized_start=524
+  _globals['_OVERALLRESULT']._serialized_end=661
+  _globals['_ANSWERFAILURECODE']._serialized_start=664
+  _globals['_ANSWERFAILURECODE']._serialized_end=1320
   _globals['_VERIFICATIONRESULT']._serialized_start=68
   _globals['_VERIFICATIONRESULT']._serialized_end=350
+  _globals['_ANSWERFAILURE']._serialized_start=353
+  _globals['_ANSWERFAILURE']._serialized_end=521
 # @@protoc_insertion_point(module_scope)
