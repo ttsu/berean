@@ -15,6 +15,18 @@
 !go.mod
 !go.sum
 !services/gateway
+# The generated Go stubs, for the reason `services/catena/gen` is here: they are
+# committed (ADR-0022) so the image needs no `buf` and no `make proto` first. The
+# gateway imports them directly -- `gen/berean/v1` is the answer object it
+# verifies -- so without this line the build fails on a missing package.
+!gen
+# The profile documents. They are the tradition's doctrinal commitments and the
+# gateway loads one per invocation, so an image without them can answer nothing.
+# Baked in rather than mounted, for the reason catena's source is: a container
+# started against a stale image would resolve a profile the working tree no
+# longer holds, and `make build` is already a prerequisite of every target that
+# runs one.
+!profiles
 
 # services/catena/Dockerfile — manifest and lock first, then source, so the
 # dependency layer caches independently of the source layer.

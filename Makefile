@@ -8,7 +8,14 @@
 # Containers that write into a bind mount run as the invoking user (the `user:`
 # key on catena), so what they acquire is owned by whoever ran make rather than
 # by the image's uid. Same reason the buf container below passes --user.
-COMPOSE := BEREAN_UID=$(shell id -u) BEREAN_GID=$(shell id -g) docker compose
+#
+# BEREAN_VERSION is the build identifier the gateway is compiled with and every
+# trace row records. `--dirty` is the load-bearing half: an answer produced by a
+# working tree that does not match any commit must not be recorded as though it
+# came from that commit.
+COMPOSE := BEREAN_UID=$(shell id -u) BEREAN_GID=$(shell id -g) \
+	   BEREAN_VERSION=$(shell git describe --always --dirty 2>/dev/null || echo 0.0.0-dev) \
+	   docker compose
 OFFLINE := $(COMPOSE) -f compose.yaml -f compose.offline.yaml
 PYTHON  := python3
 UV      := uv
