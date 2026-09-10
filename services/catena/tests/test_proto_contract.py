@@ -21,6 +21,7 @@ from __future__ import annotations
 import importlib
 import pathlib
 import pkgutil
+import re
 import unittest
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[3]
@@ -31,6 +32,26 @@ from berean.v1 import trace_pb2, verification_pb2  # noqa: E402
 
 def field_names(message) -> set[str]:
     return set(message.DESCRIPTOR.fields_by_name)
+
+
+#: `ANSWER_FAILURE_CODE_CITATIONS_REQUIRED` -> `citations-required`. The two
+#: spellings differ because proto enums are SCREAMING_SNAKE by convention and
+#: this schema's closed domains are kebab, and neither convention is worth
+#: bending to save this function.
+def _code_to_sql_value(name: str) -> str:
+    return name.removeprefix("ANSWER_FAILURE_CODE_").lower().replace("_", "-")
+
+
+def _sql_answer_failure_codes() -> set[str]:
+    """The values in the migration's `CREATE TYPE trace.answer_failure_code`."""
+    migration = REPO_ROOT / "db" / "migrations" / "000003_answer_failures.up.sql"
+    body = re.search(
+        r"CREATE TYPE trace\.answer_failure_code AS ENUM\s*\((.*?)\);",
+        migration.read_text(),
+        re.DOTALL,
+    )
+    assert body is not None, f"no answer_failure_code enum in {migration}"
+    return set(re.findall(r"'([^']+)'", body.group(1)))
 
 
 def message_modules() -> list:
@@ -108,35 +129,28 @@ class RequestCarriesWhatTheRetryNeeds(unittest.TestCase):
         self.assertEqual(field.message_type.name, "AnswerFailure")
         self.assertTrue(field.is_repeated)
 
-    def test_every_answer_failure_code_is_named(self) -> None:
-        """A closed set, so counting a rule is a GROUP BY rather than a LIKE.
+    def test_every_answer_failure_code_has_a_postgres_value(self) -> None:
+        """The proto enum and the `trace.answer_failure_code` enum are one domain.
 
-        Held against the enum by name: a code added to the proto without a
-        `trace.answer_failure_code` value to match writes a row the migration
-        rejects, and this is the cheapest place to notice.
+        Held by reading the migration rather than by a literal in this file. A
+        code added to the proto without a matching SQL value writes a row Task
+        9's insert rejects with a `22P02`, in production, on the one turn that
+        broke that rule — and this is the cheapest place to notice instead.
         """
         codes = {
-            value.name
+            _code_to_sql_value(value.name)
             for value in verification_pb2.AnswerFailureCode.DESCRIPTOR.values
             if value.number != 0
         }
-        self.assertEqual(
-            codes,
-            {
-                "ANSWER_FAILURE_CODE_CITATIONS_REQUIRED",
-                "ANSWER_FAILURE_CODE_ARGUMENT_LACKS_AUTHORITY",
-                "ANSWER_FAILURE_CODE_POSITION_WITHOUT_ARGUMENTS",
-                "ANSWER_FAILURE_CODE_CONTESTED_WITH_ARGUMENTS",
-                "ANSWER_FAILURE_CODE_CONTESTED_LOCUS_UNKNOWN",
-                "ANSWER_FAILURE_CODE_CONTESTED_RULING_UNCITED",
-                "ANSWER_FAILURE_CODE_CONTESTED_RULING_UNQUOTED",
-                "ANSWER_FAILURE_CODE_RULING_CITED_WHILE_UNCONTESTED",
-                "ANSWER_FAILURE_CODE_STATE_OF_DEBATE_WITHOUT_CONTEST",
-                "ANSWER_FAILURE_CODE_NO_ANSWER_REASON_NOT_ALONE",
-                "ANSWER_FAILURE_CODE_NO_ANSWER_REASON_TOO_LONG",
-                "ANSWER_FAILURE_CODE_EMPTY_ANSWER",
-            },
-        )
+        self.assertEqual(codes, _sql_answer_failure_codes())
+
+    def test_the_unspecified_code_has_no_postgres_value(self) -> None:
+        """Proto3 requires a zero value; the database has nothing to say with it.
+
+        A row carrying `unspecified` would be a failure nobody could act on,
+        which is what `detail` being non-blank already refuses.
+        """
+        self.assertNotIn("unspecified", _sql_answer_failure_codes())
 
     def test_contested_loci_are_a_sibling_of_the_filter_spec(self) -> None:
         """Retrieval policy and generation context are different things (ADR-0015)."""

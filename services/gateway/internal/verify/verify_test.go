@@ -15,6 +15,7 @@ import (
 
 	bereanv1 "github.com/ttsu/berean/gen/berean/v1"
 	"github.com/ttsu/berean/services/gateway/internal/corpus"
+	"github.com/ttsu/berean/services/gateway/internal/normalise"
 	"github.com/ttsu/berean/services/gateway/internal/verify"
 )
 
@@ -54,6 +55,9 @@ func (s store) Lookup(_ context.Context, corpusID, locator string) (corpus.Chunk
 func (s store) put(corpusID, locator, text string, license corpus.License) store {
 	s[corpusID+"\x00"+locator] = corpus.Chunk{
 		CorpusID: corpusID, Locator: locator, Text: text, License: license,
+		// What ingestion would have written. A zero here would make every
+		// quote mismatch in this file report a contract skew that is not there.
+		NormalisationVersion: normalise.Version,
 	}
 	return s
 }
@@ -281,6 +285,57 @@ func TestAQuoteDifferingOnlyInNormalisableWhitespaceMatches(t *testing.T) {
 
 	if !onlyResult(t, out).GetQuoteMatched() {
 		t.Error("quote_matched = false; normalisation should have made these identical")
+	}
+}
+
+func TestAQuoteMissUnderAContractSkewSaysSo(t *testing.T) {
+	// Bump `normalise.Version` without re-ingesting and every citation to that
+	// corpus fails check 2 at once, with a message that reads exactly like a
+	// fabricating model. `chunks.normalisation_version` exists so that this is
+	// a lookup rather than an investigation.
+	s := corpora()
+	stale := s[bindingID+"\x00"+"A 4.2"]
+	stale.NormalisationVersion = normalise.Version + 1
+	s[bindingID+"\x00"+"A 4.2"] = stale
+
+	answer := answered()
+	answer.Arguments[0].Citations[0].Quote =
+		"The assembly of elders shall meet on the second day of the fourth month, and shall not adjourn."
+
+	out := run(t, engine(t, s, false), answer)
+
+	detail := onlyResult(t, out).GetFailureDetail()
+	if !strings.Contains(detail, "normalisation contract version") {
+		t.Errorf("failure_detail = %q, want it to name the contract skew", detail)
+	}
+}
+
+func TestAQuoteMissAtTheCurrentContractVersionSaysNothingAboutVersions(t *testing.T) {
+	// The skew note must not appear on an ordinary fabrication, or it becomes
+	// noise on the message that matters most.
+	answer := answered()
+	answer.Arguments[0].Citations[0].Quote =
+		"The assembly of elders shall meet on the second day of the fourth month, and shall not adjourn."
+
+	out := run(t, engine(t, corpora(), false), answer)
+
+	if detail := onlyResult(t, out).GetFailureDetail(); strings.Contains(detail, "version") {
+		t.Errorf("failure_detail = %q, want no version note when the versions agree", detail)
+	}
+}
+
+func TestAQuoteThatMatchesAcrossAContractSkewStillPasses(t *testing.T) {
+	// A skew is a diagnosis, never a check. Failing on the version number would
+	// refuse citations whose text is genuinely there.
+	s := corpora()
+	stale := s[bindingID+"\x00"+"A 4.2"]
+	stale.NormalisationVersion = normalise.Version + 1
+	s[bindingID+"\x00"+"A 4.2"] = stale
+
+	out := run(t, engine(t, s, false), answered())
+
+	if !out.Passed() {
+		t.Errorf("Passed() = false under a contract skew whose text still matches: %v", out.Results)
 	}
 }
 

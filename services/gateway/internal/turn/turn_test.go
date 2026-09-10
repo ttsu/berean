@@ -14,6 +14,7 @@ import (
 
 	bereanv1 "github.com/ttsu/berean/gen/berean/v1"
 	"github.com/ttsu/berean/services/gateway/internal/corpus"
+	"github.com/ttsu/berean/services/gateway/internal/normalise"
 	"github.com/ttsu/berean/services/gateway/internal/turn"
 	"github.com/ttsu/berean/services/gateway/internal/verify"
 )
@@ -40,9 +41,11 @@ func (s store) Lookup(_ context.Context, corpusID, locator string) (corpus.Chunk
 func corpora() store {
 	return store{
 		bindingID + "|" + bindingLoc: {CorpusID: bindingID, Locator: bindingLoc,
-			Text: bindingText, License: corpus.PublicDomain},
+			Text: bindingText, License: corpus.PublicDomain,
+			NormalisationVersion: normalise.Version},
 		advisoryID + "|" + rulingLoc: {CorpusID: advisoryID, Locator: rulingLoc,
-			Text: rulingText, License: corpus.PublicDomain},
+			Text: rulingText, License: corpus.PublicDomain,
+			NormalisationVersion: normalise.Version},
 	}
 }
 

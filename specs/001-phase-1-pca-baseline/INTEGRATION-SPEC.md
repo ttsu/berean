@@ -337,6 +337,12 @@ buys a second attempt that fixes one third of the problem. Within one citation e
 checks records what it actually found — a citation to an out-of-scope corpus whose locator and quote
 are both real fails check 3 alone, and its other three checks say so.
 
+A quote that misses while the chunk was ingested under a different **normalisation contract
+version** says so in its `failure_detail`. The version does not fail the citation — the text may
+still match across versions — but under a skew the bare message arrives on every citation to that
+corpus at once and is indistinguishable from a fabricating model, which is what
+`chunks.normalisation_version` was added to make a lookup rather than an investigation.
+
 **Degradation always follows exactly two generation attempts.** A citation that cannot verify
 regenerates once and then degrades, and so does an answer-level failure; there is no failure class
 that skips the retry. An unreachable Catena or an unreachable database is **not** a degraded answer

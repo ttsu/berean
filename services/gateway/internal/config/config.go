@@ -8,6 +8,7 @@ package config
 
 import (
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 )
@@ -59,6 +60,15 @@ func TopK(lookup func(string) string) (int32, error) {
 	}
 	if value <= 0 {
 		return 0, fmt.Errorf("%s=%d: a depth of zero or less retrieves nothing, which reads as an empty corpus", TopKEnv, value)
+	}
+	// `Atoi` returns a 64-bit int and the contract's depth is an int32, so the
+	// conversion below narrows. Without this the guard above passes and the
+	// narrowing wraps: 2147483648 becomes -2147483648, which survives all the
+	// way to `trace.traces.top_k CHECK (top_k > 0)` and fails the insert a
+	// whole turn away from the typo that caused it — the exact distance this
+	// function exists to close.
+	if value > math.MaxInt32 {
+		return 0, fmt.Errorf("%s=%d is beyond the contract's int32 depth", TopKEnv, value)
 	}
 	return int32(value), nil
 }

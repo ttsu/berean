@@ -50,6 +50,16 @@ type Chunk struct {
 	Locator  string
 	Text     string
 	License  License
+	// Which version of the normalisation contract produced `Text`.
+	//
+	// Carried because the hashes and the stored text are both post-
+	// normalisation, so a corpus ingested under one version and queried by a
+	// gateway running another produces quote-match failures on visually
+	// identical text. That is the symptom the contract exists to prevent and
+	// the one the spec calls extremely annoying to diagnose; the column is what
+	// makes it a lookup instead of an investigation, and a lookup that drops it
+	// gives the column nothing to do.
+	NormalisationVersion int
 }
 
 // ErrNotFound is what check 1 records: `{corpus_id, locator}` named no chunk.
@@ -75,11 +85,11 @@ func (r *Registry) Lookup(ctx context.Context, corpusID, locator string) (Chunk,
 	chunk := Chunk{CorpusID: corpusID, Locator: locator}
 	var license string
 	err := r.db.QueryRowContext(ctx,
-		`SELECT c.text, w.license
+		`SELECT c.text, c.normalisation_version, w.license
 		   FROM corpus.chunks c
 		   JOIN corpus.works w USING (corpus_id)
 		  WHERE c.corpus_id = $1 AND c.locator = $2`,
-		corpusID, locator).Scan(&chunk.Text, &license)
+		corpusID, locator).Scan(&chunk.Text, &chunk.NormalisationVersion, &license)
 	switch {
 	case errors.Is(err, sql.ErrNoRows):
 		return Chunk{}, fmt.Errorf("%s %s: %w", corpusID, locator, ErrNotFound)

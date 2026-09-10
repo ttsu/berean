@@ -896,6 +896,14 @@ TECHNICAL-SPEC and `services/gateway/AGENTS.md`:
   already doomed, and it buys a regeneration that is told the right mistake: an out-of-scope corpus
   with a real locator and a real quote is not a fabricated locator, and a result reading "all four
   failed" would send the generator after the wrong one
+- **A normalisation contract skew is a diagnosis, never a check.** `Lookup` carries
+  `chunks.normalisation_version`, and when a quote misses *and* the chunk was ingested under a
+  different contract version, the failure detail says so. It does not fail the citation on the
+  version number: the quote may still match across versions, and refusing on the number would
+  refuse citations whose text is genuinely there. What it buys is the question a bare "the quote
+  does not appear verbatim" leaves open — under a skew that message arrives on every citation to
+  that corpus at once and reads exactly like a fabricating model, and the column exists precisely
+  so that this is a lookup rather than an investigation
 - **Verification is complete rather than short-circuited.** Every citation is checked and every
   broken rule reported, because the regeneration carries them back and telling the generator about
   the first of three buys an attempt that fixes one third of the problem

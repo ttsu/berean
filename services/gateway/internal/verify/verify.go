@@ -235,7 +235,7 @@ func (e *Engine) checkCitation(
 		details = append(details, fmt.Sprintf(
 			"the quote is %d characters after normalisation and the floor is %d", length, QuoteFloor))
 	case !strings.Contains(normalise.Normalise(chunk.Text), quote):
-		details = append(details, "the quote does not appear verbatim in that chunk after normalisation")
+		details = append(details, quoteMissDetail(chunk.NormalisationVersion))
 	default:
 		result.QuoteMatched = true
 	}
@@ -384,6 +384,28 @@ func (e *Engine) answerFailures(
 	}
 
 	return failures
+}
+
+// quoteMissDetail states that the quote was not found, and names a
+// normalisation contract skew when there is one.
+//
+// A skew does not *fail* the citation on its own — the quote may still match
+// across versions, and a check that failed on the version number would refuse
+// citations that are perfectly good. What it does is answer the question a bare
+// "the quote does not appear verbatim" leaves open. Under a skew that message is
+// indistinguishable from a fabricating model, and it would arrive on every
+// citation to that corpus at once; `chunks.normalisation_version` exists so that
+// this is a lookup rather than an investigation, and saying so here is what
+// spends it.
+func quoteMissDetail(ingestedUnder int) string {
+	if ingestedUnder != normalise.Version {
+		return fmt.Sprintf(
+			"the quote does not appear verbatim in that chunk after normalisation; "+
+				"the chunk was ingested under normalisation contract version %d and this build "+
+				"normalises at version %d, which is the likelier cause than the quote",
+			ingestedUnder, normalise.Version)
+	}
+	return "the quote does not appear verbatim in that chunk after normalisation"
 }
 
 // permittedInArgument reports whether a tier may appear in an affirmative

@@ -56,3 +56,16 @@ func TestAMalformedDepthIsAnErrorRatherThanTheDefault(t *testing.T) {
 		}
 	}
 }
+
+func TestADepthBeyondTheContractsWidthIsAnErrorRatherThanAWrappedNumber(t *testing.T) {
+	// The contract carries `top_k` as an int32 and `Atoi` returns a 64-bit int,
+	// so the conversion narrows. 2147483648 wraps to -2147483648 and 4294967296
+	// wraps to 0; both would reach Postgres as a `top_k > 0` violation on the
+	// trace insert, a whole turn away from the typo.
+	for _, value := range []string{"2147483648", "4294967296", "99999999999999999999"} {
+		got, err := config.TopK(env(map[string]string{config.TopKEnv: value}))
+		if err == nil {
+			t.Errorf("%q: TopK = %d with no error", value, got)
+		}
+	}
+}
