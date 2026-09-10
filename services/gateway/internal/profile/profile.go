@@ -138,17 +138,15 @@ func validate(ctx context.Context, doc document, reg CorpusRegistry) error {
 	// Scripture is appended to this list at resolution, so it shares the
 	// namespace: one corpus at two stances has no resolution, and a filter
 	// spec carrying both would leave Python to pick.
-	seen := map[string]struct{}{doc.Scripture.CorpusID: {}}
-	declared := make(map[string]struct{}, len(doc.Corpora))
+	inScope := map[string]struct{}{doc.Scripture.CorpusID: {}}
 	for i, c := range doc.Corpora {
 		if c.ID == "" {
 			return fmt.Errorf("corpora[%d]: id is required", i)
 		}
-		if _, duplicate := seen[c.ID]; duplicate {
+		if _, duplicate := inScope[c.ID]; duplicate {
 			return fmt.Errorf("corpus %q is named twice", c.ID)
 		}
-		seen[c.ID] = struct{}{}
-		declared[c.ID] = struct{}{}
+		inScope[c.ID] = struct{}{}
 		if _, ok := tiers[c.Stance]; !ok {
 			return fmt.Errorf("corpus %q: unknown stance %q; want binding, governing, advisory, contrary or excluded",
 				c.ID, c.Stance)
@@ -162,6 +160,9 @@ func validate(ctx context.Context, doc document, reg CorpusRegistry) error {
 		}
 	}
 
+	// The same rule as the corpora list, for the same reason: one locus with two
+	// rulings has no resolution, and both would cross the boundary.
+	heldOpen := make(map[string]struct{}, len(doc.Contested))
 	for _, c := range doc.Contested {
 		if c.Locus == "" {
 			return fmt.Errorf("contested entry with ruling %q: locus is required",
@@ -171,9 +172,17 @@ func validate(ctx context.Context, doc document, reg CorpusRegistry) error {
 			return fmt.Errorf("contested locus %q: ruling_source.locator is required, or the ruling resolves to no chunk",
 				c.Locus)
 		}
-		// A locus the profile cannot cite is a locus it cannot defend.
-		if _, ok := declared[c.RulingSource.CorpusID]; !ok {
-			return fmt.Errorf("contested locus %q: ruling_source.corpus_id %q is absent from `corpora`",
+		if _, duplicate := heldOpen[c.Locus]; duplicate {
+			return fmt.Errorf("contested locus %q is held open twice", c.Locus)
+		}
+		heldOpen[c.Locus] = struct{}{}
+		// A locus the profile cannot cite is a locus it cannot defend. Scope is
+		// what resolution actually sends, which includes Scripture: a ruling
+		// there is citable like any other, and refusing it would refuse a
+		// document that could not be added to `corpora` without tripping the
+		// duplicate check above.
+		if _, ok := inScope[c.RulingSource.CorpusID]; !ok {
+			return fmt.Errorf("contested locus %q: ruling_source.corpus_id %q is in neither `corpora` nor `scripture`",
 				c.Locus, c.RulingSource.CorpusID)
 		}
 	}

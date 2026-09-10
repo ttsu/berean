@@ -316,16 +316,27 @@ load:
 - **`profile`, `scripture.corpus_id`, and every `corpora[].id` are required**, named as such in the
   error. Left empty they reach the registry as `""` and fail as "not ingested", which reads as an
   ingestion problem and sends the reader to the wrong place.
-- **A `contested` entry requires both `locus` and `ruling_source.locator`.** A ruling without a
-  locator resolves to no chunk.
+- **A `contested` entry requires both `locus` and `ruling_source.locator`**, and **a locus held open
+  twice is an error** — the corpora rule again, for the reason it exists: one locus with two rulings
+  has no resolution, and both would cross the boundary.
+
+`ruling_source.corpus_id` is checked against what resolution actually sends, which includes
+`scripture.corpus_id`. A ruling in Scripture is citable like any other, and refusing it would refuse
+a document the profile could not then add to `corpora` without tripping the duplicate rule.
 
 `tier_weights` is resolved **empty** in Phase 1. The profile schema carries no weights and Phase 1
 has no reranker to read them, so there is nothing to populate the field from; emitting an invented
 1.0 per tier would leave Phase 3 unable to tell configured weights from filler.
 
 Validation also reaches the database. The loader takes a **corpus registry** — an interface with a
-single `Exists(corpus_id)` method, backed by a query over distinct `corpus_id` in `chunks` — and a
-profile naming a corpus that is not ingested fails at load. So does a `contested` entry whose
+single `Exists(corpus_id)` method, backed by a query over `corpus.chunk_metadata` — and a
+profile naming a corpus that is not ingested fails at load.
+
+The view rather than `chunks`, and the difference is the whole point of the check. Ingestion commits
+in two phases, text then embeddings, and `chunk_metadata` inner-joins the vectors precisely so that
+nothing half-ingested reaches the gateway's read surface. A corpus interrupted between the phases
+has rows in `chunks` and retrieves nothing, so a registry reading `chunks` would load it into the
+filter spec and turn a refusal at load into a thin answer at query time. So does a `contested` entry whose
 `ruling_source` is not ingested, which is what actually delivers ADR-0015's promise of an honest
 "the establishing document is not ingested yet" rather than an invented ruling. Checking only that
 the ID appears in the profile's own `corpora` list proves internal consistency and nothing else.

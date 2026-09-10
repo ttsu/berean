@@ -589,8 +589,8 @@ role — all eight corpora it names are ingested, which is the assertion ADR-001
 - [x] `scripture.stance` defaults to `binding` when absent; `contrary`/`excluded` rejected (ADR-0011)
 - [x] `scripture.corpus_id` appended to the corpora list carrying that stance as its tier
 - [x] `contested` entries validated: `ruling_source.corpus_id` absent from `corpora` is a load error
-- [x] Loader takes a `CorpusRegistry` interface (`Exists(corpus_id)`, backed by distinct `corpus_id`
-      in `chunks`). A profile naming an un-ingested corpus fails at load, as does a `contested` entry
+- [x] Loader takes a `CorpusRegistry` interface (`Exists(corpus_id)`, backed by
+      `corpus.chunk_metadata`). A profile naming an un-ingested corpus fails at load, as does a `contested` entry
       whose `ruling_source` is not ingested — which is what delivers ADR-0015's honest "the
       establishing document is not ingested yet" instead of an invented ruling. Checking only the
       profile's own `corpora` list proves internal consistency and nothing more.
@@ -623,6 +623,26 @@ Three things the implementation did not anticipate, all recorded in INTEGRATION-
 - **The ruling locator is `GA28 Rec.2`, not the spec's illustrative `Recommendations 1`.** Task 4
   made the recommendations independently addressable and established that Rec.2 is the ruling.
   TECHNICAL-SPEC is corrected rather than left to be discovered at the first contested answer.
+
+Three more the review found, each fixed with the test that reproduces it:
+
+- **The registry reads `corpus.chunk_metadata`, not `corpus.chunks`.** Ingestion commits text and
+  embeddings in separate phases, so a corpus interrupted between them has chunks, no vectors, and
+  retrieves nothing — the view inner-joins the vectors for exactly that reason. Reading `chunks`
+  would have loaded such a corpus into the filter spec and turned a refusal at load into a thin
+  answer at query time. The test writes the half-ingested fixture through a second connection as the
+  `catena` role, because the gateway role cannot write what it is asked to refuse.
+- **A locus held open twice is a load error.** The corpora rule had no counterpart on `contested`,
+  so two rulings for one locus both crossed the boundary and left Python to pick.
+- **`ruling_source` may name `scripture.corpus_id`.** The check read the `corpora` list while
+  resolution sends that list *plus* Scripture, so a ruling in Scripture was refused — and the
+  document could not be edited to satisfy the refusal, since naming it under `corpora` is the
+  duplicate that is already an error.
+
+**Left for Task 10:** `Profile` exposes no accessor for a corpus's `label`. The loader requires one
+at `contrary` and `excluded`, and Task 10's "contrary citations render with their label" is the
+first thing that needs to read it. Adding it here would have been a method with no caller and a test
+asserting only its own existence.
 
 ---
 

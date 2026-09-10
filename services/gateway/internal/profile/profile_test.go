@@ -451,3 +451,57 @@ func TestTheCommittedPCAProfileResolvesAsWritten(t *testing.T) {
 		t.Errorf("creation-days ruling corpus = %q, want the 2000 study report", got)
 	}
 }
+
+func TestALocusHeldOpenTwiceIsALoadError(t *testing.T) {
+	doc := `
+profile: pca
+scripture:
+  corpus_id: web-2020
+corpora:
+  - id: pca-ga28-2000-creation-study
+    stance: advisory
+contested:
+  - locus: creation-days
+    ruling_source:
+      corpus_id: pca-ga28-2000-creation-study
+      locator: "GA28 Rec.2"
+  - locus: creation-days
+    ruling_source:
+      corpus_id: pca-ga28-2000-creation-study
+      locator: "GA28 Rec.1"
+`
+	_, err := profile.Load(context.Background(), []byte(doc),
+		ingested("web-2020", "pca-ga28-2000-creation-study"))
+	if err == nil {
+		t.Fatal("Load succeeded: one locus with two rulings has no resolution, and the request would carry both")
+	}
+}
+
+// Scripture is appended to the corpora list at resolution, so it is in the
+// filter spec, registry-checked, and citable like any other corpus. Refusing it
+// here would refuse a ruling the profile can plainly cite — and the document
+// could not be edited to satisfy the refusal, since naming it under `corpora`
+// is the duplicate that is already an error.
+func TestAContestedRulingSourceMayBeScripture(t *testing.T) {
+	doc := `
+profile: pca
+scripture:
+  corpus_id: web-2020
+corpora:
+  - id: wcf-1788-american
+    stance: binding
+contested:
+  - locus: sabbath-observance
+    ruling_source:
+      corpus_id: web-2020
+      locator: "Col 2:16"
+`
+	p, err := profile.Load(context.Background(), []byte(doc),
+		ingested("web-2020", "wcf-1788-american"))
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if got := p.ContestedLoci()[0].GetRuling().GetCorpusId(); got != "web-2020" {
+		t.Errorf("ruling corpus_id = %q, want web-2020", got)
+	}
+}

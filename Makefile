@@ -36,15 +36,23 @@ GO = docker run --rm \
 	  --volume berean-go-build:/root/.cache/go-build \
 	  $(GO_IMAGE)
 
-# The same container, joined to the compose network and carrying the gateway
-# role's DSN. Separate from GO because the unit suite must keep running with
-# nothing started.
+# The same container, joined to the compose network and carrying both roles'
+# DSNs: the gateway role for the registry under test, and the catena role to
+# write the half-ingested fixture the gateway is read-only on by design.
+# Separate from GO because the unit suite must keep running with nothing
+# started.
+#
+# The passwords are interpolated into URLs unescaped, which holds because these
+# are local development values from .env. A password containing `@`, `/`, `#` or
+# `:` re-parses into a different host and fails as a connection error pointing
+# at the network. Percent-encode it there rather than debugging it here.
 GO_DB = docker run --rm \
 	  --network berean_default \
 	  --volume "$(CURDIR):/src" --workdir /src \
 	  --volume berean-go-mod:/go/pkg/mod \
 	  --volume berean-go-build:/root/.cache/go-build \
 	  --env BEREAN_DATABASE_URL="postgresql://gateway:$$(sed -n 's/^BEREAN_DB_GATEWAY_PASSWORD=//p' .env | tail -1)@postgres:5432/$$(sed -n 's/^POSTGRES_DB=//p' .env | tail -1)" \
+	  --env CATENA_DATABASE_URL="postgresql://catena:$$(sed -n 's/^BEREAN_DB_CATENA_PASSWORD=//p' .env | tail -1)@postgres:5432/$$(sed -n 's/^POSTGRES_DB=//p' .env | tail -1)" \
 	  $(GO_IMAGE)
 
 .DEFAULT_GOAL := help
