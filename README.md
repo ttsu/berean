@@ -78,13 +78,18 @@ container. Docker Compose v2 — `docker compose`, not `docker-compose`.
 git clone https://github.com/ttsu/berean.git
 cd berean
 cp .env.example .env
-make provision      # pulls the pinned model weights, acquires the corpus into ./data/
-make dev            # docker compose up, and wait for health
+make provision            # pulls the pinned model weights, acquires the corpus into ./data/
+make dev                  # docker compose up, and wait for health
+make ingest-all APPLY=1   # chunk, embed and load every acquired corpus
+docker compose run --rm gateway \
+    ask --profile pca "What does the Westminster Confession teach about assurance?"
 ```
 
 Provisioning is not optional. Neither model weights nor corpus text ships in the repository
 (ADR-0014), so `docker compose up` on its own brings up a stack with no models and an empty
-corpus.
+corpus. Acquisition puts text on your disk; ingestion is the separate step that chunks, embeds
+and loads it, and until it has run the profile names corpora the database does not have — which
+`berean ask` refuses at load rather than answering thinly from what is there.
 
 **What it costs.**
 
@@ -188,6 +193,65 @@ Two guards run in `make check` and are not optional:
 too. So a green run means the checks you run locally passed, rather than a parallel set of checks
 that has drifted from them. Nothing in the path touches `./data/`, `./models/` or an upstream
 corpus, which is how ADR-0014 survives having a CI log at all.
+
+## Asking a question
+
+```
+docker compose run --rm gateway ask --profile pca [--top-k N] [--show-work] "question"
+```
+
+One turn per invocation. The gateway resolves the profile, makes one gRPC call into Catena,
+verifies every citation that comes back, records the whole turn, and prints — in that order. The
+recording comes before the printing deliberately: verification refusing to ship is an event worth
+having in the log, and a write that failed after the answer was printed is not.
+
+- `--profile <name>` selects `profiles/<name>.yaml`. There is no default: which corpora are
+  authoritative is half the question.
+- `--top-k N` overrides the configured retrieval depth for this turn. The value actually used is
+  what the trace records, not the configured default.
+- `--show-work` prints the trace after the answer — the settings each attempt ran under, every
+  candidate retrieved with its score and whether it was included, each of the four checks per
+  citation, and every answer-level rule that broke. It is a log. It is not an account of how the
+  model reasoned, and there will never be one (ADR-0003).
+
+Each citation renders with its corpus ID, its locator, the work and edition it came from, and the
+stance this profile assigns it. A `contrary` or `excluded` citation additionally carries the
+profile's own label for that corpus, so another tradition's position cannot be read as this one's.
+
+Three outcomes, and they read differently on purpose:
+
+| | |
+| --- | --- |
+| **An answer** | Position, arguments, descriptions, each with citations that verified, and a confidence with a stated reason |
+| **Silence** | "The sources in scope are silent on this question", above the model's own brief statement of why. A **pass** — the corpus really is silent (UC-2) |
+| **A refusal** | "I can't source this adequately", and nothing else. Verification refused to ship after a regeneration; no partial content, no warning beside one |
+
+Answering takes minutes on CPU, almost all of it generation — see the cost table above. Exit status
+is 0 for all three outcomes, including the refusal: degradation is the verification system working,
+and the rate lives in `trace.responses.overall_result` where it can be counted against the turns
+that verified. `64` is a usage error and `69` means the stack is not ready.
+
+## Ingestion
+
+```
+docker compose run --rm catena ingest (--corpus <id> | --all) [--apply]
+```
+
+`make ingest CORPUS=<id>` and `make ingest-all` wrap it, with `APPLY=1` for `--apply`.
+
+It makes the database agree with the blessed staging directory `catena acquire` wrote into
+`./data/`: it reads the staged records, checks each chunk against the fingerprints committed in
+`corpora/<corpus-id>/fingerprints.txt`, diffs them against what is loaded, and prints the plan —
+inserts, updates, deletes, and how many embeddings are outstanding.
+
+**It writes nothing without `--apply`.** The plan is recomputed on both paths rather than saved
+between them, so the dry run cannot go stale. Ingestion is idempotent on the content hash and
+resumable per corpus, so an interrupted run continues rather than restarts; deletes cascade to
+embeddings, which is why applying is the flag rather than the default.
+
+Ingestion never touches the network and never parses an upstream format — acquisition did both,
+and its output is what this reads. Re-running it after `make corpus-verify` reports drift is how an
+upstream edition change reaches the index.
 
 ## Bible translations
 

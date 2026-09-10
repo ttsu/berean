@@ -1053,18 +1053,117 @@ re-opens them on purpose rather than rediscovering them:
 
 **Depends on:** Tasks 6, 8
 
-- [ ] `berean ask --profile pca "question"` returns a verified answer
-- [ ] **The turn is persisted before anything is printed** (Task 9). Verification refusing to ship
-      is a recorded event; a write that failed after the answer was printed is not
-- [ ] The linker-set `version` reaches `trace.responses.gateway_version` — the store refuses to open
-      without one, so this is wiring rather than a check
-- [ ] `--show-work` prints the trace as a **log, not a narrative**
-- [ ] `--top-k` overrides the configured default
-- [ ] Citations render with corpus, edition, locator, and tier
-- [ ] `contrary` citations render with their label
-- [ ] An honest non-answer renders `no_answer_reason` in text visibly distinct from the degraded
-      string. A reader must be able to tell "the corpus is silent" from "I could not source this"
-- [ ] `catena ingest` documented
+**Status:** landed and demonstrated end to end against the live stack — UC-1 verified and UC-2
+returned an honest non-answer, both with the trace row written before anything printed.
+`internal/render`, the wiring in `cmd/berean`, and the two build fixes the first real invocation
+forced.
+
+- [x] `berean ask --profile pca "question"` returns a verified answer. UC-1 run for real:
+      `VERIFIED` on the first attempt, citing `wcf-1788-american` WCF 18.2 at `binding`, quote
+      matching verbatim, `gateway_version` recorded. UC-2 run for real: `VERIFIED` with
+      `no_answer_reason`, every content slot empty, rendered as silence rather than as a refusal.
+      Both needed the Langfuse containers stopped to fit Qwen3-8B into a 7.8 GiB Docker VM — see
+      the last finding
+- [x] **The turn is persisted before anything is printed** (Task 9). `deliver` writes and then
+      renders, and the test that holds it is a store that refuses: nothing reaches the output
+- [x] The linker-set `version` reaches `trace.responses.gateway_version`. It was wiring, and it was
+      also missing a source: the compose build passed no `VERSION`, so every image would have
+      recorded `0.0.0-dev`. `$(COMPOSE)` now sets it from `git describe --always --dirty`, and
+      `--dirty` is the load-bearing half — an answer produced by a tree matching no commit must not
+      be recorded as though it came from one
+- [x] `--show-work` prints the trace as a **log, not a narrative** — per attempt: the settings, the
+      three stage timings plus the gateway's own verification cost, every candidate with rank, score
+      and exclusion reason, the four checks per citation, and every answer-level failure with its
+      code and slot. It prints no answer prose at all, and there is a test that fails if a refused
+      attempt's position reaches it
+- [x] `--top-k` overrides the configured default, and the override is what the trace records. A
+      depth of zero or less is a usage error, the same rule `internal/config` applies to
+      `BEREAN_TOP_K` — it is the same value arriving by a different route
+- [x] Citations render with corpus, edition, locator, and tier. The edition comes from
+      `corpus.works` through a new `Registry.Works`, one statement per turn rather than one per
+      citation. UC-3 is a correctness claim about exactly that field, and a corpus ID states it only
+      to a reader who already knows the naming convention
+- [x] `contrary` citations render with their label, via the `Profile.Label` accessor Task 6 left
+      for this task
+- [x] An honest non-answer renders `no_answer_reason` under "The sources in scope are silent on this
+      question", which shares no words with "I can't source this adequately". Both strings are
+      constants in the renderer, and there is a test asserting each output contains its own and not
+      the other
+- [x] `catena ingest` documented — README, with the plan/`--apply` inversion, the fingerprint check,
+      and what it deliberately does not do
+
+**Decisions Task 10 made that the spec did not anticipate**, recorded in INTEGRATION-SPEC and
+`services/gateway/AGENTS.md` in the same change:
+
+- **The renderer holds the two fixed sentences rather than composing them.** `render.Refusal` and
+  `render.Silence` are constants, and the reason is the same one that keeps `Confidence.reason` the
+  only Go-authored string a reader sees: a renderer free to phrase the refusal is a renderer that
+  can soften it into a warning attached to content it should not be showing at all.
+- **Quotes render whole and unwrapped.** Truncating one would undercut the only claim the four
+  checks actually establish — that this text appears verbatim in that passage — by showing a reader
+  something they cannot go and find; wrapping to a terminal width would put a line break inside text
+  they may want to paste back. No width detection, no reflow.
+- **Enum values render as the trace tables spell them** — `binding`, `regenerated`,
+  `argument-lacks-authority` — derived by stripping the proto prefix rather than mapped through a
+  table. Same derivation as Task 9's schema correspondence, and for the same reason: a value added
+  to the contract cannot render as a blank, and a line on screen and a row in Postgres can be
+  grepped for one string.
+- **Every outcome the verification system produces exits 0, degradation included.** A non-zero
+  status would invite a caller to read the degradation rate off it, and that rate belongs in
+  `trace.responses.overall_result` where it can be counted against the turns that verified. `64` is
+  a usage error and `69` is a stack that is not ready; the same sysexits values `catena` uses, where
+  the previous stub returned `2`.
+- **Each candidate in the trace log carries its tier**, joined on from the resolved profile because
+  nothing Catena sends carries one. Task 11 has to record the candidate tier mix for UC-1, and
+  without this that is a join against the profile by hand for every question.
+- **Two positional arguments are a usage error.** It is almost always an unquoted question, and the
+  first word of one is not a question — answering it would spend two generations on a query nobody
+  asked.
+- **`BEREAN_PROFILE_DIR`**, and the gateway image carries the profile documents at
+  `/etc/berean/profiles`. A profile is a doctrinal commitment that ships with the build rather than
+  deployment configuration that varies per host, which is the same trade catena's image makes by
+  COPYing its source: editing one needs `make build`, and every target that runs a container already
+  depends on it.
+
+**What the first verified answer showed.** UC-1 run against the live stack returned `VERIFIED` on
+the first attempt, citing `wcf-1788-american` WCF 18.2 at `binding` with the quote matching
+verbatim, and the row landed in `trace.responses` carrying `gateway_version = e2f46d7-dirty`. That
+is the outcome Task 11's UC-1 checkbox hopes for and explicitly doubts — it is **not** a verse-only
+answer — but it is one question, and the doubt stands until the ten are run. Three observations for
+Task 11 to carry, none of them defects in this task:
+
+- **The generator writes contract vocabulary into user-facing prose.** The warrant read "This
+  passage is cited as TIER_BINDING, indicating it is a binding statement within the tradition" —
+  the proto's enum spelling, in a slot the reader sees. It passes every check, because `warrant` is
+  uncited prose by design, and it is a prompt problem rather than a verification one. The same
+  answer also repeated its single citation into `descriptions` under a subject restating the
+  argument. Both are Phase 2 generator-quality measurements arriving early, and both belong to
+  Task 7's prompt rather than to the renderer.
+- **`rank` is retrieval order after pinning, not score order.** The trace's first candidate scored
+  0.3296 against the second's 0.6031, because Catena pins a contested locus's ruling ahead of the
+  context budget (Task 7). Phase 2 computes recall@k off `trace.candidates.rank`, so the column
+  means "position in what was sent to the generator" and not "rank by similarity". Worth stating
+  before a Phase 2 number is computed against the other reading.
+- **An answer took 6 minutes rather than the README's 2–4**, on a Docker VM under the documented
+  floor with the Langfuse containers stopped to make room. The figure the README carries is still
+  the one to measure properly on a correctly sized machine at Task 11.
+
+**What the first real invocation found**, both of them build defects that no test could have caught:
+
+- **The gateway image could not be built at all.** `.dockerignore` denies everything and re-includes
+  what a Dockerfile COPYs, and neither `gen/` nor `profiles/` was on the list — so the build failed
+  on the generated package the gateway exists to verify. It had been unbuildable since ADR-0022
+  committed the stubs, invisibly, because nothing before this task ran the binary.
+- **Generation is OOM-killed on the reference machine as configured.** Docker's VM has 7.8 GiB
+  against the README's documented 12 GiB floor, and `llama-server process has terminated: signal:
+  killed` is exactly the symptom that section was written about. It arrives as an *error* from
+  Catena, which is correct and load-bearing: an unreachable or failing generator is a failure of the
+  system, not verification refusing to ship, and folding it into `DEGRADED` would make the one rate
+  ADR-0010 needs kept clean unreadable. Stopping the five Langfuse containers frees ~2.5 GiB and
+  makes a turn fit, which is how UC-1 and UC-2 were run — but it is a workaround, it failed once
+  more when a concurrent image build took the headroom back, and it disables the observability
+  stack SHARED §6 requires. **Task 11 needs the Docker VM raised to the documented 12 GiB**, which
+  is a host setting rather than a change to anything here.
 
 ---
 

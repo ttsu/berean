@@ -728,8 +728,52 @@ argument applies to the distinction as much as to the field.
 
 ## CLI surface
 
-`berean ask --profile pca "question"` — the Phase 1 entry point. Prints the verified answer, then
-the trace on `--show-work`. `--top-k` overrides the configured default.
+`berean ask --profile <name> [--top-k N] [--show-work] "question"` — the Phase 1 entry point. One
+turn per invocation: resolve the profile, one gRPC call into Catena, verify, **persist, then
+print**. `--top-k` overrides the configured default, and the value actually used is what the trace
+records. `--show-work` prints the trace after the answer.
+
+`--profile` has no default; it selects `<name>.yaml` from `BEREAN_PROFILE_DIR` (default `profiles`,
+and the gateway image sets it to `/etc/berean/profiles`, where its COPY of the documents lands).
+Flags precede the question, which is the one positional argument and must be quoted — two
+positional arguments are a usage error rather than a question, because the first word of an
+unquoted question is not one.
+
+Exit status is `0` for every outcome the verification system produces, degradation included:
+`DEGRADED` means verification refused to ship, which is that system working, and a non-zero status
+would invite a caller to count it as a failure rate instead of reading
+`trace.responses.overall_result`. `64` is a usage error and `69` means the stack is not ready — an
+unset DSN or Catena address, a profile that is not installed, an unreachable database. These are
+the same sysexits values `catena` uses.
+
+**What renders.** Each citation carries its corpus ID, its locator, the work and edition from
+`corpus.works`, and the tier **the resolved profile assigns** — never the tier the citation claimed,
+which is the one number the gateway spent a check refusing to believe. A `contrary` or `excluded`
+citation additionally renders the profile's `label` for that corpus, which is why the loader
+requires one at those two stances.
+
+The three outcomes render differently, and two of them are fixed strings the renderer holds rather
+than composes:
+
+- An answer: position, arguments, descriptions, contrary positions, contested, then the derived
+  confidence with its reason.
+- An honest non-answer: "The sources in scope are silent on this question", above the model's
+  `no_answer_reason`. It shares no words with the refusal below — UC-2 and UC-5 mean opposite
+  things and a reader must be able to tell them apart without opening a trace.
+- A refusal: "I can't source this adequately", and nothing else. No partial content, no warning
+  beside one, and nothing from either refused attempt.
+
+`--show-work` is a **log, not a narrative**: per attempt, the settings it ran under, the three stage
+timings plus the gateway's own verification cost, every candidate with its rank, score, tier,
+inclusion and exclusion reason, each of the four checks per citation, and every answer-level
+failure with its code and slot. The candidate's tier is joined on from the resolved profile —
+nothing Catena sends carries one, because tier is a per-tradition stance rather than a property of
+a chunk — and it is there because "which tiers did retrieval actually surface" is the first
+question asked of a confessional question answered entirely from verses. It prints no answer prose at all — not from the attempt that won and specifically
+not from one that was refused, which would be the same failure as rendering it directly with a flag
+in front. Enum values are spelled as the trace tables store them (`argument-lacks-authority`,
+`regenerated`, `binding`), so a line on screen and a row in Postgres can be grepped for the same
+string.
 
 Serving `local-only` corpora requires the deployer opt-in (ADR-0017). Without it the BCO and the
 2000 creation report are ingested but refused at check 4, so UC-4 degrades — Task 11 runs with the

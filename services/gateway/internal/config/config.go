@@ -1,9 +1,10 @@
 // Package config reads the gateway's deployment settings from the environment.
 //
-// Two of them, and both belong here rather than in a profile: they are
-// deployment policy and retrieval tuning, neither of which is a doctrinal
-// commitment. A profile records what a tradition holds; it does not record how
-// deep this deployment searches or which licences this deployer may serve.
+// None of them belongs in a profile: they are deployment policy, retrieval
+// tuning, and where this deployment keeps its files, none of which is a
+// doctrinal commitment. A profile records what a tradition holds; it does not
+// record how deep this deployment searches, which licences this deployer may
+// serve, or which directory the documents were installed into.
 package config
 
 import (
@@ -19,11 +20,17 @@ const (
 	TopKEnv           = "BEREAN_TOP_K"
 	CatenaAddrEnv     = "BEREAN_CATENA_ADDR"
 	DatabaseURLEnv    = "BEREAN_DATABASE_URL"
+	ProfileDirEnv     = "BEREAN_PROFILE_DIR"
 )
 
 // DefaultTopK is INTEGRATION-SPEC's retrieval depth. Catena carries the same
 // number as its own floor for a request that named none.
 const DefaultTopK = 20
+
+// DefaultProfileDir is where the profile documents sit in a checkout, so that
+// `berean ask` run from the repository root needs no configuration at all. The
+// container image installs them elsewhere and sets the variable.
+const DefaultProfileDir = "profiles"
 
 // affirmatives is exactly the set Catena's own reader accepts. Written out on
 // both sides rather than shared, for the reason the normalisation contract is:
@@ -71,4 +78,22 @@ func TopK(lookup func(string) string) (int32, error) {
 		return 0, fmt.Errorf("%s=%d is beyond the contract's int32 depth", TopKEnv, value)
 	}
 	return int32(value), nil
+}
+
+// ProfileDir is the directory `--profile <name>` selects a document from.
+//
+// A deployment setting rather than a flag, for the same reason the DSN and the
+// Catena address are: it is a property of where this build was installed, and
+// nobody typing a question should have to know it. Unset falls back to the
+// checkout layout, which is what makes the repository root work untouched.
+//
+// Anything is accepted, including a directory that does not exist. The failure
+// worth reporting is "this profile could not be loaded, at this path", which
+// the loader states with the path in it; a check here would report the same
+// fact earlier, in a message that could not name the profile that was wanted.
+func ProfileDir(lookup func(string) string) string {
+	if dir := strings.TrimSpace(lookup(ProfileDirEnv)); dir != "" {
+		return dir
+	}
+	return DefaultProfileDir
 }

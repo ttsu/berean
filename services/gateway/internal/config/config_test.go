@@ -69,3 +69,16 @@ func TestADepthBeyondTheContractsWidthIsAnErrorRatherThanAWrappedNumber(t *testi
 		}
 	}
 }
+
+func TestTheProfileDirectoryDefaultsToTheRepositoryLayout(t *testing.T) {
+	if got := config.ProfileDir(env(nil)); got != config.DefaultProfileDir {
+		t.Errorf("ProfileDir = %q, want %q", got, config.DefaultProfileDir)
+	}
+}
+
+func TestTheProfileDirectoryIsWhereTheDeploymentPutIt(t *testing.T) {
+	got := config.ProfileDir(env(map[string]string{config.ProfileDirEnv: " /etc/berean/profiles "}))
+	if want := "/etc/berean/profiles"; got != want {
+		t.Errorf("ProfileDir = %q, want %q", got, want)
+	}
+}

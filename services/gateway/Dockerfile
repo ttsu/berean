@@ -10,6 +10,10 @@ WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
 
+# The generated stubs are committed (ADR-0022), so they are copied rather than
+# generated: the image needs no `buf` and reaches no network beyond the base
+# image, which is what makes `docker compose up` work on a clean clone.
+COPY gen ./gen
 COPY services/gateway ./services/gateway
 ARG VERSION=0.0.0-dev
 RUN CGO_ENABLED=0 go build \
@@ -18,6 +22,16 @@ RUN CGO_ENABLED=0 go build \
 
 FROM gcr.io/distroless/static-debian12:nonroot
 COPY --from=build /out/berean /usr/local/bin/berean
+
+# The profile documents. `berean ask --profile pca` resolves `pca.yaml` from
+# here, and the image is the right place for them: a profile is a doctrinal
+# commitment that ships with the build rather than deployment configuration that
+# varies per host, and this is the same trade catena's image makes by COPYing
+# its source. Editing one therefore needs `make build`, which every target that
+# runs a container already depends on.
+COPY profiles /etc/berean/profiles
+ENV BEREAN_PROFILE_DIR=/etc/berean/profiles
+
 USER nonroot:nonroot
 ENTRYPOINT ["/usr/local/bin/berean"]
 CMD ["version"]

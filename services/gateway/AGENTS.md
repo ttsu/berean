@@ -72,6 +72,18 @@ logic here, stop — it belongs in Catena.
 - **A malformed response from Catena is an error, not a degraded turn**, and never a trace row with
   sentinels standing in for what Catena did not send. It sits with the unreachable-Catena case, not
   with the answers verification refused to ship.
+- **The renderer decides nothing.** `internal/render` is handed a finished turn and prints the
+  answer object that turn nominated. It reads no attempt, so a refused attempt's prose is
+  unreachable from it — including through `--show-work`, which is provenance and prints no answer
+  prose at all. It never summarises, hedges, softens, or explains: `Confidence.reason` stays the
+  only Go-authored string a reader sees, and the refusal and the silence are constants rather than
+  sentences composed per turn.
+- **The refusal and the honest non-answer must not read alike.** "I can't source this adequately"
+  and "The sources in scope are silent on this question" share no words on purpose. UC-2 and UC-5
+  mean opposite things; a reader must be able to tell them apart without opening a trace.
+- **A citation renders with the tier the resolved profile assigns**, never the one it claimed —
+  the same rule as check 3, one layer out. `contrary` and `excluded` additionally render the
+  profile's label, which is why the loader requires one at those two stances.
 
 ## Conventions
 

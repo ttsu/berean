@@ -505,3 +505,48 @@ contested:
 		t.Errorf("ruling corpus_id = %q, want web-2020", got)
 	}
 }
+
+// The label is what keeps a `contrary` or `excluded` citation from reading as
+// this tradition's own. The loader has required one at those two stances since
+// Task 6; this is the accessor that finally reads it.
+func TestLabelIsTheProfilesOwnWordsForACorpusItDoesNotHold(t *testing.T) {
+	const document = `
+profile: pca
+scripture:
+  corpus_id: web-2020
+corpora:
+  - id: wcf-1788-american
+    stance: binding
+  - id: wcf-1646-epcew-modernised
+    stance: contrary
+    label: "1646 Westminster in modern English, not the PCA's text"
+`
+	p, err := profile.Load(context.Background(), []byte(document),
+		ingested("web-2020", "wcf-1788-american", "wcf-1646-epcew-modernised"))
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+
+	if got, want := p.Label("wcf-1646-epcew-modernised"),
+		"1646 Westminster in modern English, not the PCA's text"; got != want {
+		t.Errorf("Label(contrary corpus) = %q, want %q", got, want)
+	}
+}
+
+// A tier that needs no label has none, and the renderer must not invent one.
+// Scripture is the sharpest case: it is resolved into the corpora list but is
+// never written there, so a lookup that only walked `corpora` would return the
+// same empty string for it as for a corpus the profile never named.
+func TestLabelIsEmptyForACorpusTheProfileGivesNone(t *testing.T) {
+	p, err := profile.Load(context.Background(), []byte(minimal),
+		ingested("web-2020", "wcf-1788-american"))
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+
+	for _, id := range []string{"wcf-1788-american", "web-2020", "never-named-1999"} {
+		if got := p.Label(id); got != "" {
+			t.Errorf("Label(%q) = %q, want the empty string", id, got)
+		}
+	}
+}

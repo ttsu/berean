@@ -296,6 +296,15 @@ services:
     build:
       context: .
       dockerfile: services/gateway/Dockerfile
+      args:
+        # The build the trace tables record. `trace.responses.gateway_version`
+        # is NOT NULL and the store refuses to open without a value, because
+        # the first question asked of a verification failure is which build
+        # produced the answer — and Phase 2 compares a later retriever against
+        # this phase's baseline out of one table. The Makefile sets this from
+        # `git describe`; the fallback is what a bare `docker compose build`
+        # gets, and it is honest about saying nothing.
+        VERSION: ${BEREAN_VERSION:-0.0.0-dev}
     depends_on:
       postgres: { condition: service_healthy }
       migrate: { condition: service_completed_successfully }

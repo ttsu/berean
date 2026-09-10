@@ -255,3 +255,22 @@ func (p *Profile) FilterSpec(topK int32) *bereanv1.FilterSpec {
 	}
 	return spec
 }
+
+// Label is the profile's own words for a corpus it does not hold, shown beside
+// every citation that corpus carries.
+//
+// Empty for a corpus the profile gives no label, and empty for one it never
+// named. The two cases are deliberately not distinguished: a renderer asks this
+// question about a citation verification has already accepted, so the corpus is
+// in scope by construction, and an error return here would be an error nobody
+// could act on. What the empty string means at the call site is "print nothing
+// extra", which is the right rendering for `binding` as well as for a corpus
+// the loader would have refused.
+func (p *Profile) Label(corpusID string) string {
+	for _, c := range p.doc.Corpora {
+		if c.ID == corpusID {
+			return c.Label
+		}
+	}
+	return ""
+}
