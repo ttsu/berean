@@ -252,6 +252,18 @@ RetrievalTrace:
 `generation_model` and `top_k` are recorded because they are the two settings most likely to move
 the Phase 2 baseline silently. A number nobody logged cannot be held constant across a comparison.
 
+**`exclusion_reason` carries two values in Phase 1**, and both are structural rather than
+semantic — Phase 1 has no reranker, so nothing here judges relevance:
+
+| Value | Meaning |
+| --- | --- |
+| `context budget` | The candidate did not fit the generator's context window. Candidates are dropped whole, lowest score first, never truncated |
+| `corpus not in the filter spec` | Defensive. The search filters on exactly these IDs, so this should not occur; it is recorded rather than assumed away, because a citation to an unsent corpus fails immediately and putting such a chunk in front of the model only invites one |
+
+A candidate excluded on budget keeps its **real** score, and so does a pinned contested ruling
+fetched by locator rather than by similarity. The trace is simultaneously the eval dataset and the
+audit log, and a synthesised score would corrupt both.
+
 Returned inside the response for storage, not as a live feed. Go persists it.
 
 ## Verification result contract
@@ -655,6 +667,13 @@ Serving `local-only` corpora requires the deployer opt-in (ADR-0017). Without it
 opt-in set, and the README says so.
 
 `catena ingest --corpus <id> --source <path>` — batch ingestion. Idempotent.
+
+`catena serve [--port N]` — the gRPC service. Long-running, part of the default `docker compose up`,
+and the only Catena command that is not a batch job. `catena serve --probe` exits 0 when the service
+reports SERVING over the standard gRPC health protocol and 1 otherwise; it is what the compose
+healthcheck runs, because the port is open for the tens of seconds BGE-M3 takes to load and the
+gateway `depends_on` catena being *ready*, not merely started.
+
 
 `catena acquire --corpus <id> [--bless] [--from-file <path>]` — acquisition, per
 **Corpus acquisition contract** above. Two flags exist for operating on the whole set: `--all`

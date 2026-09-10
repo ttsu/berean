@@ -21,3 +21,8 @@
 !services/catena/pyproject.toml
 !services/catena/uv.lock
 !services/catena/src
+# The generated stubs are committed rather than built here (ADR-0022). The
+# image needs no `buf` and the build reaches no network beyond the base image,
+# which is what makes `docker compose up` work on a clean clone -- catena is in
+# the default `up` as of Task 7.
+!services/catena/gen

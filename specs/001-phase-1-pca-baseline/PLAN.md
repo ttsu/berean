@@ -191,7 +191,12 @@ needed.
       the contract before a corpus is blessed
 - [x] `buf generate` produces Go and Python stubs
 - [x] Generated code gitignored and regenerated locally; the commit-or-generate decision is
-      **deferred to Phase 2** (ADR-0013) — it is CI policy, not contract design
+      **deferred to Phase 2** (ADR-0013) — it is CI policy, not contract design.
+      **Resolved early, in Task 7 (ADR-0022): the stubs are committed.** The deferral rested on
+      this being CI policy, and it stopped being: Task 7 drops catena's compose profile, so
+      `docker compose up` on a clean clone now builds an image that must import the contract, and
+      `buf.gen.yaml` uses remote plugins. `make check` runs `guard-proto-fresh` so a committed
+      artefact cannot drift from what produced it
 - [x] `buf breaking` in CI **deferred to Phase 2**; the proto is pre-consumer in Phase 1. The
       configuration is written in `buf.yaml` so enabling it is a CI change.
       `services/catena/tests/test_proto_contract.py` stands in until then: with no break check,
@@ -650,36 +655,146 @@ asserting only its own existence.
 
 **Depends on:** Tasks 2, 5
 
-- [ ] gRPC server implementing `Answer`
-- [ ] Dense-only top-k search filtered to the corpus IDs in the FilterSpec
-- [ ] **No reranking, no BM25, no query rewriting** — naive is the requirement
-- [ ] Resolves a sent locus's `ruling` pointer through ordinary retrieval and grounds
-      `state_of_debate` in that passage; populates `contested.locus` only from the loci sent
-- [ ] When it sets `is_contested`, it emits **no** `arguments` — a contested answer is descriptive
-      (ADR-0019). Routing this badly fails loudly in Go and costs a regeneration, which is the
-      intended direction
-- [ ] Emits `no_answer_reason` (≤ 200 chars) when the corpus is silent, with every content slot
-      empty. An empty answer with no reason is a malformed generation and Go regenerates it
-- [ ] Populates neither `confidence.level` nor `confidence.reason`. Go derives both (ADR-0020)
-- [ ] Consumes `previous_failures` and `attempt` on a regeneration
-- [ ] Routes claims into `arguments` or `descriptions` per the slot rules, so a descriptive answer
-      is expressible without an affirmative claim behind it
-- [ ] Generation behind an OpenAI-compatible interface, default Ollama running the pinned Qwen3-8B
-      tag (ADR-0018)
-- [ ] Structured output conforming to `AnswerObject`, enforced by JSON-schema-constrained decoding
-      rather than by asking the model for JSON
-- [ ] `RetrievalTrace` populated including excluded candidates with reasons, plus `generation_model`
-      and the `top_k` actually used
-- [ ] Langfuse instrumentation on every model call
-- [ ] Never writes to trace tables
-- [ ] **The catena image carries the generated stubs.** Task 2 left it out on purpose: `gen/` is
-      gitignored, so a `COPY services/catena/gen` would break the build on a clean clone, and
-      nothing in the image imports the contract until this task. Whichever way it lands — running
-      `buf` inside the build, or committing the generated code — it is the commit-or-generate
-      question ADR-0013 deferred, and answering it here rather than in passing is the point.
-      `.dockerignore` is an allow-list, so it needs a line too
+**Status:** landed, with one measured failure that is Task 11's to expect rather than Task 7's to
+fix — see the last finding below. `catena serve` runs in the default `docker compose up`, reports
+SERVING over the gRPC health protocol once BGE-M3 is loaded, and answers `Answer` end to end
+against the live stack on a real PCA filter spec. `make check` runs the unit suite with nothing
+started; `make test-catena-db` asserts the SQL against a live database.
 
----
+- [x] gRPC server implementing `Answer` — `catena.serve.server`, thread pool, standard health
+      service, graceful SIGTERM. Readiness is not liveness: the port is open for the tens of
+      seconds the encoder takes to load, so compose probes health rather than TCP and the gateway
+      waits on `service_healthy`
+- [x] Dense-only top-k search filtered to the corpus IDs in the FilterSpec — and
+      `hnsw.iterative_scan` set per transaction, because pgvector defaults it `off` and HNSW
+      post-filters, so a filtered search silently returns fewer than `top_k`
+- [x] **No reranking, no BM25, no query rewriting** — and no LangGraph, which TECHNICAL-SPEC defers
+      to Phase 5 with the instruction to hit the wall first. The path is linear and a graph would
+      only obscure it
+- [x] Resolves a sent locus's `ruling` pointer through ordinary retrieval and grounds
+      `state_of_debate` in that passage; populates `contested.locus` only from the loci sent. The
+      ruling is fetched by `(corpus_id, locator)` — a pointer resolves to exactly one chunk — and
+      **pinned ahead of the context budget**, since `state_of_debate` must quote it
+- [x] When it sets `is_contested`, it emits **no** `arguments` (ADR-0019) — stated in the prompt,
+      and **not enforced here**. This service does not launder its own output: a bad routing goes
+      to Go and fails there, which is the intended direction and the only way the rate stays
+      measurable for Phase 2
+- [x] Emits `no_answer_reason` (≤ 200 chars) when the corpus is silent, with every content slot
+      empty. Verified against the **pinned generator with the derived schema** — a question its
+      passages did not address returned `no_answer_reason` alone, in 21 tokens, every other slot
+      absent — rather than end to end through the service, which needs a corpus genuinely silent on
+      something a user would ask. Task 11's UC-2 is where that lands
+- [x] Populates neither `confidence.level` nor `confidence.reason` (ADR-0020). Stronger than a
+      convention: the field is **absent from the decoding schema**, so it is unpopulatable, and its
+      arrival anyway is a loud failure rather than a quiet `ClearField`
+- [x] Consumes `previous_failures` and `attempt` on a regeneration — rendered into the prompt by
+      Python from the structured results, so Go still composes no prose
+- [x] Routes claims into `arguments` or `descriptions` per the slot rules
+- [x] Generation behind an OpenAI-compatible interface, default Ollama running the pinned Qwen3-8B
+      tag (ADR-0018). stdlib `urllib`: the wire format is what makes providers interchangeable, not
+      a vendor SDK. A test asserts the constant matches `models.lock.yaml`
+- [x] Structured output conforming to `AnswerObject`, enforced by JSON-schema-constrained decoding
+      — schema **derived from the proto descriptor** rather than hand-written, minus `confidence`
+      (ADR-0023)
+- [x] `RetrievalTrace` populated including excluded candidates with reasons, plus `generation_model`
+      and the `top_k` actually used
+- [x] Langfuse instrumentation on every model call, carrying token counts (SHARED §6) — verified
+      end to end by querying ClickHouse after a live request: a `catena.answer` span and a
+      `generate` generation, correlated by `request_id` and naming the pinned tag. Recorded even
+      when the generation itself fails, which is what makes a failure rate measurable.
+      Observability never fails a request — an unconfigured or unreachable Langfuse degrades to a
+      no-op — but it reports the first failure rather than degrading silently. See the defect below
+- [x] Never writes to trace tables — the `catena` role has no grant, and retrieval opens a
+      read-only connection per request
+- [x] **The catena image carries the generated stubs.** Committed, per ADR-0022, and packaged into
+      the wheel so an editable dev install and the image resolve the import identically.
+      `.dockerignore` gained its allow-list line
+
+**Six things implementation found that the spec did not anticipate**, each recorded in the specs or
+an ADR in the same change:
+
+- **`required` in the decoding schema is a correctness question, not a style one** (ADR-0023). A
+  fully strict schema made the model narrate into slots whose correct value is nothing —
+  `position: "no_position"` beside empty `arguments` violates the empty-when-descriptive rule and
+  costs a regeneration on the cheapest case in the system. A fully permissive one produced a
+  citation with no `corpus_id` or `locator`, unresolvable by construction. The rule that got both
+  right is mechanical: required in messages reachable only through a repeated field, nothing
+  elsewhere. `minItems` is honoured by the decoder and is still not used — forced to produce two
+  citations from one passage, the model padded with a fabricated sub-quote.
+- **The pinned generator thinks, and its thinking is unconstrained.** `reasoning_effort: "none"` is
+  required, not tuning: with thinking on, a schema-constrained probe spent its whole budget inside
+  `reasoning` and returned empty content. The field is also model introspection, which SHARED §4
+  forbids emitting — so nothing reads it.
+- **Ollama's default context is 4096 and it truncates silently.** `OLLAMA_CONTEXT_LENGTH: 8192` on
+  the ollama service, mirrored in Catena, which fits candidates to a budget derived from it. This is
+  what makes `Candidate.exclusion_reason` mean something in Phase 1 — a live query included 11 of 20
+  candidates and recorded the other 9.
+- **Passage text must never be wrapped in quotation marks.** A probe that did got the marks back
+  inside the quote, which fails exact substring containment while reading exactly like a paraphrase
+  failure — manufacturing, for free, the risk ADR-0018 names as the live threat to Phase 1.
+- **TECHNICAL-SPEC's "the prompt injects the profile summary" was never implementable.** Python
+  receives a FilterSpec and no profile (ADR-0015). Corrected to the filter spec summary.
+- **Generation is far slower than the retrieval budget suggests.** ~3.4 tokens/second against a
+  full ~5,900-token prompt on the reference machine, so a Phase 1 answer takes two to four minutes
+  and the client timeout is 900 s. SHARED §9 sets no generation target, and this is the number
+  Task 11 has to plan around: ten acceptance questions is roughly half an hour.
+
+**A defect this task shipped and caught, worth recording because the shape recurs.** The first
+`observability.py` was written against the Langfuse **v3** SDK — `Langfuse.start_span`, which v4
+removed — and wrapped every call in a blanket `suppress(Exception)` under the rule that
+observability must never fail a request. So the service logged `langfuse on` at startup, recorded
+nothing, and passed its unit suite, because the suite only ever exercised the no-op path. It was
+found by querying ClickHouse for ingested events and getting zero.
+
+Two things came out of it, both kept. **Never failing a request and never mentioning a problem are
+different promises, and only the first is worth making**: a failure now prints once per process to
+stderr and is suppressed after that. And the unit suite now exercises the *configured* path against
+a double shaped like the v4 client, including the exact AttributeError that shipped — a no-op is
+the one path that cannot tell you the other one is broken.
+
+Worth noting for Task 9: Langfuse 4.27.0 runs in `events_only` mode, so `/api/public/traces` and
+`/api/public/observations` both return nothing regardless of what was ingested. The events land in
+ClickHouse's `events_full`, which is where to look.
+
+**A seventh finding, and the one that matters most for Task 11: on a broad question the generator
+writes past the token ceiling, and prompting does not stop it.**
+
+The UC-4 question — "How many days did creation take, and is that settled?" — retrieves 21
+passages, and the model answers with **one** argument whose `warrant` summarises a dozen sources in
+a single string, naming each in prose ("The Westminster Shorter Catechism (WSC Q&A 9) states,
+'…'"). It runs past `max_tokens` and the truncation guard refuses it, which is correct: an
+incomplete answer object must not be presented as considered silence.
+
+Prompting was the prescribed response (ADR-0018: "a better generator or better prompting — never a
+looser check 2") and it was tried twice. Bounding the *number* of claims — "at most three
+arguments" — the model complied by emitting one and putting everything in the warrant. Bounding
+each *field* — "claim: ONE sentence; warrant: ONE or TWO sentences" — plus an explicit "citations
+are structured fields, NEVER PROSE" rule that `services/catena/AGENTS.md` had always required and
+the prompt had never carried, changed the output not at all. Both instructions are kept: they are
+correct, they cost nothing, and they may bind on other questions. Neither bound on this one.
+
+The behaviour is not a loop. The same contested instructions on a two-passage prompt produce a
+compact 194-token answer that routes correctly — and, incidentally, produces exactly the ADR-0019
+violation this task predicted, setting `is_contested` **and** emitting an argument, which this
+service passed through unlaundered for Go to fail. What runs away is the summarising, and it scales
+with how much source material is in front of the model.
+
+Three things this is not, and one thing it is. It is not a defect in the service: the refusal is
+the designed path, and Go's regenerate-then-degrade handles it. It is not a reason to raise
+`max_tokens`: the window is 8192, the prompt is ~4,100 tokens, and 2,048 completion tokens already
+take ten minutes at 3.6 t/s. It is not a reason to add `maxLength` to the schema, which would cut a
+warrant mid-word and is the same "optimise before measuring" error the phase ordering forbids.
+
+**It is a Phase 2 measurement arriving early**, and Task 11's expectation table should record UC-4
+as degrading rather than verifying until a better generator or a per-corpus retrieval quota is
+tried. The trace makes the case directly: 21 passages, most of them long GA28 report prose at
+`advisory`.
+
+**One thing deliberately not done.** `catena.ingest.bge` and `catena.ingest.embed` are now imported
+by the request path, which makes their package name wrong. Moving them is a rename across the
+ingestion suite for no behavioural gain, and `bge.py`'s own docstring already anticipated this
+reader ("the predicate the resume query and retrieval both filter on"). Left for whenever a second
+embedder makes the move pay for itself.
 
 ## Task 8: Verification engine (Go)
 

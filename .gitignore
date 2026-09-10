@@ -1,8 +1,10 @@
-# Generated protobuf
-gen/
-*_pb2.py
-*_pb2_grpc.py
-*.pb.go
+# Generated protobuf is COMMITTED, not ignored (ADR-0022). `docker compose up`
+# on a clean clone must build the catena image with no `buf`, no reachable
+# buf.build, and no `make` step first -- and Task 7 puts catena in the default
+# `up`. `make check` asserts that regenerating produces no diff, which is what
+# keeps a committed artefact honest.
+#
+# Byte-compiled stubs are still ignored, below, with the rest of __pycache__.
 
 # Go
 /bin/

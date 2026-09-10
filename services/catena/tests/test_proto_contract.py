@@ -10,8 +10,10 @@ point is that their domain is closed.
 It is not a second copy of the proto. Asserting every field would make every
 addition a two-file edit and would guard nothing the proto does not already say.
 
-The stubs are generated rather than committed, so this skips on a clean clone
-until `make proto` has run.
+The stubs are committed (ADR-0022), so their absence is a defect rather than an
+expected state on a clean clone. This used to skip itself until `make proto` had
+run; now an ImportError is the right outcome, and `make check` runs
+`guard-proto-fresh` so a stale stub fails too.
 """
 
 from __future__ import annotations
@@ -19,27 +21,12 @@ from __future__ import annotations
 import importlib
 import pathlib
 import pkgutil
-import sys
 import unittest
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[3]
-GEN = REPO_ROOT / "services" / "catena" / "gen"
 
-if GEN.is_dir() and str(GEN) not in sys.path:
-    sys.path.insert(0, str(GEN))
-
-try:
-    from berean.v1 import answer_pb2, catena_pb2, common_pb2, filter_pb2
-    from berean.v1 import trace_pb2, verification_pb2
-
-    STUBS_AVAILABLE = True
-except ImportError:  # pragma: no cover - exercised only on a clean clone
-    STUBS_AVAILABLE = False
-
-skip_without_stubs = unittest.skipUnless(
-    STUBS_AVAILABLE,
-    "generated stubs are absent; run `make proto`",
-)
+from berean.v1 import answer_pb2, catena_pb2, common_pb2, filter_pb2  # noqa: E402
+from berean.v1 import trace_pb2, verification_pb2  # noqa: E402
 
 
 def field_names(message) -> set[str]:
@@ -64,7 +51,6 @@ def message_modules() -> list:
     ]
 
 
-@skip_without_stubs
 class TheOneCall(unittest.TestCase):
     def test_catena_exposes_exactly_one_rpc(self) -> None:
         """One gRPC call per generation attempt (ADR-0002, ADR-0010).
@@ -84,7 +70,6 @@ class TheOneCall(unittest.TestCase):
         )
 
 
-@skip_without_stubs
 class RequestCarriesWhatTheRetryNeeds(unittest.TestCase):
     def test_request_fields(self) -> None:
         self.assertEqual(
@@ -131,7 +116,6 @@ class RequestCarriesWhatTheRetryNeeds(unittest.TestCase):
         self.assertEqual(field_names(filter_pb2.FilterSpec), {"corpora", "tier_weights", "top_k"})
 
 
-@skip_without_stubs
 class TheAnswerObject(unittest.TestCase):
     def test_answer_object_fields(self) -> None:
         self.assertEqual(
@@ -202,7 +186,6 @@ class TheAnswerObject(unittest.TestCase):
                     )
 
 
-@skip_without_stubs
 class TheTrace(unittest.TestCase):
     def test_trace_records_the_two_settings_that_move_the_phase_2_baseline(self) -> None:
         """A number nobody logged cannot be held constant across a comparison."""
@@ -231,7 +214,6 @@ class TheTrace(unittest.TestCase):
         )
 
 
-@skip_without_stubs
 class TheVerificationResult(unittest.TestCase):
     def test_one_field_per_check(self) -> None:
         self.assertEqual(
@@ -247,7 +229,6 @@ class TheVerificationResult(unittest.TestCase):
         )
 
 
-@skip_without_stubs
 class ClosedEnums(unittest.TestCase):
     """A closed domain is the whole point of each of these.
 
@@ -291,7 +272,6 @@ class ClosedEnums(unittest.TestCase):
         )
 
 
-@skip_without_stubs
 class DeferredFields(unittest.TestCase):
     """Present-but-unused in Phase 1, so a later phase adds behaviour rather
     than breaking the contract. Do not remove them because they are unused."""

@@ -1,6 +1,6 @@
 # ADR-0018: Qwen3-8B as the Phase 1 generation default — pinned, not locked
 
-- **Status:** Accepted (provisional)
+- **Status:** Accepted (provisional; decoding constraint detailed by ADR-0023)
 - **Date:** 2026-09-01
 - **Phase:** 1 — `make provision` needs a name; re-decided at Phase 2 against the golden set
 
@@ -40,8 +40,11 @@ copy text out of context, and the trust boundary catches it when it does not.
 
 - The exact tag is pinned in the provisioning manifest, and the model identifier is **written into
   every trace**. A silent model change must not be able to move the Phase 2 baseline.
-- `AnswerObject` validity is a decoding constraint via Ollama's schema `format`, not a prompt
-  request. Structural validity is then free and the interesting failures are semantic.
+- `AnswerObject` validity is a decoding constraint, not a prompt request. Structural validity is
+  then free and the interesting failures are semantic. **Amended by ADR-0023:** the constraint
+  travels as `response_format: {type: json_schema}` on the OpenAI-compatible endpoint rather
+  than as Ollama's native `format`, which keeps the provider interface this ADR requires; and
+  the schema is derived from the proto descriptor rather than written by hand.
 - The provider stays behind the OpenAI-compatible interface SHARED §1 requires, so this is a
   configuration default rather than a coupling.
 - A smaller fallback is documented for low-RAM machines. It is a documented degradation, not a

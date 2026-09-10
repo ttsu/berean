@@ -212,6 +212,19 @@ services:
 
   ollama:
     image: ollama/ollama:0.33.2
+    environment:
+      # Ollama's default context is 4096 tokens and it truncates past it
+      # SILENTLY. Twenty retrieved chunks plus the rules plus the answer schema
+      # exceed that, so the default would drop most of what retrieval found
+      # while reporting nothing -- and the Phase 2 baseline would be a
+      # measurement of an unrecorded truncation. The OpenAI-compatible endpoint
+      # has no per-request equivalent, so it is set here and mirrored in
+      # catena.serve.retrieval, which fits candidates to a budget derived from
+      # it and records what did not fit.
+      #
+      # 8192 rather than higher: the KV cache is charged against the RAM floor
+      # in README, and the acceptance test is an ordinary laptop.
+      OLLAMA_CONTEXT_LENGTH: 8192
     volumes:
       # `make provision` pulls the pinned tag here. Weights are never baked into
       # an image and never fetched on first query (SHARED §1).
@@ -224,13 +237,11 @@ services:
       timeout: 5s
       retries: 20
 
-  # Python. The model layer. Empty in Task 1, so it is behind a profile and
-  # excluded from the default `up` — a container that exits with "not
-  # implemented" on every start makes a green acceptance test look red. It
-  # still builds, so it cannot rot. Task 7 gives it a server and drops the
-  # profile.
+  # Python. The model layer, and a long-running gRPC server as of Task 7 — so
+  # it is part of the default `up`, where Task 1 kept it behind a profile
+  # because a container that exited with "not implemented" on every start made
+  # a green acceptance test look red.
   catena:
-    profiles: [services]
     build:
       context: .
       dockerfile: services/catena/Dockerfile
@@ -261,6 +272,21 @@ services:
       # "Corpus acquisition contract"). Read-only here would fail the very
       # first acquisition of a corpus, which is the only one that blesses.
       - ./corpora:/corpora
+    command: ["serve"]
+    ports:
+      - "${CATENA_PORT:-50051}:50051"
+    healthcheck:
+      # Readiness, not liveness. BGE-M3 is 2.3 GB and takes tens of seconds to
+      # load from /models; the port is open for all of it. The gateway
+      # `depends_on` catena being healthy, so a TCP check would hand it a first
+      # request that fails for a reason reading as a gateway bug.
+      test: ["CMD", "catena", "serve", "--probe"]
+      interval: 10s
+      timeout: 10s
+      # Generous: the encoder load dominates, and it is slowest on the first
+      # boot after `make provision` when nothing is in the page cache.
+      retries: 30
+      start_period: 30s
 
   # Go. The trust boundary. A CLI, not a server, so it is never part of `up`
   # even once it works — it is run with `docker compose run --rm gateway`,
@@ -273,7 +299,9 @@ services:
     depends_on:
       postgres: { condition: service_healthy }
       migrate: { condition: service_completed_successfully }
-      catena: { condition: service_started }
+      # Healthy rather than started: catena's health service reports SERVING
+      # only once the encoder is loaded (Task 7).
+      catena: { condition: service_healthy }
     environment:
       BEREAN_DATABASE_URL: postgresql://gateway:${BEREAN_DB_GATEWAY_PASSWORD}@postgres:5432/${POSTGRES_DB}
       BEREAN_CATENA_ADDR: catena:50051

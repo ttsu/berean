@@ -301,6 +301,18 @@ test-ingest-db: ## Assert ingestion against a live database (needs `make dev`)
 #
 # The container joins the compose network so it reaches `postgres` by name --
 # the published port is on the host, and the Go suite runs in a container.
+# Not part of `make check`, for the same reason the others are not. What it
+# asserts is what a fake reader cannot: that the SQL is right. The
+# `extensions.vector` cast, the `embedding_model` predicate against a table
+# holding a row per model, and whether a *filtered* HNSW scan returns as many
+# rows as it was asked for -- that last one is why `hnsw.iterative_scan` is set,
+# and nothing but a real index can show it.
+.PHONY: test-catena-db
+test-catena-db: ## Assert retrieval SQL against a live database (needs `make dev`)
+	@CATENA_DATABASE_URL="postgresql://catena:$$(sed -n 's/^BEREAN_DB_CATENA_PASSWORD=//p' .env | tail -1)@127.0.0.1:$$(sed -n 's/^POSTGRES_PORT=//p' .env | tail -1)/$$(sed -n 's/^POSTGRES_DB=//p' .env | tail -1)" \
+	    $(UV) run --quiet --project services/catena \
+	    python services/catena/tests/integration/test_retrieval_postgres.py -q
+
 .PHONY: test-gateway-db
 test-gateway-db: ## Assert the corpus registry and profile load against a live database (needs `make dev`)
 	@# -count=1 because the database is an input the build cache cannot see: a
@@ -312,7 +324,7 @@ test-gateway-db: ## Assert the corpus registry and profile load against a live d
 # ---------------------------------------------------------------------------
 
 .PHONY: check
-check: guard-corpus guard-make-targets proto-lint test config ## Run every check that needs no image build
+check: guard-corpus guard-make-targets guard-proto-fresh test config ## Run every check that needs no image build
 
 .PHONY: guard-corpus
 guard-corpus: ## Fail on any tracked file that could carry corpus text (ADR-0014)
@@ -321,6 +333,33 @@ guard-corpus: ## Fail on any tracked file that could carry corpus text (ADR-0014
 .PHONY: guard-make-targets
 guard-make-targets: ## Fail when documentation names a make target with no rule
 	@$(PYTHON) tools/guards/make_targets_guard.py && echo "make-targets: OK"
+
+# The generated stubs are committed (ADR-0022), which buys a clean-clone
+# `docker compose up` and costs the risk every committed artefact carries: that
+# the tree stops matching what produced it. Regenerating and diffing is what
+# makes the commit honest, and it is the whole of the maintenance burden the
+# decision took on.
+#
+# `git diff` covers a tracked stub that changed; `git status --porcelain` covers
+# a *new* message whose stub is untracked, which a diff alone reports as clean.
+.PHONY: guard-proto-fresh
+guard-proto-fresh: proto ## Fail when the committed stubs do not match proto/
+	@# Two questions, and they need different plumbing. `git diff` compares the
+	@# working tree to the index, so it catches a tracked stub that regeneration
+	@# changed. It says nothing about a *new* message, whose stub is untracked and
+	@# which a diff reports as clean -- `ls-files --others` is what catches that.
+	@#
+	@# Both ignore what is already staged, deliberately. Staged output is about to
+	@# be committed, and in CI it is checked out as part of the commit, so failing
+	@# on it would make `make check` unusable at the one moment it matters most:
+	@# just before committing a proto change.
+	@git diff --quiet -- gen services/catena/gen || { \
+	    echo "proto-fresh: committed stubs differ from proto/ -- commit the regenerated files"; \
+	    git --no-pager diff --stat -- gen services/catena/gen; exit 1; }
+	@test -z "$$(git ls-files --others --exclude-standard -- gen services/catena/gen)" || { \
+	    echo "proto-fresh: regeneration produced untracked stubs -- git add them"; \
+	    git ls-files --others --exclude-standard -- gen services/catena/gen; exit 1; }
+	@echo "proto-fresh: OK"
 
 .PHONY: test
 test: test-guards test-catena test-gateway ## Run every unit suite
