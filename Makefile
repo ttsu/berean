@@ -317,10 +317,15 @@ test-catena-db: ## Assert retrieval SQL against a live database (needs `make dev
 	    python services/catena/tests/integration/test_retrieval_postgres.py -q
 
 .PHONY: test-gateway-db
-test-gateway-db: ## Assert the corpus registry and profile load against a live database (needs `make dev`)
+test-gateway-db: ## Assert the corpus registry, profile load and trace persistence against a live database (needs `make dev`)
 	@# -count=1 because the database is an input the build cache cannot see: a
 	@# dropped corpus changes the answer while every tracked input is identical.
-	@$(GO_DB) go test -count=1 ./services/gateway/internal/corpus/
+	@#
+	@# `trace` is here for the reason `test-ingest-db` exists: writes are visible
+	@# to the session that made them whether or not they commit, so a store that
+	@# never commits passes every in-process assertion. Only a second connection
+	@# notices, and only a real transaction can be made to fail halfway.
+	@$(GO_DB) go test -count=1 ./services/gateway/internal/corpus/ ./services/gateway/internal/trace/
 
 # ---------------------------------------------------------------------------
 # Checks

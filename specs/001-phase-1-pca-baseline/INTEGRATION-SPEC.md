@@ -866,6 +866,34 @@ The whole turn is written in one transaction after it completes, because `overal
 right trade in Phase 1: a partial trace would enter the Phase 2 dataset as a turn that retrieved
 nothing.
 
+**The turn is persisted before it is rendered.** Verification refusing to ship is a recorded event;
+a write that failed after the answer was printed is not, and a turn that reached a user without
+being recorded is the one outcome these tables exist to prevent. The ordering is the whole of what
+prevents it, and it is the CLI's to honour.
+
+`responses.answer` holds the **rendered** answer — the one the user saw, carrying Go's derived
+confidence — encoded with protojson's proto field names rather than its default lowerCamelCase, so
+Phase 2 queries the column in the contract's own vocabulary (`answer->>'no_answer_reason'`) instead
+of a third spelling of a field the proto and this document both call `no_answer_reason`. Unset
+fields are omitted, which is what proto3 means by them: emitting defaults would fill the record with
+fields Python never sent, and one of the things this row shows is which fields Python populated.
+
+Two columns are recorded that no message carries. `responses.gateway_version` is the build that
+produced the turn — the first question asked of a verification failure, and the only thing
+separating rows from two builds in the one table Phase 2 reads. `traces.verify_ms` is how long
+verification took on that attempt, measured by the gateway around its own engine and sitting beside
+the three stage timings Python reports: a turn's wall clock is the sum of the four, and with one of
+them missing these tables cannot say where a slow turn went. Neither column has a default, because a
+backfilled sentinel is a fabricated build identifier and a `verify_ms` of zero is a measurement
+rather than the absence of one.
+
+A response whose `RetrievalTrace` is missing or malformed is an **error**, not a degraded turn and
+not a row with sentinels substituted for what Catena did not send. It is the same class of event as
+an unreachable Catena: the system failed rather than the verification system succeeding, and
+laundering it into the degradation rate makes the one number ADR-0010 needs kept clean unreadable.
+The gateway distinguishes it from a database outage with a typed error, because the two want
+opposite responses — one is a bug in a service, the other is a retry.
+
 Constraints hold the invariants the proto states in prose: `attempts` is 1 or 2 and a third is the
 seam moving (ADR-0002, ADR-0010); a `verified` turn took one attempt and a `regenerated` turn took
 two, so the degradation rate stays readable; `failure_detail` is empty exactly when all four checks

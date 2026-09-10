@@ -63,6 +63,15 @@ logic here, stop — it belongs in Catena.
   opposite things and must not share a metric.
 - Write scope: session and trace tables only. The `gateway` DB role is read-only on corpus tables
   and that is deliberate — do not work around it.
+- **Persist the turn before rendering it.** A turn that reached a user and was never recorded is the
+  one outcome the trace tables exist to prevent. Verification refusing to ship is a recorded event;
+  a write that failed after the answer was printed is not.
+- The whole turn is one transaction, written after it completes: `overall_result` and `confidence`
+  are known only then, and a partial trace enters the Phase 2 dataset as a turn that retrieved
+  nothing. A row that lies is worse than a row that is missing.
+- **A malformed response from Catena is an error, not a degraded turn**, and never a trace row with
+  sentinels standing in for what Catena did not send. It sits with the unreachable-Catena case, not
+  with the answers verification refused to ship.
 
 ## Conventions
 

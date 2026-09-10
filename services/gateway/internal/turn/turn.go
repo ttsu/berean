@@ -15,6 +15,7 @@ package turn
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"google.golang.org/protobuf/proto"
 
@@ -65,6 +66,18 @@ type Attempt struct {
 	Trace    *bereanv1.RetrievalTrace
 	Results  []*bereanv1.VerificationResult
 	Failures []*bereanv1.AnswerFailure
+
+	// How long verification took on this attempt.
+	//
+	// Measured here rather than inside the engine because it is the trust
+	// boundary's cost for this attempt, and the engine has no attempt to
+	// attribute it to. It joins the three stage timings Python already
+	// reports (`RetrievalTrace.timings`), which between them account for
+	// everything a turn spends: with this one missing, the trace tables
+	// cannot say where a slow turn went. SHARED §9 puts the floor at 200 ms
+	// p95, and a floor held only against synthetic load is a floor nobody is
+	// measuring in production.
+	Verify time.Duration
 }
 
 // Turn is the outcome: what may render, what happened, and every attempt.
@@ -131,7 +144,9 @@ func (r *Runner) Ask(ctx context.Context, question Question) (Turn, error) {
 		}
 
 		answer := response.GetAnswer()
+		started := time.Now()
 		outcome, err := r.verifier.Verify(ctx, answer, question.Spec, question.Loci)
+		verified := time.Since(started)
 		if err != nil {
 			return Turn{}, fmt.Errorf("verifying attempt %d: %w", number, err)
 		}
@@ -142,6 +157,7 @@ func (r *Runner) Ask(ctx context.Context, question Question) (Turn, error) {
 			Trace:    response.GetTrace(),
 			Results:  outcome.Results,
 			Failures: outcome.Failures,
+			Verify:   verified,
 		})
 
 		if outcome.Passed() {
