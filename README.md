@@ -138,6 +138,7 @@ make proto          # regenerate the Go and Python stubs from proto/
 make check          # guards, unit suites, contract lint, and compose validation
 make test           # the unit suites on their own
 make test-schema    # assert the schema, its constraints and both roles' grants (needs `make dev`)
+make test-gateway-db # assert the corpus registry and profile load against a live database (needs `make dev`)
 make migrate        # apply db/migrations/ to a running Postgres
 make build          # build the gateway and catena images
 make reset          # destroy the volumes, so Postgres re-runs its init scripts
@@ -147,6 +148,8 @@ All DDL lives in `db/migrations/`, as reversible `up`/`down` pairs applied by a 
 golang-migrate container. `make dev` applies them, so `make migrate` is only for picking up a new
 migration without a restart. `make test-schema` is not part of `make check`: `check` runs with
 nothing started, and a grant is only demonstrated by a statement a live database actually refuses.
+`make test-gateway-db` is out for the same reason — it asserts that every corpus `profiles/pca.yaml`
+names is really ingested, which a fake registry can only agree with.
 
 If `make dev` fails with **`error: failed to open database: no schema`**, the Postgres volume
 predates the schemas the migrator needs. The init script that creates them runs once, on an empty

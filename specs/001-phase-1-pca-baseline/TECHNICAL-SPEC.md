@@ -169,7 +169,8 @@ provision, so a republished tag fails loudly rather than moving the Phase 2 base
 
 ## Profile
 
-A YAML document, loaded and resolved by Go:
+A YAML document, loaded and resolved by Go. One file per tradition in `profiles/`, named for
+the profile it carries — `profiles/pca.yaml` is what `--profile pca` selects:
 
 ```yaml
 profile: pca
@@ -199,8 +200,13 @@ contested:
   - locus: creation-days
     ruling_source:
       corpus_id: pca-ga28-2000-creation-study
-      locator: "Recommendations 1"
+      locator: "GA28 Rec.2"
 ```
+
+The locator is `GA28 Rec.2` rather than the `Recommendations 1` this document first drew: Task 4
+made the report's recommendations independently addressable as `GA28 Rec.1`–`Rec.3`, and **Rec.2 is
+the ruling** — the Assembly affirming that a diversity of views on the creation days is acceptable.
+Pointing at Rec.1 or at the expository body would cite advocacy as though it were the finding.
 
 Go resolves this into the filter spec sent to Python, plus the contested loci carried alongside it
 (ADR-0015). **The profile document itself never crosses the boundary** — what crosses is the
