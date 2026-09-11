@@ -1,4 +1,4 @@
-"""Generation, behind an OpenAI-compatible interface.
+"""The Ollama provider, over its OpenAI-compatible endpoint.
 
 `services/catena/AGENTS.md` requires the provider be interchangeable between
 Ollama, vLLM, llama.cpp and hosted APIs. What delivers that is the *wire
@@ -35,13 +35,12 @@ import json
 import os
 import urllib.error
 import urllib.request
-from dataclasses import dataclass
-from typing import Any, Callable, Protocol, Sequence
+from typing import Any, Callable, Sequence
 
 from catena.serve import ServeError
+from catena.serve.generate import Generation, model_override
 
 URL_ENV = "CATENA_OLLAMA_URL"
-MODEL_ENV = "CATENA_GENERATION_MODEL"
 
 #: The tag `make provision` pulls, pinned in `tools/provision/models.lock.yaml`
 #: and written into every trace (ADR-0018). Duplicated here rather than read
@@ -59,7 +58,7 @@ def default_model() -> str:
     trace records what actually answered, so a deployment running the fallback
     is visible in the data rather than only in someone's shell history.
     """
-    return os.environ.get(MODEL_ENV) or DEFAULT_MODEL
+    return model_override() or DEFAULT_MODEL
 
 
 #: Generous, and measured rather than guessed. Qwen3-8B q4_K_M on the reference
@@ -113,33 +112,6 @@ MAX_TOKENS = 2048
 #: A callable so tests assert the request without a network. Takes the URL, the
 #: encoded body and a timeout; returns the raw response bytes.
 Transport = Callable[[str, bytes, float], bytes]
-
-
-@dataclass(frozen=True)
-class Generation:
-    """One completion. Carries no account of how the model produced it."""
-
-    #: The decoded JSON object. Structurally valid by construction — the
-    #: decoder was constrained to the schema — and semantically untrusted.
-    payload: dict[str, Any]
-    #: What actually answered, as reported by the server rather than as
-    #: requested. The trace records this, so it has to be the former.
-    model: str
-    prompt_tokens: int
-    completion_tokens: int
-
-
-class Generator(Protocol):
-    """What the request path needs of a model, and nothing more."""
-
-    #: Written to `RetrievalTrace.generation_model`.
-    model: str
-
-    def generate(
-        self, messages: Sequence[dict[str, str]], schema: dict[str, Any]
-    ) -> Generation:
-        """One constrained completion, or `ServeError`."""
-        ...
 
 
 def _urllib_transport(url: str, body: bytes, timeout: float) -> bytes:
@@ -255,7 +227,7 @@ class OllamaGenerator:
 
 
 def connect(url: str | None = None, model: str | None = None) -> OllamaGenerator:
-    """The generator the server runs with."""
+    """The Ollama generator, from the environment."""
     base = url or os.environ.get(URL_ENV)
     if not base:
         raise ServeError(
