@@ -202,6 +202,17 @@ class WhatItRefusesToAccept(unittest.TestCase):
             generator(client).generate(MESSAGES, SCHEMA)
         self.assertIn("claude", str(caught.exception).lower())
 
+    def test_a_prompt_with_no_user_turn_is_an_error(self) -> None:
+        """A system message alone is not a question.
+
+        `prompt.build` always emits a user turn, so this is a guard against a
+        future caller rather than a live failure — but it raises rather than
+        sending a turnless request the API would reject less legibly.
+        """
+        client = FakeClient(answered())
+        with self.assertRaises(ServeError):
+            generator(client).generate([{"role": "system", "content": "rules"}], SCHEMA)
+
 
 class WhatItReportsBack(unittest.TestCase):
     def test_carries_usage_and_the_model_that_answered(self) -> None:

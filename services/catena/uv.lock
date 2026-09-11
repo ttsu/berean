@@ -84,7 +84,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
-    { name = "anthropic", specifier = ">=0.75" },
+    { name = "anthropic", specifier = ">=1.5,<2" },
     { name = "grpcio", specifier = ">=1.76.0,<2" },
     { name = "grpcio-health-checking", specifier = ">=1.76,<2" },
     { name = "langfuse", specifier = ">=4.15,<5" },

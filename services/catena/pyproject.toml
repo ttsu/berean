@@ -89,7 +89,7 @@ dependencies = [
     # It is not in the default path: `CATENA_GENERATION_PROVIDER` defaults to
     # `ollama`, the module is imported only when a deployer selects it, and
     # `make dev-offline` fails loudly if it is ever reached by accident.
-    "anthropic>=0.75",
+    "anthropic>=1.5,<2",
 ]
 
 [project.scripts]
