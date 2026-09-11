@@ -82,7 +82,13 @@ def connect(provider: str | None = None) -> Generator:
 
         return ollama.connect()
 
+    if name == "anthropic":
+        from catena.serve.generate import claude
+
+        return claude.connect()
+
     raise ServeError(
-        f"{PROVIDER_ENV}={name!r} is not a generation provider. "
-        f"Valid values are: 'ollama'."
+        f"{PROVIDER_ENV}={name!r} is not a generation provider. Valid values are "
+        "'ollama' (the default: local, what `docker compose up` provides) and "
+        "'anthropic' (bring-your-own-key, billed to the deployer)."
     )

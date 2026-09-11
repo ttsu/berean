@@ -11,10 +11,13 @@ the SDK's shape rather than this adapter's handling of it.
 from __future__ import annotations
 
 import json
+import os
 import unittest
 
 from catena.serve import ServeError
+from catena.serve import generate as generate_module
 from catena.serve.generate import claude as claude_module
+from catena.serve.generate import ollama as ollama_module
 
 SCHEMA = {"type": "object", "properties": {"position": {"type": "string"}},
           "required": [], "additionalProperties": False}
@@ -230,6 +233,61 @@ class HowItConnects(unittest.TestCase):
         with self.assertRaises(ServeError) as caught:
             claude_module.connect(api_key="")
         self.assertIn("ANTHROPIC_API_KEY", str(caught.exception))
+
+
+class HowTheProviderIsSelected(unittest.TestCase):
+    """Explicit, and never inferred from the environment containing a key."""
+
+    def setUp(self) -> None:
+        self._saved = {k: os.environ.get(k) for k in
+                       (generate_module.PROVIDER_ENV, claude_module.API_KEY_ENV,
+                        "CATENA_OLLAMA_URL")}
+        for key in self._saved:
+            os.environ.pop(key, None)
+
+    def tearDown(self) -> None:
+        for key, value in self._saved.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
+
+    def test_the_default_is_local(self) -> None:
+        """SHARED §1: `docker compose up` must work with no external accounts."""
+        os.environ["CATENA_OLLAMA_URL"] = "http://ollama:11434"
+        self.assertIsInstance(generate_module.connect(), ollama_module.OllamaGenerator)
+
+    def test_a_key_in_the_environment_does_not_select_the_hosted_provider(self) -> None:
+        """The opt-in is a recorded act, as `BEREAN_SERVE_LOCAL_ONLY` is.
+
+        A developer with a key exported in their shell must not start sending
+        corpus text to a third party because of it.
+        """
+        os.environ[claude_module.API_KEY_ENV] = "sk-ant-not-a-real-key"
+        os.environ["CATENA_OLLAMA_URL"] = "http://ollama:11434"
+        self.assertIsInstance(generate_module.connect(), ollama_module.OllamaGenerator)
+
+    def test_naming_the_provider_selects_it(self) -> None:
+        os.environ[generate_module.PROVIDER_ENV] = "anthropic"
+        os.environ[claude_module.API_KEY_ENV] = "sk-ant-not-a-real-key"
+        self.assertIsInstance(generate_module.connect(), claude_module.ClaudeGenerator)
+
+    def test_an_unknown_provider_is_an_error_naming_the_valid_ones(self) -> None:
+        os.environ[generate_module.PROVIDER_ENV] = "openai"
+        with self.assertRaises(ServeError) as caught:
+            generate_module.connect()
+        self.assertIn("ollama", str(caught.exception))
+        self.assertIn("anthropic", str(caught.exception))
+
+    def test_the_hosted_provider_without_a_key_fails_at_connect(self) -> None:
+        """At startup, where the unset-CATENA_OLLAMA_URL failure already lives.
+
+        Not at the first question a user asks.
+        """
+        os.environ[generate_module.PROVIDER_ENV] = "anthropic"
+        with self.assertRaises(ServeError) as caught:
+            generate_module.connect()
+        self.assertIn(claude_module.API_KEY_ENV, str(caught.exception))
 
 
 if __name__ == "__main__":
