@@ -65,8 +65,15 @@ def default_model() -> str:
 #: Generous, and measured rather than guessed. Qwen3-8B q4_K_M on the reference
 #: machine generates at **~3.4 tokens/second** against a full ~5,900-token
 #: prompt — the KV cache makes each token dearer than the ~9 t/s a bare prompt
-#: gets — so `MAX_TOKENS` at that rate is ten minutes before prompt evaluation.
-#: A first attempt at 300 s cut a live answer off at 404 tokens.
+#: gets — so `MAX_TOKENS` at that rate is twenty minutes before prompt
+#: evaluation. A first attempt at 300 s cut a live answer off at 404 tokens.
+#:
+#: **These two constants are one decision, not two.** The ceiling is what a
+#: complete answer object costs; the timeout is what that many tokens take to
+#: emit. Raising either alone converts one failure into the other — a ceiling
+#: above the timeout's reach truncates at the wall clock instead of at the token
+#: count, and a timeout without the ceiling to use it buys nothing. Phase 1
+#: acceptance measured exactly that: see `MAX_TOKENS` below.
 #:
 #: SHARED §9 sets no generation target for Phase 1. The budget it does set is
 #: for retrieval, which is measured separately in `Timings` and is three orders
@@ -76,6 +83,31 @@ TIMEOUT_SECONDS = 900
 #: The completion ceiling. High enough that a full answer object with several
 #: cited arguments finishes, low enough that a model looping on one token stops
 #: being this request's problem within the timeout.
+#:
+#: **This number is not what blocks UC-4, and raising it does not help.** Task 7
+#: said so from the behaviour ("it is not a reason to raise `max_tokens`"); Phase 1
+#: acceptance then measured it, and the numbers are recorded here so the argument
+#: does not have to be had a third time. On "How long were the days of creation?":
+#:
+#:   ceiling   timeout   outcome
+#:   2048       900 s    truncated, twice, deterministically
+#:   4096      1800 s    truncated, after 24 min of generation
+#:   8192      3000 s    no truncation — the 50-minute timeout fired instead
+#:
+#: Each raise converted one failure into the other and bought nothing. What runs
+#: away is the summarising, and it scales with how much source material is in
+#: front of the model — Task 7's diagnosis, unchanged. `RULES` already caps the
+#: answer at three arguments and three descriptions with one-sentence claims, and
+#: bounding it further was tried twice there without effect.
+#:
+#: Acceptance added two things Task 7 did not predict. It does **not** degrade:
+#: the truncation guard raises, so the turn dies inside Catena with no
+#: `AnswerObject` to verify and **no row in `trace.responses`** — invisible to the
+#: Phase 2 harness, which reads the trace. And it is not confined to the contested
+#: locus: "What does the Westminster Confession teach about justification?" ran
+#: away the same way, so the trigger is a broad question, not a contested one.
+#:
+#: See specs/001-phase-1-pca-baseline/ACCEPTANCE.md.
 MAX_TOKENS = 2048
 
 #: A callable so tests assert the request without a network. Takes the URL, the

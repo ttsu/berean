@@ -80,7 +80,16 @@ are opposite events.
 
 **UC-3 — Edition sensitivity.**
 "What does the Confession teach about the civil magistrate's authority over the church?" The
-answer reflects the 1788 American revision. Returning 1646 text is a correctness failure.
+answer reflects the 1788 American revision. Returning 1646 text **as what the Confession teaches**
+is a correctness failure.
+
+The assertion is on the slot, not on the corpus. `arguments` is what asserts the tradition's
+position, so a `wcf-1646-epcew-modernised` citation there is the failure this case exists to catch.
+The same citation in `contrary_positions`, carrying the profile label "1646 Westminster in modern
+English, not the PCA's text", is the opposite of a failure: it is the `contrary` stance doing the
+one thing an include/exclude filter cannot, which is to say *this tradition examined this text and
+departed from it*. Phase 1 acceptance produced exactly that answer, and an assertion phrased as
+"no 1646 citation anywhere" would have failed the system for being right.
 
 **UC-4 — A contested locus.**
 "How long were the days of creation?" The PCA's 2000 study committee permitted multiple views.
