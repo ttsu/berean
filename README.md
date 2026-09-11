@@ -125,9 +125,11 @@ one.
 
 **A hosted generator is an option, and it is off.** Setting
 `CATENA_GENERATION_PROVIDER=anthropic` in `.env` points generation at the Claude API with a key you
-supply — `ANTHROPIC_API_KEY`, which this project ships none of — at roughly **$0.05–0.08 per
-answer**. Latency on that path is not measured here; the figures above are the local default on the
-reference machine, and this repository does not mix the two. The default is `ollama`, selection is
+supply — `ANTHROPIC_API_KEY`, which this project ships none of. Cost is an **estimate: roughly
+$0.05–0.08 per answer**, arithmetic over a Phase 1 prompt plus a completion at published rates,
+and it **excludes the thinking tokens**, which are billed as output — so a real bill runs higher.
+Nothing on that path is measured here, latency included; the figures above are the local default on
+the reference machine, and this repository does not mix measured numbers with estimated ones. The default is `ollama`, selection is
 never inferred from a key being present, and nothing else about the system changes: the same
 prompt, the same schema, the same verification. What does change is that the passages retrieved for a question
 are sent to Anthropic, before the gateway's licence check has ruled on them. That is your call,

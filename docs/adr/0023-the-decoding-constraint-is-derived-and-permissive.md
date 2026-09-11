@@ -1,6 +1,6 @@
 # ADR-0023: The decoding constraint is derived, permissive, and unthinking
 
-- **Status:** Accepted
+- **Status:** Accepted (fourth decoding rule — disabled thinking — amended by ADR-0025)
 - **Date:** 2026-09-10
 - **Phase:** 1 — Task 7; re-measured at Phase 2 alongside the generator
 

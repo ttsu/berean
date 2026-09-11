@@ -143,9 +143,10 @@ failing provider behind a latency spike.
 
 The request stays **non-streaming**, with `max_tokens` at 16,000 — the largest ceiling that
 comfortably clears the SDK's non-streaming HTTP timeout, and roughly eight times what the local
-provider can reach. SHARED §4's prohibition is on streaming tokens to the client before
-verification and would not be engaged by streaming an HTTP response, but not needing the
-distinction is better than relying on it.
+provider can reach. The prohibition on streaming tokens to the client before verification is
+**CLAUDE.md hard constraint 4** — SHARED §9 records only its consequence, that the SSE feed exists
+because the answer cannot stream — and it would not be engaged by streaming an HTTP response, but
+not needing the distinction is better than relying on it.
 
 ### Two failure modes, both raising
 
@@ -162,9 +163,16 @@ qwen3-8b generating at ~3.4 tokens/second on CPU and means nothing here.
 
 ### What a deployer is choosing, in numbers
 
-Phase 1 prompts run around 5,900 tokens. At Claude Opus 5's published rates that is roughly
-**$0.05–0.08 per answer**, against a local generator that costs a machine and several minutes.
-Stated in the README so the choice is made with the figure visible.
+Phase 1 prompts run around 5,900 tokens. At Claude Opus 5's published rates that is an **estimated
+$0.05–0.08 per answer**, against a local generator that costs a machine and several minutes.
+
+The estimate is marked as one deliberately, because every other number in this repository's
+performance prose is measured and the two must not be read alike. It prices the prompt plus a
+completion and **nothing else**: thinking is left on at `effort: medium` and those tokens are billed
+as output, so they are absent from the arithmetic and a real bill runs higher. Measuring it needs a
+deployer's account and a run nobody here has done. Stated in the README, and in `.env.example`, as
+an estimate with that exclusion named, so the choice is made with the figure visible and its
+limits visible too.
 
 Prompt caching is **not** part of this change. The stable prefix is the rules block and the passages
 vary per question, so the win is small and unmeasured, and YAGNI applies until someone has a bill.

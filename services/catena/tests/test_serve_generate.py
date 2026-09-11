@@ -54,7 +54,7 @@ def generator(transport: FakeTransport) -> ollama_module.OllamaGenerator:
 
 class TheRequestItMakes(unittest.TestCase):
     def test_posts_to_the_openai_compatible_path(self) -> None:
-        """The wire format is the interface, so vLLM or a hosted API is a URL change."""
+        """This provider speaks Ollama's OpenAI-compatible chat-completions path."""
         transport = FakeTransport(completion('{"position": "p"}'))
         generator(transport).generate(MESSAGES, SCHEMA)
         self.assertEqual(transport.url, "http://ollama:11434/v1/chat/completions")

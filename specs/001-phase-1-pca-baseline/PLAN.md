@@ -692,7 +692,12 @@ started; `make test-catena-db` asserts the SQL against a live database.
 - [x] Routes claims into `arguments` or `descriptions` per the slot rules
 - [x] Generation behind an OpenAI-compatible interface, default Ollama running the pinned Qwen3-8B
       tag (ADR-0018). stdlib `urllib`: the wire format is what makes providers interchangeable, not
-      a vendor SDK. A test asserts the constant matches `models.lock.yaml`
+      a vendor SDK. A test asserts the constant matches `models.lock.yaml`.
+      **Reversed after acceptance, by ADR-0025: the wire format is not what makes providers
+      interchangeable — the `Generator` protocol is.** What Task 7 shipped is unchanged and the
+      item stands as completed; the OpenAI-compatible endpoint is how the *first* provider
+      satisfied the protocol, and adding a second one whose API is shaped otherwise is what
+      exposed the generalisation as wrong. The provider now translates at its own edge
 - [x] Structured output conforming to `AnswerObject`, enforced by JSON-schema-constrained decoding
       — schema **derived from the proto descriptor** rather than hand-written, minus `confidence`
       (ADR-0023)

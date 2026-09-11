@@ -129,17 +129,23 @@ class TheRequestItMakes(unittest.TestCase):
         generator(client).generate(MESSAGES, SCHEMA)
         self.assertEqual(client.kwargs["output_config"]["effort"], "medium")
 
-    def test_does_not_disable_thinking(self) -> None:
+    def test_asks_for_thinking_rather_than_inheriting_a_model_default(self) -> None:
         """Disabling it is the setting that looks like compliance and produces the violation.
 
         On this model family, thinking-off can put tool calls and `<thinking>`
         tags into the *visible* text — reasoning leaking into the answer, which
         is exactly what CLAUDE.md constraint 5 exists to prevent. Left on, the
         narrative is never returned and `_content` has nowhere to put it.
+
+        So this asserts the parameter is *present*, not merely un-disabled.
+        Omitting it means "on" only for models whose default that is; the
+        pinned model is one, but `CATENA_GENERATION_MODEL` is a supported
+        override, and the absent-parameter version of this test passed against
+        a request that would think on some models and not others.
         """
         client = FakeClient(answered())
         generator(client).generate(MESSAGES, SCHEMA)
-        self.assertNotIn("thinking", client.kwargs)
+        self.assertEqual(client.kwargs["thinking"], {"type": "adaptive"})
 
 
 class WhatItRefusesToRead(unittest.TestCase):
@@ -169,6 +175,20 @@ class WhatItRefusesToAccept(unittest.TestCase):
         with self.assertRaises(ServeError) as caught:
             generator(client).generate(MESSAGES, SCHEMA)
         self.assertIn("truncated", str(caught.exception).lower())
+
+    def test_an_exhausted_context_window_is_a_truncation_too(self) -> None:
+        """A second stop reason, the model's own ceiling rather than this provider's.
+
+        It used to fall past the guard into `_content` and surface as "content
+        that is not JSON" — a real failure reported as the wrong one. ADR-0020
+        does not distinguish the two: both leave an incomplete object, and
+        neither may wear the honest-silence shape.
+        """
+        client = FakeClient(answered(stop_reason="model_context_window_exceeded"))
+        with self.assertRaises(ServeError) as caught:
+            generator(client).generate(MESSAGES, SCHEMA)
+        self.assertIn("truncated", str(caught.exception).lower())
+        self.assertIn("context window", str(caught.exception))
 
     def test_a_refusal_is_an_error_naming_the_category(self) -> None:
         """New here, with no local analogue, and not silence either.

@@ -1,10 +1,16 @@
 """The Ollama provider, over its OpenAI-compatible endpoint.
 
-`services/catena/AGENTS.md` requires the provider be interchangeable between
-Ollama, vLLM, llama.cpp and hosted APIs. What delivers that is the *wire
-format*, not a vendor SDK, so this is a single POST over stdlib `urllib` —
-the same reasoning that keeps `acquire.fetch` on stdlib, and it costs the one
-image that has to fit alongside 2.3 GB of BGE-M3 nothing at all.
+What makes providers interchangeable is the **`Generator` protocol** —
+`service.py` depends on one method and a documented return — and not this
+endpoint's wire format. The claim that used to stand here said the opposite,
+and ADR-0025 names it as the sentence that was wrong: this shape is how the
+*first* provider satisfied the protocol, not what the protocol is. The hosted
+provider speaks its vendor's own API and translates at its own edge.
+
+What the OpenAI-compatible endpoint earns on its own terms is this client: a
+single POST over stdlib `urllib`, no SDK, the same reasoning that keeps
+`acquire.fetch` on stdlib — and it costs the one image that has to fit
+alongside 2.3 GB of BGE-M3 nothing at all.
 
 Two things about the request are load-bearing rather than tuning.
 

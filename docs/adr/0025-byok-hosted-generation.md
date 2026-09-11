@@ -128,8 +128,11 @@ baseline is a measurement, and a distribution nobody recorded is not one.
 policy decline is neither an answer nor silence — and an unnamed one would be diagnosed as a
 retrieval failure, which is the wrong repair applied to the wrong component.
 
-**Per-answer cost becomes a deployer's concern**, at roughly $0.05–0.08 for a Phase 1 prompt. The
-figure is in the README so the choice is made with it visible. Prompt caching is deliberately not
+**Per-answer cost becomes a deployer's concern**, at an *estimated* $0.05–0.08 for a Phase 1
+prompt. The figure is an estimate and is marked as one everywhere it appears: it prices the prompt
+plus a completion at published rates and excludes the thinking tokens, which are billed as output —
+so a real bill runs higher. It is in the README, and in `.env.example`, so the choice is made with
+it visible and with its limits visible too. Prompt caching is deliberately not
 part of this: the stable prefix is the rules block while the passages vary per question, so the win
 is small and unmeasured until someone has a bill.
 
@@ -164,3 +167,6 @@ second thing the project promises about.
 - `README.md` — the option, its non-default status, the deployer-supplied key, the per-answer cost,
   and what it sends
 - `specs/001-phase-1-pca-baseline/BYOK-GENERATION-DESIGN.md` — *Status*: implemented
+- `specs/001-phase-1-pca-baseline/PLAN.md` — the Task 7 acceptance item that carried the wire-format
+  claim, annotated in place. The item stays checked: it was true of what Task 7 shipped, and it is
+  the generalisation rather than the work that this ADR reverses

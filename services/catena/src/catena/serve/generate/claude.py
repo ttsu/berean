@@ -13,12 +13,15 @@ own parameter, and translating is this module's whole job at the seam — which
 is the point the design makes about interchangeability living in the protocol
 rather than in a shared JSON dialect.
 
-**Thinking is left on.** The local provider disables it, and doing the same here
-would be the setting that looks like compliance and produces the violation:
-thinking-off on this model family can put reasoning and tool calls into the
-*visible* text. Left on, the narrative is never returned at all — `_content`
-reads `text` blocks and nothing else, so there is nowhere for it to go
-(CLAUDE.md constraint 5).
+**Thinking is left on, and said so explicitly.** The local provider disables
+it, and doing the same here would be the setting that looks like compliance and
+produces the violation: thinking-off on this model family can put reasoning and
+tool calls into the *visible* text. Left on, the narrative is never returned at
+all — `_content` reads `text` blocks and nothing else, so there is nowhere for
+it to go (CLAUDE.md constraint 5). The parameter is sent rather than omitted,
+because omitting it only means *on* for models whose default it is; the pinned
+model is one, but `CATENA_GENERATION_MODEL` is a supported override, and a
+safety property that depends on which model a deployer selected is not one.
 
 **There is no `temperature`.** Sampling parameters are rejected on this model.
 The local provider pins `0.0` so the Phase 2 baseline is not a distribution
@@ -46,15 +49,31 @@ API_KEY_ENV = "ANTHROPIC_API_KEY"
 DEFAULT_MODEL = "claude-opus-5"
 
 #: Comfortably clears the SDK's non-streaming HTTP timeout, and roughly eight
-#: times what the local provider can reach. Non-streaming is deliberate: SHARED
-#: §4 prohibits streaming tokens to the client before verification, and while
-#: streaming an HTTP response would not engage that, not needing the
-#: distinction is better than relying on it.
+#: times what the local provider can reach. Non-streaming is deliberate:
+#: CLAUDE.md constraint 4 is the prohibition on streaming tokens to the client
+#: before verification — SHARED §9 records only its consequence, that the SSE
+#: feed exists because the answer cannot stream. Streaming an HTTP response
+#: would not engage that, but not needing the distinction is better than
+#: relying on it.
 MAX_TOKENS = 16000
+
+#: Both of the SDK's stop reasons that end a generation part-way: this module's
+#: own ceiling, and the model's context window when prompt plus completion
+#: outgrows it. ADR-0020's argument does not distinguish them — either leaves an
+#: incomplete answer object — and a stop reason that fell through here would
+#: reach `_content` and be reported as content that is not JSON, which is a real
+#: failure given the wrong diagnosis.
+TRUNCATION_STOPS = frozenset({"max_tokens", "model_context_window_exceeded"})
 
 #: Generous for a single completion, and far below the local provider's 900 s —
 #: that number is what ~3.4 tokens/second on CPU costs, and means nothing here.
 TIMEOUT_SECONDS = 600
+
+#: Sent rather than omitted. Thinking is on by default on the pinned model, so
+#: omission would read the same there — but not on every model in the family,
+#: and `CATENA_GENERATION_MODEL` lets a deployer name one. Stating it makes the
+#: configuration ADR-0023's amended fourth rule requires independent of that.
+THINKING = {"type": "adaptive"}
 
 #: ADR-0018 found reasoning ability "close to irrelevant here": the model routes
 #: claims into slots and copies text out of context, and the trust boundary
@@ -95,6 +114,7 @@ class ClaudeGenerator:
                 max_tokens=self._max_tokens,
                 system=system,
                 messages=turns,
+                thinking=THINKING,
                 output_config={
                     "effort": self._effort,
                     "format": {"type": "json_schema", "schema": schema},
@@ -112,13 +132,19 @@ class ClaudeGenerator:
     def _parse(self, response: Any) -> Generation:
         stop = getattr(response, "stop_reason", None)
 
-        if stop == "max_tokens":
+        if stop in TRUNCATION_STOPS:
             # Never handed upstream as an empty answer. An all-slots-empty
             # answer with no reason is the honest-silence shape, and a
             # truncation must not be able to wear it (ADR-0020).
+            cause = (
+                f"at this provider's {self._max_tokens}-token ceiling"
+                if stop == "max_tokens"
+                else "by the model's context window, which the prompt and the "
+                "completion together outgrew"
+            )
             raise ServeError(
-                f"the generation was truncated at {self._max_tokens} tokens; the answer "
-                "object is incomplete and must not be presented as considered silence"
+                f"the generation was truncated {cause}; the answer object is "
+                "incomplete and must not be presented as considered silence"
             )
 
         if stop == "refusal":
