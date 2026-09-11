@@ -125,10 +125,11 @@ one.
 
 **A hosted generator is an option, and it is off.** Setting
 `CATENA_GENERATION_PROVIDER=anthropic` in `.env` points generation at the Claude API with a key you
-supply — `ANTHROPIC_API_KEY`, which this project ships none of — and answers arrive in seconds
-rather than minutes, at roughly **$0.05–0.08 each**. The default is `ollama`, selection is never
-inferred from a key being present, and nothing else about the system changes: the same prompt, the
-same schema, the same verification. What does change is that the passages retrieved for a question
+supply — `ANTHROPIC_API_KEY`, which this project ships none of — at roughly **$0.05–0.08 per
+answer**. Latency on that path is not measured here; the figures above are the local default on the
+reference machine, and this repository does not mix the two. The default is `ollama`, selection is
+never inferred from a key being present, and nothing else about the system changes: the same
+prompt, the same schema, the same verification. What does change is that the passages retrieved for a question
 are sent to Anthropic, before the gateway's licence check has ruled on them. That is your call,
 under your account and their terms, and it matters most for the `local-only` corpora below
 (ADR-0025, [docs/CORPUS-POLICY.md](docs/CORPUS-POLICY.md)).

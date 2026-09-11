@@ -152,8 +152,13 @@ second thing the project promises about.
   a shared wire format, is what delivers interchangeability
 - `docs/CORPUS-POLICY.md` — a new section stating that hosted generation transmits retrieved text
   to a third party before check 4 rules on it, and on whose terms
-- `docs/adr/0018-qwen3-8b-as-the-generation-default.md` — the status line, and the hosted-API
-  bullet in *Alternatives rejected*, narrowed to the default it always argued about
+- `docs/adr/0018-qwen3-8b-as-the-generation-default.md` — the status line; the hosted-API bullet
+  in *Alternatives rejected*, narrowed to the default it always argued about; and the
+  OpenAI-compatible-interface bullet in *Decision*, annotated against the amended SHARED §1
+- `docs/adr/0023-the-decoding-constraint-is-derived-and-permissive.md` — the fourth decoding rule,
+  which said thinking is disabled "on every request": the invariant is that the narrative is never
+  read, and the mechanism is the provider's. Its *Documents updated* path for the generator module
+  follows the package split
 - `specs/001-phase-1-pca-baseline/TECHNICAL-SPEC.md` — the Generation section: provider selection,
   the variables, the default, and the pointers to this ADR and the design
 - `README.md` — the option, its non-default status, the deployer-supplied key, the per-answer cost,

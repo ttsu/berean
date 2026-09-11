@@ -47,7 +47,10 @@ copy text out of context, and the trust boundary catches it when it does not.
   than as Ollama's native `format`, which keeps the provider interface this ADR requires; and
   the schema is derived from the proto descriptor rather than written by hand.
 - The provider stays behind the OpenAI-compatible interface SHARED §1 requires, so this is a
-  configuration default rather than a coupling.
+  configuration default rather than a coupling. **Amended by ADR-0025:** SHARED §1 now requires a
+  typed interface — the `Generator` protocol — rather than a shared wire format, and the
+  OpenAI-compatible shape is what local providers speak rather than what the rule demands. The
+  point this bullet makes survives: the model is a configuration default, not a coupling.
 - A smaller fallback is documented for low-RAM machines. It is a documented degradation, not a
   second supported configuration.
 

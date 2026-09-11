@@ -45,7 +45,12 @@ empty when `arguments` is).
 
 **Three: no count constraints — no `minItems`, anywhere.**
 
-**Four: thinking is disabled** — `reasoning_effort: "none"` on every request.
+**Four: thinking is disabled** — `reasoning_effort: "none"` on every request. **Amended by
+ADR-0025:** the rule is that the model's narrative about its own reasoning is never read, and the
+mechanism belongs to the provider. Disabling it is how the local provider gets there, and is not
+portable — on the hosted provider's model family, disabling thinking pushes reasoning into the
+*visible* text, so that provider leaves it on and reads `text` blocks alone. Neither reads the
+narrative, and neither has anywhere to put it.
 
 ## Alternatives rejected
 
@@ -103,8 +108,8 @@ re-measured alongside ADR-0018 rather than treated as settled.
 
 - `services/catena/src/catena/serve/schema.py` — the derivation, with the probe results in the
   module docstring
-- `services/catena/src/catena/serve/generate.py` — `reasoning_effort: "none"`, and `_content`
-  reading `content` alone
+- `services/catena/src/catena/serve/generate/ollama.py` — `reasoning_effort: "none"`, and
+  `_content` reading `content` alone (the module became a package under ADR-0025)
 - `services/catena/tests/test_serve_schema.py` — `test_no_count_constraint_anywhere` guards the
   reintroduction of `minItems`
 - `specs/001-phase-1-pca-baseline/TECHNICAL-SPEC.md` — the Generation section records the derived
