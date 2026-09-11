@@ -220,4 +220,4 @@ provider. One cheap call answers it, and it needs a deployer key.
 
 ## Status
 
-Design approved. Implementation plan to follow.
+Implemented. See ADR-0025. (2026-09-11)
