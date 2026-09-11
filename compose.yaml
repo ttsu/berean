@@ -260,6 +260,13 @@ services:
       HOME: /tmp
       CATENA_DATABASE_URL: postgresql://catena:${BEREAN_DB_CATENA_PASSWORD}@postgres:5432/${POSTGRES_DB}
       CATENA_OLLAMA_URL: http://ollama:11434
+      # Defaults to the local provider, so a deployer who sets neither gets the
+      # stack's own Ollama and no egress (SHARED §1). `make dev-offline` marks
+      # the network internal, so a hosted provider fails loudly there rather
+      # than drifting into the default path unnoticed.
+      CATENA_GENERATION_PROVIDER: ${CATENA_GENERATION_PROVIDER:-ollama}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      CATENA_GENERATION_MODEL: ${CATENA_GENERATION_MODEL:-}
       CATENA_MODELS_DIR: /models
       LANGFUSE_HOST: http://langfuse-web:3000
       LANGFUSE_PUBLIC_KEY: ${LANGFUSE_INIT_PROJECT_PUBLIC_KEY}

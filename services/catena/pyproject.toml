@@ -64,9 +64,10 @@ dependencies = [
     # owes anyway rather than one Langfuse imposes. Roughly 30 MB against the
     # ~2.3 GB of encoder already in this image.
     #
-    # Generation itself is stdlib `urllib` (see catena/serve/generate.py): the
-    # OpenAI-compatible *wire format* is what makes providers interchangeable,
-    # not a vendor SDK, and the same reasoning keeps `acquire.fetch` on stdlib.
+    # The local generator is stdlib `urllib` (see catena/serve/generate/ollama.py),
+    # on the same reasoning that keeps `acquire.fetch` on stdlib. The hosted
+    # provider is not; see the `anthropic` entry below for why that is a
+    # reversal rather than an inconsistency.
     "langfuse>=4.15,<5",
     # The standard gRPC health service, so compose can tell "the port is open"
     # from "the encoder is loaded". Catena joins the default `up` in Task 7 and
@@ -74,6 +75,21 @@ dependencies = [
     # /models -- a TCP check would report healthy through the whole of it. It is
     # the generated health stubs and a servicer, nothing more.
     "grpcio-health-checking>=1.76,<2",
+    # The hosted generation provider (BYOK-GENERATION-DESIGN.md). MIT.
+    #
+    # This is the first vendor SDK in the request path, and it is a considered
+    # reversal: the comment on langfuse above says the OpenAI-compatible *wire
+    # format* is what makes providers interchangeable, "not a vendor SDK". That
+    # was written when there was one provider and so had no way to be tested.
+    # What actually delivers interchangeability is the `Generator` protocol --
+    # `service.py` depends on that and on nothing else -- and the Claude API is
+    # not OpenAI-shaped, so a second provider is exactly the case that
+    # distinguishes the two claims.
+    #
+    # It is not in the default path: `CATENA_GENERATION_PROVIDER` defaults to
+    # `ollama`, the module is imported only when a deployer selects it, and
+    # `make dev-offline` fails loudly if it is ever reached by accident.
+    "anthropic>=1.5,<2",
 ]
 
 [project.scripts]

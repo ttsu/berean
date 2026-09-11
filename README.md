@@ -123,6 +123,19 @@ about three seconds, and the trace records each stage separately, so a slow answ
 rather than guessed at. A GPU changes this picture entirely; the acceptance test does not assume
 one.
 
+**A hosted generator is an option, and it is off.** Setting
+`CATENA_GENERATION_PROVIDER=anthropic` in `.env` points generation at the Claude API with a key you
+supply — `ANTHROPIC_API_KEY`, which this project ships none of. Cost is an **estimate: roughly
+$0.05–0.08 per answer**, arithmetic over a Phase 1 prompt plus a completion at published rates,
+and it **excludes the thinking tokens**, which are billed as output — so a real bill runs higher.
+Nothing on that path is measured here, latency included; the figures above are the local default on
+the reference machine, and this repository does not mix measured numbers with estimated ones. The default is `ollama`, selection is
+never inferred from a key being present, and nothing else about the system changes: the same
+prompt, the same schema, the same verification. What does change is that the passages retrieved for a question
+are sent to Anthropic, before the gateway's licence check has ruled on them. That is your call,
+under your account and their terms, and it matters most for the `local-only` corpora below
+(ADR-0025, [docs/CORPUS-POLICY.md](docs/CORPUS-POLICY.md)).
+
 `make provision` acquires seven corpora and embeds roughly 35,000 chunks, dominated by the ~31,100
 verses of the WEB Bible. It is resumable per corpus, so an interrupted run continues rather than
 restarts. Nothing in the request path is affected — ingestion is always a batch job.

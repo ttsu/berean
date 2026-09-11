@@ -67,6 +67,25 @@ for these corpora. **This is not a general licence to ingest first and ask later
 corpus whose terms are *unstated*, never to one whose terms are *restrictive* — ESV and NIV remain
 barred from ingestion outright, and no deployer setting changes that.
 
+## Hosted generation sends retrieved text to a third party
+
+A deployer may select a hosted generation provider (ADR-0025). When they do, the passages
+retrieved for a question travel to that provider as part of the prompt — and they travel
+**before** verification check 4 has ruled on whether the licence permits serving them, because
+verification is downstream of generation by design.
+
+This is the deployer's decision to take, on exactly the footing ADR-0017 puts the ESV key on:
+their key, their account, their acceptance of the provider's terms. This project ships no key,
+sends nothing itself, and automates nothing around anyone's terms. It is off by default and
+selecting it is an explicit, recorded act.
+
+It bears most directly on `local-only` corpora, whose terms are unstated rather than permissive.
+A deployer running `local-only` corpora against a hosted generator should satisfy themselves that
+doing so is consistent with the terms they acquired that text under.
+
+ESV and NIV are unaffected under every configuration. They are never ingested and are fetched at
+render time by the gateway, so they cannot appear in a prompt.
+
 ## Licence values
 
 `license` is a closed enum, not free text. A free-text licence reduces check 4 to "the string is

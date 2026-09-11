@@ -52,10 +52,11 @@ Use [0000-template.md](0000-template.md).
 | [0015](0015-contested-loci-cross-the-boundary.md) | Contested loci cross the boundary; profile identity does not | Accepted (amended by 0019) |
 | [0016](0016-affirmative-claims-are-a-slot.md) | Affirmative claims are a slot, not a category | Accepted |
 | [0017](0017-serving-is-the-licensed-act.md) | Serving is the licensed act; PCA-published corpora acquired on deployer terms | Accepted |
-| [0018](0018-qwen3-8b-as-the-generation-default.md) | Qwen3-8B as the Phase 1 generation default | Accepted (provisional) |
+| [0018](0018-qwen3-8b-as-the-generation-default.md) | Qwen3-8B as the Phase 1 generation default | Accepted (provisional; hosted-API rejection narrowed by 0025) |
 | [0019](0019-a-contested-locus-admits-no-arguments.md) | A contested locus admits no affirmative arguments | Accepted |
 | [0020](0020-the-uncited-surface-of-the-answer-object.md) | The answer object's uncited surface, and what verification guarantees | Accepted |
 | [0021](0021-the-edition-diagnostic-is-verified-not-quoted.md) | The edition diagnostic is verified, not quoted | Accepted |
 | [0022](0022-generated-code-is-committed.md) | The generated protobuf is committed, not gitignored | Accepted (resolves 0013's deferral) |
-| [0023](0023-the-decoding-constraint-is-derived-and-permissive.md) | The decoding constraint is derived, permissive, and unthinking | Accepted |
+| [0023](0023-the-decoding-constraint-is-derived-and-permissive.md) | The decoding constraint is derived, permissive, and unthinking | Accepted (thinking rule amended by 0025) |
 | [0024](0024-answer-level-failures-are-their-own-channel.md) | Answer-level failures are their own channel | Accepted (amends 0010's retry payload) |
+| [0025](0025-byok-hosted-generation.md) | Hosted generation is a deployer's configuration, never a default | Accepted (narrows 0018's hosted-API rejection) |

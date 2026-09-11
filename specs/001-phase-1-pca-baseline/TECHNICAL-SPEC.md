@@ -330,13 +330,26 @@ assertions in the suite rather than numbers in a report, so a regression fails a
 Structured output. Citations are first-class fields, never inline prose — prose citations cannot
 be validated, which is the whole reason for the answer object.
 
-The provider sits behind an OpenAI-compatible interface. Default local via Ollama so the
-acceptance test holds with no accounts. **The default model is Qwen3-8B** (Apache-2.0), with
+The provider sits behind the `Generator` protocol — one constrained-completion method and a
+documented return — and `service.py` depends on nothing else about it. Default local via Ollama so
+the acceptance test holds with no accounts. **The default model is Qwen3-8B** (Apache-2.0), with
 `AnswerObject` validity enforced by JSON-schema-constrained decoding rather than by asking the model
 for JSON. The exact tag is pinned in provisioning and written into every trace: the generator is the
 largest single variable in the Phase 2 baseline, and a silent change to it would move that number
 invisibly. Provisional on the same terms as the embedder — re-decided at Phase 2 against the golden
 set (ADR-0018, ADR-0006).
+
+**The provider is selected by name, and the default is local.**
+`CATENA_GENERATION_PROVIDER` is `ollama` or `anthropic`, defaulting to `ollama`;
+`CATENA_GENERATION_MODEL` overrides the pinned model of whichever is selected, and must name a
+model that provider serves. The hosted provider is bring-your-own-key — `ANTHROPIC_API_KEY`, with
+no default — and an unset key fails at startup rather than at the first question. **Selection is
+never inferred from the key**: a key in the environment does not turn egress on. Retrieved
+passages reach a hosted provider before check 4 rules on their licence, which is the deployer's
+decision to take on ADR-0017's footing (ADR-0025,
+[BYOK-GENERATION-DESIGN.md](BYOK-GENERATION-DESIGN.md), `docs/CORPUS-POLICY.md`). The rest of this
+section describes the local default: the hosted provider carries its own ceiling, timeout and
+thinking settings, and the design doc is where they are argued.
 
 The constraint travels as `response_format: {type: json_schema}` on the OpenAI-compatible endpoint
 rather than as Ollama's native `format` field, so the provider stays interchangeable. **The schema

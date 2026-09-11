@@ -1,4 +1,4 @@
-"""The generation client: an OpenAI-compatible POST, and what it refuses to read.
+"""The Ollama generation client: an OpenAI-compatible POST, and what it refuses to read.
 
 No network here. The transport is injected, so these assert the *request* this
 service makes and the handling of each response shape — which is the part that
@@ -12,7 +12,7 @@ import pathlib
 import unittest
 
 from catena.serve import ServeError
-from catena.serve import generate as generate_module
+from catena.serve.generate import ollama as ollama_module
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[3]
 
@@ -47,14 +47,14 @@ def completion(content: str, *, finish: str = "stop", reasoning: str = "") -> di
             "usage": {"prompt_tokens": 11, "completion_tokens": 22, "total_tokens": 33}}
 
 
-def generator(transport: FakeTransport) -> generate_module.OllamaGenerator:
-    return generate_module.OllamaGenerator(
-        "http://ollama:11434", generate_module.DEFAULT_MODEL, transport=transport)
+def generator(transport: FakeTransport) -> ollama_module.OllamaGenerator:
+    return ollama_module.OllamaGenerator(
+        "http://ollama:11434", ollama_module.DEFAULT_MODEL, transport=transport)
 
 
 class TheRequestItMakes(unittest.TestCase):
     def test_posts_to_the_openai_compatible_path(self) -> None:
-        """The wire format is the interface, so vLLM or a hosted API is a URL change."""
+        """This provider speaks Ollama's OpenAI-compatible chat-completions path."""
         transport = FakeTransport(completion('{"position": "p"}'))
         generator(transport).generate(MESSAGES, SCHEMA)
         self.assertEqual(transport.url, "http://ollama:11434/v1/chat/completions")
@@ -161,7 +161,7 @@ class ThePinMatchesProvisioning(unittest.TestCase):
         text = (REPO_ROOT / "tools" / "provision" / "models.lock.yaml").read_text()
         section = text[text.index("generation:"):text.index("embedding:")]
         pinned = re.search(r"^\s+reference:\s*(\S+)", section, re.M).group(1)
-        self.assertEqual(generate_module.DEFAULT_MODEL, pinned)
+        self.assertEqual(ollama_module.DEFAULT_MODEL, pinned)
 
 
 if __name__ == "__main__":

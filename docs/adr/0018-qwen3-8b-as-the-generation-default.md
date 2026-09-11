@@ -1,6 +1,7 @@
 # ADR-0018: Qwen3-8B as the Phase 1 generation default — pinned, not locked
 
-- **Status:** Accepted (provisional; decoding constraint detailed by ADR-0023)
+- **Status:** Accepted (provisional; decoding constraint detailed by ADR-0023; hosted-API
+  rejection narrowed to the default by ADR-0025)
 - **Date:** 2026-09-01
 - **Phase:** 1 — `make provision` needs a name; re-decided at Phase 2 against the golden set
 
@@ -46,7 +47,10 @@ copy text out of context, and the trust boundary catches it when it does not.
   than as Ollama's native `format`, which keeps the provider interface this ADR requires; and
   the schema is derived from the proto descriptor rather than written by hand.
 - The provider stays behind the OpenAI-compatible interface SHARED §1 requires, so this is a
-  configuration default rather than a coupling.
+  configuration default rather than a coupling. **Amended by ADR-0025:** SHARED §1 now requires a
+  typed interface — the `Generator` protocol — rather than a shared wire format, and the
+  OpenAI-compatible shape is what local providers speak rather than what the rule demands. The
+  point this bullet makes survives: the model is a configuration default, not a coupling.
 - A smaller fallback is documented for low-RAM machines. It is a documented degradation, not a
   second supported configuration.
 
@@ -70,7 +74,9 @@ golden set.** A run that confirms the incumbent is still a decision worth record
 - **Gemma.** Rejected for the same reason, with a use policy that is more restrictive still.
 - **A hosted API by default.** Better output, no provisioning. Rejected outright: it breaks the
   no-external-accounts acceptance test, which SHARED §1 states as the rule a change cannot be worth
-  breaking.
+  breaking. Amended by ADR-0025, which does not disturb this: a hosted API remains rejected as the
+  *default*, and is available as a deployer-selected configuration that leaves the acceptance test
+  untouched.
 - **Specify capabilities and let the deployer choose.** Documents what is needed — constrained
   decoding, context window, licence class — without naming a model. Rejected because `make provision`
   must pull something concrete, and because an unpinned generator makes the Phase 2 number

@@ -11,17 +11,21 @@ MUST / SHOULD / MAY are used in the RFC 2119 sense.
   this, the change is wrong.
 - First run MAY fetch container images and model weights. **Steady-state operation MUST require no
   network egress**: once provisioned, the system runs fully offline, and any code path that reaches
-  the public internet to answer a question is a defect. The ESV adapter is the sole exception and is
-  deployer-enabled, never default.
+  the public internet to answer a question is a defect. Two exceptions exist, both deployer-enabled
+  and never default: the ESV adapter, and a hosted generation provider selected by name
+  (ADR-0025). Neither may be reached by a default configuration, and `make dev-offline` MUST fail
+  loudly if either is.
 - Model weights MUST be fetched by a documented provisioning step, not silently on first query.
 - The system MUST NOT depend on any managed service in its default path. No RDS, no EKS, no SQS,
   no Secrets Manager, no proprietary SaaS observability.
 - Object storage MUST be accessed through an S3-compatible client, with MinIO as the local
   implementation.
 - Deployment MUST be a Helm chart runnable on any Kubernetes, including k3s and kind.
-- The generation provider MUST sit behind an interface using the OpenAI-compatible
-  chat-completions shape as the internal lingua franca, so Ollama, vLLM, llama.cpp, and hosted
-  APIs are interchangeable.
+- The generation provider MUST sit behind a typed interface — one constrained-completion method
+  with a documented return — so Ollama, vLLM, llama.cpp, and hosted APIs are interchangeable. The
+  request path MUST depend on that interface and on nothing provider-specific. The
+  OpenAI-compatible chat-completions shape is the internal prompt representation and what local
+  providers speak; a provider whose API is shaped otherwise translates at its own edge (ADR-0025).
 - The translation provider MUST be a pluggable adapter. Offline mode falls back to WEB or NET.
 
 ## 2. Licensing
