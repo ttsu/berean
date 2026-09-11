@@ -1157,8 +1157,8 @@ Insert after the `BEREAN_TOP_K` block, matching the file's existing commentary s
 # Know what it means before you set it. Retrieved corpus text is sent to
 # Anthropic as part of the prompt, and that happens *before* the gateway's
 # licence check (check 4) runs, because verification is downstream of
-# generation. Under `local-only` corpora that is your call to make under your
-# own account and Anthropic's terms, which is the same footing ADR-0017 puts
+# generation. With `local-only` corpora, that decision is yours to take under
+# your own account and Anthropic's terms — the same footing ADR-0017 puts
 # the ESV key on: this project ships no key and automates nothing around
 # anyone's terms. See docs/CORPUS-POLICY.md.
 #
