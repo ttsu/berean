@@ -13,6 +13,7 @@ import unittest
 
 from catena.serve import ServeError
 from catena.serve import generate as generate_module
+from catena.serve.generate import openai_chat
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[3]
 
@@ -29,10 +30,12 @@ class FakeTransport:
         self.error = error
         self.url: str | None = None
         self.body: dict | None = None
+        self.headers: dict[str, str] = {}
 
-    def __call__(self, url: str, body: bytes, timeout: float) -> bytes:
+    def __call__(self, url: str, body: bytes, headers: dict[str, str], timeout: float) -> bytes:
         self.url = url
         self.body = json.loads(body)
+        self.headers = dict(headers)
         if self.error is not None:
             raise self.error
         return json.dumps(self.response).encode()
@@ -47,8 +50,8 @@ def completion(content: str, *, finish: str = "stop", reasoning: str = "") -> di
             "usage": {"prompt_tokens": 11, "completion_tokens": 22, "total_tokens": 33}}
 
 
-def generator(transport: FakeTransport) -> generate_module.OllamaGenerator:
-    return generate_module.OllamaGenerator(
+def generator(transport: FakeTransport) -> openai_chat.OllamaGenerator:
+    return openai_chat.OllamaGenerator(
         "http://ollama:11434", generate_module.DEFAULT_MODEL, transport=transport)
 
 
