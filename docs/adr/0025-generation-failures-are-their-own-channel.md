@@ -175,8 +175,9 @@ we do not know which.
   enough and the outcome enum stays at three. Rejected on the ground ADR-0024 already took for an
   unreachable Catena: `DEGRADED` means verification refused to ship something it checked, which is a
   *successful* outcome of the verification system, and laundering anything else into it makes the
-  degradation rate ADR-0010 needs kept clean unreadable. Here nothing was checked, because nothing
-  was produced. A code column would mean the degradation rate could only be read correctly by
+  degradation rate ADR-0010 needs kept clean unreadable. Here the attempt that decided the outcome
+  checked nothing, because it produced nothing — even when an earlier attempt in the same turn was
+  checked and failed. A code column would mean the degradation rate could only be read correctly by
   queries that knew to filter on it, and the queries that matter are the ones nobody has written
   yet.
 - **Raise the token ceiling and treat this as tuning.** Rejected on measurement, three times:
@@ -253,6 +254,14 @@ on the request, decided by the rates these rows now record.
 - `specs/001-phase-1-pca-baseline/INTEGRATION-SPEC.md` — the response contract records the `oneof`
   and that the trace is present on both branches; `OverallResult` gains its fourth value; the trace
   tables section gains `generation_failures` and the nullable columns.
+- `specs/001-phase-1-pca-baseline/TECHNICAL-SPEC.md` — the failure-then-regenerate-then-degrade
+  paragraph is scoped to an attempt that produced an answer object, with the fourth outcome carved
+  out; the retry rule restated to cover a generation failure as well as a verification failure.
+- `README.md` — the CLI section's outcome table gains the fourth row and its fixed string; the exit
+  status paragraph covers all four outcomes.
+- `.agents/skills/run-evals/SKILL.md` — a new section on tracking the generation-failure rate per
+  model and per `top_k`, and a checklist item for it, matching how ADR-0020 added `no_answer_reason`
+  scoring to this same file.
 - `specs/001-phase-1-pca-baseline/ACCEPTANCE.md` — the UC-4/UC-10 section gains a note that the
   invisibility is fixed. **Its recorded results are untouched**: they are what one build did on one
   day, and editing them to match later code would destroy the phase's only evidence.

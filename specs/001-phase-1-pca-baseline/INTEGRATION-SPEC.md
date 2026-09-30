@@ -157,7 +157,7 @@ GenerationFailure:
 | `CONTEXT_EXHAUSTED` | The context window ran out rather than the ceiling | reserved |
 | `NOT_JSON` | The content did not parse as JSON | produced |
 | `NOT_AN_OBJECT` | It parsed to a JSON value that is not an object | produced |
-| `EMPTY` | No content, or no choices at all | produced |
+| `EMPTY` | No choices at all in the completion | produced |
 | `PROVIDER_REFUSED` | The provider declined the request on policy grounds | reserved |
 
 The two reserved codes are defined and unproduced in Phase 1: the local default neither declines on
@@ -396,9 +396,12 @@ UC-5 are the two most important non-answers in Phase 1 and they mean opposite th
 corpus being silent, the other is verification refusing to ship. Collapsing them makes the
 degradation rate unreadable, which is the metric ADR-0010 already needs kept clean.
 
-`GENERATION_FAILED` is **not** `DEGRADED` either, and for the same reason one layer earlier. It means
-both attempts came back with no answer object, so nothing was verified and nothing was learned about
-the sources. It always follows exactly two attempts — a generation failure consumes ADR-0010's one
+`GENERATION_FAILED` is **not** `DEGRADED` either, and for the same reason one layer earlier. It is a
+property of the turn's **final** attempt: whenever the last attempt came back with no answer object
+rather than one that failed verification, nothing was learned about the sources from that attempt
+and there is nothing to verify. A first attempt that was verified and failed and a second that
+produced no object at all still ends `GENERATION_FAILED` — there was nothing to refuse to ship on
+the second. It always follows exactly two attempts — a generation failure consumes ADR-0010's one
 regeneration, and `responses_generation_failed_is_second_attempt` holds that the way
 `responses_degraded_is_second_attempt` holds it for degradation. Go never calls the verifier on an
 attempt that produced no object: a verifier handed nothing produces findings about an answer that
@@ -407,7 +410,7 @@ does not exist.
 Three outcomes a user might loosely call "no answer" are therefore three things a query can tell
 apart: the corpus was silent (`VERIFIED` with `no_answer_reason`), verification refused to ship
 (`DEGRADED`), the generator produced nothing (`GENERATION_FAILED`). The renderer prints a distinct
-fixed string for each. The third shares no words with the refusal on purpose — "I can't source this
+fixed string for each. The third shares no content word with the refusal on purpose — "I can't source this
 adequately" reports a checked citation that did not hold, and claiming it where no citation was ever
 produced would misreport what the system did (ADR-0025).
 
@@ -804,8 +807,8 @@ which is the one number the gateway spent a check refusing to believe. A `contra
 citation additionally renders the profile's `label` for that corpus, which is why the loader
 requires one at those two stances.
 
-The three outcomes render differently, and two of them are fixed strings the renderer holds rather
-than composes:
+The four outcomes render differently, and three of them are fixed strings the renderer holds
+rather than composes:
 
 - An answer: position, arguments, descriptions, contrary positions, contested, then the derived
   confidence with its reason.
@@ -814,6 +817,8 @@ than composes:
   things and a reader must be able to tell them apart without opening a trace.
 - A refusal: "I can't source this adequately", and nothing else. No partial content, no warning
   beside one, and nothing from either refused attempt.
+- A generation failure: "I couldn't produce an answer for this question", and nothing else. The
+  final attempt produced no answer object, so there is nothing from it to render (ADR-0025).
 
 `--show-work` is a **log, not a narrative**: per attempt, the settings it ran under, the three stage
 timings plus the gateway's own verification cost, every candidate with its rank, score, tier,

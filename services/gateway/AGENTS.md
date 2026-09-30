@@ -60,11 +60,12 @@ logic here, stop — it belongs in Catena.
   unreachable database is an *error*, not a degraded answer: `DEGRADED` means verification refused
   to ship, and laundering an outage into it makes the degradation rate unreadable.
 - **A generation that produced no answer object is a fourth outcome, not a degradation.**
-  `GENERATION_FAILED` means both attempts came back with a `GenerationFailure` instead of an answer:
-  nothing was checked, because nothing was produced. It consumes the one regeneration like any other
-  failure, so it always follows two attempts, and it renders a fixed string of its own that claims
-  nothing about the sources — never the refusal, which reports a citation that was checked and did
-  not hold (ADR-0025).
+  `GENERATION_FAILED` is decided by the turn's **final** attempt: whenever the last attempt came
+  back with a `GenerationFailure` instead of an answer, the outcome is `GENERATION_FAILED` even if
+  an earlier attempt was verified and failed verification. It consumes the one regeneration like any
+  other failure, so it always follows two attempts, and it renders a fixed string of its own that
+  claims nothing about the sources — never the refusal, which reports a citation that was checked
+  and did not hold (ADR-0025).
 - **Never verify an attempt that produced no object.** The verifier handed nothing produces findings
   about an answer that does not exist, and a derived confidence over no verification is a number
   nobody measured. Record the attempt — its retrieval trace is the evidence this channel exists to

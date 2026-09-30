@@ -39,7 +39,7 @@ const Silence = "The sources in scope are silent on this question."
 // NoAnswer is what a turn prints when the generator produced no answer object
 // across both attempts, and the whole of what it prints.
 //
-// It shares no words with Refusal deliberately. Refusal means citations were
+// It shares no content word with Refusal deliberately. Refusal means citations were
 // checked and did not hold; this means none was produced and nothing was
 // learned about the sources, so claiming a sourcing failure would misreport
 // what the system did. Fixed here for the same reason Refusal is: a renderer

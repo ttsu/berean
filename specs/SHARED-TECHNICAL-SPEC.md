@@ -64,11 +64,12 @@ MUST / SHOULD / MAY are used in the RFC 2119 sense.
 - When an answer flags a locus contested, it MUST carry no affirmative arguments (ADR-0019).
 - On verification failure the system MUST regenerate once, then degrade. It MUST NOT ship
   unverified content with a warning attached.
-- A generation attempt that produced **no answer object** — truncated, not JSON, not an object,
-  empty, or declined by the provider — MUST NOT be reported as degraded. It is a fourth outcome
-  (`GENERATION_FAILED`), it consumes the one regeneration like any other failure, and the turn
-  renders a fixed string that claims nothing about the sources, because nothing was learned about
-  them (ADR-0025).
+- A turn whose **final** generation attempt produced no answer object — truncated, not JSON, not an
+  object, empty, or declined by the provider — MUST NOT be reported as degraded, even when an
+  earlier attempt was verified and failed verification. It is a fourth outcome (`GENERATION_FAILED`),
+  it consumes the one regeneration like any other failure, and the turn renders a fixed string that
+  claims nothing about the sources, because nothing was learned about them on the attempt that
+  decided the outcome (ADR-0025).
 - **A turn that produced no answer object MUST still record a trace row**, for the response and for
   every attempt it made. The retrieval happened, so the evidence of it exists and MUST NOT be
   discarded along with the failed generation; where no answer and no confidence exist, their absence

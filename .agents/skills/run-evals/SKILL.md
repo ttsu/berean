@@ -38,7 +38,7 @@ not.
 `DEGRADED` — "I can't source this adequately" — is a **successful** outcome of the verification
 system. Track it as its own metric.
 
-An honest non-answer is a **third** outcome: `VERIFIED` with `no_answer_reason` set and every content
+An honest non-answer is another outcome: `VERIFIED` with `no_answer_reason` set and every content
 slot empty. Do not fold it into the degradation rate. The corpus being silent and verification
 refusing to ship mean opposite things, and a metric that merges them cannot tell a retrieval problem
 from a fabrication problem. Track first-attempt and post-retry verification separately too
@@ -54,6 +54,19 @@ degradation rate near zero on questions the corpus genuinely cannot answer signa
 confabulating, which is far worse.
 
 Include questions the corpus cannot answer. Confident answers to them are failures.
+
+## Generation failure is a rate to track, not a bug to file
+
+`GENERATION_FAILED` is a fourth outcome, decided by the turn's final attempt: the generator returned
+no usable answer object — truncated, not JSON, not an object, empty, or declined — so nothing was
+checked and nothing was learned about the sources (ADR-0025). Before this channel existed the run
+left no row at all, so this is the first phase in which the rate is measurable.
+
+Track it as its own metric, per model and per `top_k` — `trace.generation_failures` carries the code
+and the factual detail per attempt. Do not fold it into the degradation rate: `DEGRADED` means
+verification refused to ship something it checked, and a generation failure means nothing was ever
+checked. A rate that moves when the model or the provider changes is the signal a provider comparison
+needs; a rate that never moves at all is the baseline the next provider has to beat.
 
 ## Contested loci
 
@@ -102,6 +115,7 @@ is still a decision worth recording, and it is the run most likely to go unwritt
 - [ ] Recall@k and faithfulness reported separately
 - [ ] Cross-contamination tests pass for every tradition pair touched
 - [ ] Degradation rate tracked as its own metric
+- [ ] Generation-failure rate tracked as its own metric, per model and per `top_k`
 - [ ] Unanswerable questions included; confident answers to them counted as failures
 - [ ] Contested loci: flagging scored as correct, resolving as failure
 - [ ] No ESV or NIV text anywhere in the set

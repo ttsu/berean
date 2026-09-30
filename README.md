@@ -218,18 +218,19 @@ Each citation renders with its corpus ID, its locator, the work and edition it c
 stance this profile assigns it. A `contrary` or `excluded` citation additionally carries the
 profile's own label for that corpus, so another tradition's position cannot be read as this one's.
 
-Three outcomes, and they read differently on purpose:
+Four outcomes, and they read differently on purpose:
 
 | | |
 | --- | --- |
 | **An answer** | Position, arguments, descriptions, each with citations that verified, and a confidence with a stated reason |
 | **Silence** | "The sources in scope are silent on this question", above the model's own brief statement of why. A **pass** — the corpus really is silent (UC-2) |
 | **A refusal** | "I can't source this adequately", and nothing else. Verification refused to ship after a regeneration; no partial content, no warning beside one |
+| **A generation failure** | "I couldn't produce an answer for this question", and nothing else. The final attempt produced no answer object at all, so nothing was ever checked (ADR-0025) |
 
 Answering takes minutes on CPU, almost all of it generation — see the cost table above. Exit status
-is 0 for all three outcomes, including the refusal: degradation is the verification system working,
-and the rate lives in `trace.responses.overall_result` where it can be counted against the turns
-that verified. `64` is a usage error and `69` means the stack is not ready.
+is 0 for all four outcomes, including the refusal and the generation failure: each is the system
+working as designed, and the rate lives in `trace.responses.overall_result` where it can be counted
+against the turns that verified. `64` is a usage error and `69` means the stack is not ready.
 
 ## Ingestion
 
