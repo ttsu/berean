@@ -19,7 +19,7 @@ CREATE TABLE trace.generation_failures (
     code trace.generation_failure_code NOT NULL,
 
     -- What happened, factually. Never the model's account of its own
-    -- reasoning: for 'provider_refused' this is the provider's category and
+    -- reasoning: for 'provider-refused' this is the provider's category and
     -- never its explanation (CLAUDE.md constraint 5).
     detail text NOT NULL CHECK (btrim(detail) <> ''),
 
@@ -31,11 +31,6 @@ CREATE TABLE trace.generation_failures (
 );
 
 CREATE INDEX generation_failures_code_idx ON trace.generation_failures (code);
-
--- Re-asserted for the same reason every other grant in this schema is.
-GRANT SELECT, INSERT, UPDATE, DELETE ON trace.generation_failures TO gateway;
-
--- catena is granted nothing here and is never granted USAGE on this schema.
 
 -- A turn that produced no answer object has no answer and no confidence, and
 -- both absences have to be recordable as absences.
@@ -73,3 +68,8 @@ ALTER TABLE trace.responses
     DROP CONSTRAINT IF EXISTS responses_confidence_reason_check,
     ADD CONSTRAINT responses_confidence_reason_not_blank
         CHECK (confidence_reason IS NULL OR btrim(confidence_reason) <> '');
+
+-- Re-asserted for the same reason every other grant in this schema is.
+GRANT SELECT, INSERT, UPDATE, DELETE ON trace.generation_failures TO gateway;
+
+-- catena is granted nothing here and is never granted USAGE on this schema.

@@ -28,7 +28,7 @@ DECLARE
     want text[] := ARRAY[
         'corpus.works', 'corpus.chunks', 'corpus.chunk_embeddings', 'corpus.chunk_metadata',
         'trace.responses', 'trace.traces', 'trace.candidates', 'trace.verification_results',
-        'trace.answer_failures'];
+        'trace.answer_failures', 'trace.generation_failures'];
     r text;
 BEGIN
     FOREACH r IN ARRAY want LOOP
@@ -191,7 +191,8 @@ BEGIN
     END LOOP;
 
     FOREACH t IN ARRAY ARRAY['trace.responses', 'trace.traces', 'trace.candidates',
-                             'trace.verification_results', 'trace.answer_failures'] LOOP
+                             'trace.verification_results', 'trace.answer_failures',
+                             'trace.generation_failures'] LOOP
         FOREACH p IN ARRAY ARRAY['SELECT', 'INSERT', 'UPDATE', 'DELETE'] LOOP
             ASSERT has_table_privilege('gateway', t, p), format('gateway needs %s on %s', p, t);
             ASSERT NOT has_table_privilege('catena', t, p),
