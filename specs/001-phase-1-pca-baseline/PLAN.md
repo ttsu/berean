@@ -694,7 +694,7 @@ started; `make test-catena-db` asserts the SQL against a live database.
       tag (ADR-0018). The protocol is what makes providers interchangeable, not the wire format —
       three providers speak OpenAI chat-completions over stdlib `urllib` and one speaks the
       Anthropic Messages API through its vendor SDK (ADR-0026). A test asserts the local constant
-      matches `models.lock.yaml`, and one asserts each hosted default
+      matches `models.lock.yaml`, and one asserts each hosted default against the provider table
 - [x] Structured output conforming to `AnswerObject`, enforced by JSON-schema-constrained decoding
       — schema **derived from the proto descriptor** rather than hand-written, minus `confidence`
       (ADR-0023)

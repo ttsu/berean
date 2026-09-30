@@ -256,4 +256,5 @@ apart.
 - `.env.example`, `compose.yaml`, `README.md` — the two provider variables, the three keys commented
   out with no value, and the per-provider cost table with what to read before setting one.
 - `services/catena/pyproject.toml` — `anthropic>=1.10,<2`, and why a vendor SDK in the request path
-  is a considered reversal.
+  is a considered reversal. Landed with the Messages adapter, ahead of these documents, rather than
+  with them.
