@@ -124,23 +124,92 @@ rather than guessed at. A GPU changes this picture entirely; the acceptance test
 one.
 
 **A GPU is not the only way out of that, and the alternative is one environment variable.** Four
-generation providers ship; `CATENA_GENERATION_PROVIDER` picks one and `CATENA_GENERATION_MODEL`
+generation providers ship. `CATENA_GENERATION_PROVIDER` picks one; `CATENA_GENERATION_MODEL`
 optionally picks a model within it (ADR-0026).
 
-| provider | key | default model | cost, in / out per MTok |
+| provider | key needed | default model | cost, in / out per MTok |
 | --- | --- | --- | --- |
 | `ollama` *(default)* | none | `qwen3:8b-q4_K_M` | — runs locally |
 | `anthropic` | `ANTHROPIC_API_KEY` | `claude-sonnet-5-5` | $2 / $10 |
 | `openai` | `OPENAI_API_KEY` | `gpt-6-luna` | $0.10 / $0.50 |
 | `deepseek` | `DEEPSEEK_API_KEY` | `deepseek-flash` | see the provider's pricing |
 
-Three things are worth knowing before setting one. The default needs **no account and no key**, and
-`make dev-offline` proves the stack answers with egress blocked — that is the acceptance test, and
-it does not move. A hosted provider **receives retrieved corpus text** before the gateway's fourth
-verification check has ruled on whether that text may be served, so read
+### Setting a provider
+
+Everything lives in `.env`, which `make env` creates from `.env.example` on first run. There are
+three steps and the middle one is the one people miss.
+
+**1. Put the provider and its key in `.env`.** Edit the `CATENA_GENERATION_PROVIDER` line and
+uncomment the one key line you need — the file already has all four, commented out:
+
+```sh
+# .env
+CATENA_GENERATION_PROVIDER=anthropic
+ANTHROPIC_API_KEY=sk-ant-...
+```
+
+Keys come from each provider's own console: [Anthropic](https://console.anthropic.com),
+[OpenAI](https://platform.openai.com), [DeepSeek](https://platform.deepseek.com). You supply your
+own; this project ships none and automates nothing around anyone's terms.
+
+**2. Restart the stack, or the change does nothing.** Compose reads `.env` when it *creates* a
+container, so an edit is invisible to one already running:
+
+```sh
+make dev
+```
+
+**3. Confirm which provider actually answered.** Do not trust the configuration — read the trace:
+
+```sh
+docker compose run --rm gateway \
+    ask --profile pca --show-work "What does the Westminster Confession teach about assurance?"
+```
+
+`--show-work` prints `generation_provider` and `schema_delivery` for every attempt. That is the
+record the eval harness reads too, so if it says `ollama` your edit did not take effect.
+
+To go back to the local default, set `CATENA_GENERATION_PROVIDER=ollama` and run `make dev` again.
+The key can stay in `.env`; a key present but unselected does nothing, because a credential is never
+a selection.
+
+**If a key is missing, `catena` refuses to start** rather than failing at your first question — you
+will see it in `make logs`:
+
+```
+provider 'anthropic' needs ANTHROPIC_API_KEY, which is unset.
+```
+
+### Choosing a different model within a provider
+
+`CATENA_GENERATION_MODEL` applies *inside* the selected provider and must name a model that provider
+serves — there is no cross-provider model list:
+
+```sh
+# .env
+CATENA_GENERATION_PROVIDER=anthropic
+CATENA_GENERATION_MODEL=claude-opus-5
+```
+
+Leave it unset — or commented out — to get the provider's default from the table above. On `ollama`
+it overrides the pinned tag, which ADR-0018 treats as a documented degradation rather than a second
+supported configuration; the trace records what actually answered either way.
+
+### Three things to know before you set one
+
+**The default needs no account and no key**, and `make dev-offline` proves the stack answers with
+egress blocked. That is the acceptance test, and it does not move.
+
+**A hosted provider receives retrieved corpus text** before the gateway's fourth verification check
+has ruled on whether that text may be served. Read
 [docs/CORPUS-POLICY.md](docs/CORPUS-POLICY.md) — "Who receives corpus text" names the recipient per
-provider. And a hosted run is legitimate and is labelled in the trace, but it is **not** the
-quotable baseline: that is the pinned local default (ADR-0018).
+provider. ESV and NIV are unaffected under every configuration: never ingested, fetched at render
+time, and unable to appear in a prompt at all.
+
+**A hosted run is legitimate and is labelled in the trace, but it is not the quotable baseline.**
+That is the pinned local default (ADR-0018). Two of the four providers also enforce the answer
+schema less strictly than the default does — `schema_delivery` in the trace says which, and
+ADR-0026 explains what each mode guarantees.
 
 `make provision` acquires seven corpora and embeds roughly 35,000 chunks, dominated by the ~31,100
 verses of the WEB Bible. It is resumable per corpus, so an interrupted run continues rather than
