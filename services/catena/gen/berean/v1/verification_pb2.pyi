@@ -13,6 +13,7 @@ class OverallResult(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     OVERALL_RESULT_VERIFIED: _ClassVar[OverallResult]
     OVERALL_RESULT_REGENERATED: _ClassVar[OverallResult]
     OVERALL_RESULT_DEGRADED: _ClassVar[OverallResult]
+    OVERALL_RESULT_GENERATION_FAILED: _ClassVar[OverallResult]
 
 class AnswerFailureCode(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     __slots__ = ()
@@ -33,6 +34,7 @@ OVERALL_RESULT_UNSPECIFIED: OverallResult
 OVERALL_RESULT_VERIFIED: OverallResult
 OVERALL_RESULT_REGENERATED: OverallResult
 OVERALL_RESULT_DEGRADED: OverallResult
+OVERALL_RESULT_GENERATION_FAILED: OverallResult
 ANSWER_FAILURE_CODE_UNSPECIFIED: AnswerFailureCode
 ANSWER_FAILURE_CODE_CITATIONS_REQUIRED: AnswerFailureCode
 ANSWER_FAILURE_CODE_ARGUMENT_LACKS_AUTHORITY: AnswerFailureCode

@@ -3,12 +3,30 @@ from berean.v1 import filter_pb2 as _filter_pb2
 from berean.v1 import trace_pb2 as _trace_pb2
 from berean.v1 import verification_pb2 as _verification_pb2
 from google.protobuf.internal import containers as _containers
+from google.protobuf.internal import enum_type_wrapper as _enum_type_wrapper
 from google.protobuf import descriptor as _descriptor
 from google.protobuf import message as _message
 from collections.abc import Iterable as _Iterable, Mapping as _Mapping
 from typing import ClassVar as _ClassVar, Optional as _Optional, Union as _Union
 
 DESCRIPTOR: _descriptor.FileDescriptor
+
+class GenerationFailureCode(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
+    __slots__ = ()
+    GENERATION_FAILURE_CODE_UNSPECIFIED: _ClassVar[GenerationFailureCode]
+    GENERATION_FAILURE_CODE_TRUNCATED: _ClassVar[GenerationFailureCode]
+    GENERATION_FAILURE_CODE_CONTEXT_EXHAUSTED: _ClassVar[GenerationFailureCode]
+    GENERATION_FAILURE_CODE_NOT_JSON: _ClassVar[GenerationFailureCode]
+    GENERATION_FAILURE_CODE_NOT_AN_OBJECT: _ClassVar[GenerationFailureCode]
+    GENERATION_FAILURE_CODE_EMPTY: _ClassVar[GenerationFailureCode]
+    GENERATION_FAILURE_CODE_PROVIDER_REFUSED: _ClassVar[GenerationFailureCode]
+GENERATION_FAILURE_CODE_UNSPECIFIED: GenerationFailureCode
+GENERATION_FAILURE_CODE_TRUNCATED: GenerationFailureCode
+GENERATION_FAILURE_CODE_CONTEXT_EXHAUSTED: GenerationFailureCode
+GENERATION_FAILURE_CODE_NOT_JSON: GenerationFailureCode
+GENERATION_FAILURE_CODE_NOT_AN_OBJECT: GenerationFailureCode
+GENERATION_FAILURE_CODE_EMPTY: GenerationFailureCode
+GENERATION_FAILURE_CODE_PROVIDER_REFUSED: GenerationFailureCode
 
 class AnswerRequest(_message.Message):
     __slots__ = ()
@@ -37,7 +55,19 @@ class ConversationTurn(_message.Message):
 class AnswerResponse(_message.Message):
     __slots__ = ()
     ANSWER_FIELD_NUMBER: _ClassVar[int]
+    GENERATION_FAILURE_FIELD_NUMBER: _ClassVar[int]
     TRACE_FIELD_NUMBER: _ClassVar[int]
     answer: _answer_pb2.AnswerObject
+    generation_failure: GenerationFailure
     trace: _trace_pb2.RetrievalTrace
-    def __init__(self, answer: _Optional[_Union[_answer_pb2.AnswerObject, _Mapping]] = ..., trace: _Optional[_Union[_trace_pb2.RetrievalTrace, _Mapping]] = ...) -> None: ...
+    def __init__(self, answer: _Optional[_Union[_answer_pb2.AnswerObject, _Mapping]] = ..., generation_failure: _Optional[_Union[GenerationFailure, _Mapping]] = ..., trace: _Optional[_Union[_trace_pb2.RetrievalTrace, _Mapping]] = ...) -> None: ...
+
+class GenerationFailure(_message.Message):
+    __slots__ = ()
+    CODE_FIELD_NUMBER: _ClassVar[int]
+    DETAIL_FIELD_NUMBER: _ClassVar[int]
+    COMPLETION_TOKENS_FIELD_NUMBER: _ClassVar[int]
+    code: GenerationFailureCode
+    detail: str
+    completion_tokens: int
+    def __init__(self, code: _Optional[_Union[GenerationFailureCode, str]] = ..., detail: _Optional[str] = ..., completion_tokens: _Optional[int] = ...) -> None: ...

@@ -32,8 +32,10 @@ func (s *service) Answer(_ context.Context, request *bereanv1.AnswerRequest) (*b
 		return nil, s.fail
 	}
 	return &bereanv1.AnswerResponse{
-		Answer: &bereanv1.AnswerObject{NoAnswerReason: "Nothing in scope addresses it."},
-		Trace:  &bereanv1.RetrievalTrace{RewrittenQuery: request.GetQuery()},
+		Outcome: &bereanv1.AnswerResponse_Answer{
+			Answer: &bereanv1.AnswerObject{NoAnswerReason: "Nothing in scope addresses it."},
+		},
+		Trace: &bereanv1.RetrievalTrace{RewrittenQuery: request.GetQuery()},
 	}, nil
 }
 

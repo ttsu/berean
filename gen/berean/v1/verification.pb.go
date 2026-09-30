@@ -42,6 +42,11 @@ const (
 	// the verification system, not an error; metrics must not count it as a
 	// failure rate.
 	OverallResult_OVERALL_RESULT_DEGRADED OverallResult = 3
+	// The generator produced no answer object across both attempts. Distinct from
+	// DEGRADED on purpose: DEGRADED means verification refused to ship something
+	// it checked, and the degradation rate ADR-0010 needs kept clean must not mix
+	// the two. Nothing was checked here, because nothing was produced.
+	OverallResult_OVERALL_RESULT_GENERATION_FAILED OverallResult = 4
 )
 
 // Enum value maps for OverallResult.
@@ -51,12 +56,14 @@ var (
 		1: "OVERALL_RESULT_VERIFIED",
 		2: "OVERALL_RESULT_REGENERATED",
 		3: "OVERALL_RESULT_DEGRADED",
+		4: "OVERALL_RESULT_GENERATION_FAILED",
 	}
 	OverallResult_value = map[string]int32{
-		"OVERALL_RESULT_UNSPECIFIED": 0,
-		"OVERALL_RESULT_VERIFIED":    1,
-		"OVERALL_RESULT_REGENERATED": 2,
-		"OVERALL_RESULT_DEGRADED":    3,
+		"OVERALL_RESULT_UNSPECIFIED":       0,
+		"OVERALL_RESULT_VERIFIED":          1,
+		"OVERALL_RESULT_REGENERATED":       2,
+		"OVERALL_RESULT_DEGRADED":          3,
+		"OVERALL_RESULT_GENERATION_FAILED": 4,
 	}
 )
 
@@ -406,12 +413,13 @@ const file_berean_v1_verification_proto_rawDesc = "" +
 	"\x04code\x18\x01 \x01(\x0e2\x1c.berean.v1.AnswerFailureCodeR\x04code\x12\x12\n" +
 	"\x04slot\x18\x02 \x01(\tR\x04slot\x129\n" +
 	"\fcitation_ref\x18\x03 \x01(\v2\x16.berean.v1.CitationRefR\vcitationRef\x12\x16\n" +
-	"\x06detail\x18\x04 \x01(\tR\x06detail*\x89\x01\n" +
+	"\x06detail\x18\x04 \x01(\tR\x06detail*\xaf\x01\n" +
 	"\rOverallResult\x12\x1e\n" +
 	"\x1aOVERALL_RESULT_UNSPECIFIED\x10\x00\x12\x1b\n" +
 	"\x17OVERALL_RESULT_VERIFIED\x10\x01\x12\x1e\n" +
 	"\x1aOVERALL_RESULT_REGENERATED\x10\x02\x12\x1b\n" +
-	"\x17OVERALL_RESULT_DEGRADED\x10\x03*\x90\x05\n" +
+	"\x17OVERALL_RESULT_DEGRADED\x10\x03\x12$\n" +
+	" OVERALL_RESULT_GENERATION_FAILED\x10\x04*\x90\x05\n" +
 	"\x11AnswerFailureCode\x12#\n" +
 	"\x1fANSWER_FAILURE_CODE_UNSPECIFIED\x10\x00\x12*\n" +
 	"&ANSWER_FAILURE_CODE_CITATIONS_REQUIRED\x10\x01\x120\n" +

@@ -67,8 +67,8 @@ func (s *script) Answer(_ context.Context, req *bereanv1.AnswerRequest) (*berean
 		return nil, errors.New("the turn made more calls than the seam permits")
 	}
 	return &bereanv1.AnswerResponse{
-		Answer: s.answers[len(s.requests)-1],
-		Trace:  &bereanv1.RetrievalTrace{RewrittenQuery: req.GetQuery(), TopK: req.GetFilterSpec().GetTopK()},
+		Outcome: &bereanv1.AnswerResponse_Answer{Answer: s.answers[len(s.requests)-1]},
+		Trace:   &bereanv1.RetrievalTrace{RewrittenQuery: req.GetQuery(), TopK: req.GetFilterSpec().GetTopK()},
 	}, nil
 }
 

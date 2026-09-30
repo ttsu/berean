@@ -74,6 +74,50 @@ message AnswerRequest {
 message ConversationTurn {}
 
 message AnswerResponse {
-  AnswerObject answer = 1;
+  // Exactly one. A response carrying both is not a state this system has a
+  // meaning for, and one carrying neither is a turn that did not happen.
+  oneof outcome {
+    AnswerObject answer = 1;
+    GenerationFailure generation_failure = 3;
+  }
+
+  // Always present, on both branches. The trace is the evidence of the
+  // retrieval that happened, and a failed generation performed one — losing it
+  // is the defect this channel exists to fix.
   RetrievalTrace trace = 2;
+}
+
+// Why no answer object was produced. The upstream sibling of `AnswerFailure`:
+// that one names the slot a rule broke in, and a generation with no object has
+// no slots (ADR-0024, ADR-0025).
+message GenerationFailure {
+  GenerationFailureCode code = 1;
+
+  // What happened, factually. Never the model's account of its own reasoning:
+  // for a refusal this is the provider's category and never its explanation,
+  // which is exactly the introspection CLAUDE.md constraint 5 forbids and
+  // exactly the kind of field it would enter through.
+  string detail = 2;
+
+  // How far the attempt got before it failed. Zero when it produced nothing.
+  int32 completion_tokens = 3;
+}
+
+enum GenerationFailureCode {
+  GENERATION_FAILURE_CODE_UNSPECIFIED = 0;
+  // The completion hit the token ceiling. Measured as deterministic on the
+  // Phase 1 default; raising the ceiling converts it into a timeout and buys
+  // nothing (see generate.py, and ACCEPTANCE.md).
+  GENERATION_FAILURE_CODE_TRUNCATED = 1;
+  // The model ran out of context window rather than out of ceiling.
+  GENERATION_FAILURE_CODE_CONTEXT_EXHAUSTED = 2;
+  // The content did not parse as JSON.
+  GENERATION_FAILURE_CODE_NOT_JSON = 3;
+  // It parsed to a JSON value that is not an object.
+  GENERATION_FAILURE_CODE_NOT_AN_OBJECT = 4;
+  // No content, or no choices at all.
+  GENERATION_FAILURE_CODE_EMPTY = 5;
+  // The provider declined the request on policy grounds. The category is
+  // recorded in `detail`; the explanation is never read.
+  GENERATION_FAILURE_CODE_PROVIDER_REFUSED = 6;
 }

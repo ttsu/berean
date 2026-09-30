@@ -29,6 +29,76 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+type GenerationFailureCode int32
+
+const (
+	GenerationFailureCode_GENERATION_FAILURE_CODE_UNSPECIFIED GenerationFailureCode = 0
+	// The completion hit the token ceiling. Measured as deterministic on the
+	// Phase 1 default; raising the ceiling converts it into a timeout and buys
+	// nothing (see generate.py, and ACCEPTANCE.md).
+	GenerationFailureCode_GENERATION_FAILURE_CODE_TRUNCATED GenerationFailureCode = 1
+	// The model ran out of context window rather than out of ceiling.
+	GenerationFailureCode_GENERATION_FAILURE_CODE_CONTEXT_EXHAUSTED GenerationFailureCode = 2
+	// The content did not parse as JSON.
+	GenerationFailureCode_GENERATION_FAILURE_CODE_NOT_JSON GenerationFailureCode = 3
+	// It parsed to a JSON value that is not an object.
+	GenerationFailureCode_GENERATION_FAILURE_CODE_NOT_AN_OBJECT GenerationFailureCode = 4
+	// No content, or no choices at all.
+	GenerationFailureCode_GENERATION_FAILURE_CODE_EMPTY GenerationFailureCode = 5
+	// The provider declined the request on policy grounds. The category is
+	// recorded in `detail`; the explanation is never read.
+	GenerationFailureCode_GENERATION_FAILURE_CODE_PROVIDER_REFUSED GenerationFailureCode = 6
+)
+
+// Enum value maps for GenerationFailureCode.
+var (
+	GenerationFailureCode_name = map[int32]string{
+		0: "GENERATION_FAILURE_CODE_UNSPECIFIED",
+		1: "GENERATION_FAILURE_CODE_TRUNCATED",
+		2: "GENERATION_FAILURE_CODE_CONTEXT_EXHAUSTED",
+		3: "GENERATION_FAILURE_CODE_NOT_JSON",
+		4: "GENERATION_FAILURE_CODE_NOT_AN_OBJECT",
+		5: "GENERATION_FAILURE_CODE_EMPTY",
+		6: "GENERATION_FAILURE_CODE_PROVIDER_REFUSED",
+	}
+	GenerationFailureCode_value = map[string]int32{
+		"GENERATION_FAILURE_CODE_UNSPECIFIED":       0,
+		"GENERATION_FAILURE_CODE_TRUNCATED":         1,
+		"GENERATION_FAILURE_CODE_CONTEXT_EXHAUSTED": 2,
+		"GENERATION_FAILURE_CODE_NOT_JSON":          3,
+		"GENERATION_FAILURE_CODE_NOT_AN_OBJECT":     4,
+		"GENERATION_FAILURE_CODE_EMPTY":             5,
+		"GENERATION_FAILURE_CODE_PROVIDER_REFUSED":  6,
+	}
+)
+
+func (x GenerationFailureCode) Enum() *GenerationFailureCode {
+	p := new(GenerationFailureCode)
+	*p = x
+	return p
+}
+
+func (x GenerationFailureCode) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (GenerationFailureCode) Descriptor() protoreflect.EnumDescriptor {
+	return file_berean_v1_catena_proto_enumTypes[0].Descriptor()
+}
+
+func (GenerationFailureCode) Type() protoreflect.EnumType {
+	return &file_berean_v1_catena_proto_enumTypes[0]
+}
+
+func (x GenerationFailureCode) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use GenerationFailureCode.Descriptor instead.
+func (GenerationFailureCode) EnumDescriptor() ([]byte, []int) {
+	return file_berean_v1_catena_proto_rawDescGZIP(), []int{0}
+}
+
 type AnswerRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// The user's question, verbatim.
@@ -196,9 +266,19 @@ func (*ConversationTurn) Descriptor() ([]byte, []int) {
 }
 
 type AnswerResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Answer        *AnswerObject          `protobuf:"bytes,1,opt,name=answer,proto3" json:"answer,omitempty"`
-	Trace         *RetrievalTrace        `protobuf:"bytes,2,opt,name=trace,proto3" json:"trace,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Exactly one. A response carrying both is not a state this system has a
+	// meaning for, and one carrying neither is a turn that did not happen.
+	//
+	// Types that are valid to be assigned to Outcome:
+	//
+	//	*AnswerResponse_Answer
+	//	*AnswerResponse_GenerationFailure
+	Outcome isAnswerResponse_Outcome `protobuf_oneof:"outcome"`
+	// Always present, on both branches. The trace is the evidence of the
+	// retrieval that happened, and a failed generation performed one — losing it
+	// is the defect this channel exists to fix.
+	Trace         *RetrievalTrace `protobuf:"bytes,2,opt,name=trace,proto3" json:"trace,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -233,9 +313,27 @@ func (*AnswerResponse) Descriptor() ([]byte, []int) {
 	return file_berean_v1_catena_proto_rawDescGZIP(), []int{2}
 }
 
+func (x *AnswerResponse) GetOutcome() isAnswerResponse_Outcome {
+	if x != nil {
+		return x.Outcome
+	}
+	return nil
+}
+
 func (x *AnswerResponse) GetAnswer() *AnswerObject {
 	if x != nil {
-		return x.Answer
+		if x, ok := x.Outcome.(*AnswerResponse_Answer); ok {
+			return x.Answer
+		}
+	}
+	return nil
+}
+
+func (x *AnswerResponse) GetGenerationFailure() *GenerationFailure {
+	if x != nil {
+		if x, ok := x.Outcome.(*AnswerResponse_GenerationFailure); ok {
+			return x.GenerationFailure
+		}
 	}
 	return nil
 }
@@ -245,6 +343,90 @@ func (x *AnswerResponse) GetTrace() *RetrievalTrace {
 		return x.Trace
 	}
 	return nil
+}
+
+type isAnswerResponse_Outcome interface {
+	isAnswerResponse_Outcome()
+}
+
+type AnswerResponse_Answer struct {
+	Answer *AnswerObject `protobuf:"bytes,1,opt,name=answer,proto3,oneof"`
+}
+
+type AnswerResponse_GenerationFailure struct {
+	GenerationFailure *GenerationFailure `protobuf:"bytes,3,opt,name=generation_failure,json=generationFailure,proto3,oneof"`
+}
+
+func (*AnswerResponse_Answer) isAnswerResponse_Outcome() {}
+
+func (*AnswerResponse_GenerationFailure) isAnswerResponse_Outcome() {}
+
+// Why no answer object was produced. The upstream sibling of `AnswerFailure`:
+// that one names the slot a rule broke in, and a generation with no object has
+// no slots (ADR-0024, ADR-0025).
+type GenerationFailure struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Code  GenerationFailureCode  `protobuf:"varint,1,opt,name=code,proto3,enum=berean.v1.GenerationFailureCode" json:"code,omitempty"`
+	// What happened, factually. Never the model's account of its own reasoning:
+	// for a refusal this is the provider's category and never its explanation,
+	// which is exactly the introspection CLAUDE.md constraint 5 forbids and
+	// exactly the kind of field it would enter through.
+	Detail string `protobuf:"bytes,2,opt,name=detail,proto3" json:"detail,omitempty"`
+	// How far the attempt got before it failed. Zero when it produced nothing.
+	CompletionTokens int32 `protobuf:"varint,3,opt,name=completion_tokens,json=completionTokens,proto3" json:"completion_tokens,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
+}
+
+func (x *GenerationFailure) Reset() {
+	*x = GenerationFailure{}
+	mi := &file_berean_v1_catena_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GenerationFailure) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GenerationFailure) ProtoMessage() {}
+
+func (x *GenerationFailure) ProtoReflect() protoreflect.Message {
+	mi := &file_berean_v1_catena_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GenerationFailure.ProtoReflect.Descriptor instead.
+func (*GenerationFailure) Descriptor() ([]byte, []int) {
+	return file_berean_v1_catena_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *GenerationFailure) GetCode() GenerationFailureCode {
+	if x != nil {
+		return x.Code
+	}
+	return GenerationFailureCode_GENERATION_FAILURE_CODE_UNSPECIFIED
+}
+
+func (x *GenerationFailure) GetDetail() string {
+	if x != nil {
+		return x.Detail
+	}
+	return ""
+}
+
+func (x *GenerationFailure) GetCompletionTokens() int32 {
+	if x != nil {
+		return x.CompletionTokens
+	}
+	return 0
 }
 
 var File_berean_v1_catena_proto protoreflect.FileDescriptor
@@ -263,10 +445,24 @@ const file_berean_v1_catena_proto_rawDesc = "" +
 	"\x11previous_failures\x18\x06 \x03(\v2\x1d.berean.v1.VerificationResultR\x10previousFailures\x12A\n" +
 	"\x0fanswer_failures\x18\b \x03(\v2\x18.berean.v1.AnswerFailureR\x0eanswerFailures\x12\x18\n" +
 	"\aattempt\x18\a \x01(\x05R\aattempt\"\x12\n" +
-	"\x10ConversationTurn\"r\n" +
-	"\x0eAnswerResponse\x12/\n" +
-	"\x06answer\x18\x01 \x01(\v2\x17.berean.v1.AnswerObjectR\x06answer\x12/\n" +
-	"\x05trace\x18\x02 \x01(\v2\x19.berean.v1.RetrievalTraceR\x05trace2N\n" +
+	"\x10ConversationTurn\"\xce\x01\n" +
+	"\x0eAnswerResponse\x121\n" +
+	"\x06answer\x18\x01 \x01(\v2\x17.berean.v1.AnswerObjectH\x00R\x06answer\x12M\n" +
+	"\x12generation_failure\x18\x03 \x01(\v2\x1c.berean.v1.GenerationFailureH\x00R\x11generationFailure\x12/\n" +
+	"\x05trace\x18\x02 \x01(\v2\x19.berean.v1.RetrievalTraceR\x05traceB\t\n" +
+	"\aoutcome\"\x8e\x01\n" +
+	"\x11GenerationFailure\x124\n" +
+	"\x04code\x18\x01 \x01(\x0e2 .berean.v1.GenerationFailureCodeR\x04code\x12\x16\n" +
+	"\x06detail\x18\x02 \x01(\tR\x06detail\x12+\n" +
+	"\x11completion_tokens\x18\x03 \x01(\x05R\x10completionTokens*\xb8\x02\n" +
+	"\x15GenerationFailureCode\x12'\n" +
+	"#GENERATION_FAILURE_CODE_UNSPECIFIED\x10\x00\x12%\n" +
+	"!GENERATION_FAILURE_CODE_TRUNCATED\x10\x01\x12-\n" +
+	")GENERATION_FAILURE_CODE_CONTEXT_EXHAUSTED\x10\x02\x12$\n" +
+	" GENERATION_FAILURE_CODE_NOT_JSON\x10\x03\x12)\n" +
+	"%GENERATION_FAILURE_CODE_NOT_AN_OBJECT\x10\x04\x12!\n" +
+	"\x1dGENERATION_FAILURE_CODE_EMPTY\x10\x05\x12,\n" +
+	"(GENERATION_FAILURE_CODE_PROVIDER_REFUSED\x10\x062N\n" +
 	"\rCatenaService\x12=\n" +
 	"\x06Answer\x12\x18.berean.v1.AnswerRequest\x1a\x19.berean.v1.AnswerResponseB/Z-github.com/ttsu/berean/gen/berean/v1;bereanv1b\x06proto3"
 
@@ -282,33 +478,38 @@ func file_berean_v1_catena_proto_rawDescGZIP() []byte {
 	return file_berean_v1_catena_proto_rawDescData
 }
 
-var file_berean_v1_catena_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
+var file_berean_v1_catena_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
+var file_berean_v1_catena_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
 var file_berean_v1_catena_proto_goTypes = []any{
-	(*AnswerRequest)(nil),      // 0: berean.v1.AnswerRequest
-	(*ConversationTurn)(nil),   // 1: berean.v1.ConversationTurn
-	(*AnswerResponse)(nil),     // 2: berean.v1.AnswerResponse
-	(*FilterSpec)(nil),         // 3: berean.v1.FilterSpec
-	(*ContestedLocus)(nil),     // 4: berean.v1.ContestedLocus
-	(*VerificationResult)(nil), // 5: berean.v1.VerificationResult
-	(*AnswerFailure)(nil),      // 6: berean.v1.AnswerFailure
-	(*AnswerObject)(nil),       // 7: berean.v1.AnswerObject
-	(*RetrievalTrace)(nil),     // 8: berean.v1.RetrievalTrace
+	(GenerationFailureCode)(0), // 0: berean.v1.GenerationFailureCode
+	(*AnswerRequest)(nil),      // 1: berean.v1.AnswerRequest
+	(*ConversationTurn)(nil),   // 2: berean.v1.ConversationTurn
+	(*AnswerResponse)(nil),     // 3: berean.v1.AnswerResponse
+	(*GenerationFailure)(nil),  // 4: berean.v1.GenerationFailure
+	(*FilterSpec)(nil),         // 5: berean.v1.FilterSpec
+	(*ContestedLocus)(nil),     // 6: berean.v1.ContestedLocus
+	(*VerificationResult)(nil), // 7: berean.v1.VerificationResult
+	(*AnswerFailure)(nil),      // 8: berean.v1.AnswerFailure
+	(*AnswerObject)(nil),       // 9: berean.v1.AnswerObject
+	(*RetrievalTrace)(nil),     // 10: berean.v1.RetrievalTrace
 }
 var file_berean_v1_catena_proto_depIdxs = []int32{
-	1, // 0: berean.v1.AnswerRequest.conversation_context:type_name -> berean.v1.ConversationTurn
-	3, // 1: berean.v1.AnswerRequest.filter_spec:type_name -> berean.v1.FilterSpec
-	4, // 2: berean.v1.AnswerRequest.contested_loci:type_name -> berean.v1.ContestedLocus
-	5, // 3: berean.v1.AnswerRequest.previous_failures:type_name -> berean.v1.VerificationResult
-	6, // 4: berean.v1.AnswerRequest.answer_failures:type_name -> berean.v1.AnswerFailure
-	7, // 5: berean.v1.AnswerResponse.answer:type_name -> berean.v1.AnswerObject
-	8, // 6: berean.v1.AnswerResponse.trace:type_name -> berean.v1.RetrievalTrace
-	0, // 7: berean.v1.CatenaService.Answer:input_type -> berean.v1.AnswerRequest
-	2, // 8: berean.v1.CatenaService.Answer:output_type -> berean.v1.AnswerResponse
-	8, // [8:9] is the sub-list for method output_type
-	7, // [7:8] is the sub-list for method input_type
-	7, // [7:7] is the sub-list for extension type_name
-	7, // [7:7] is the sub-list for extension extendee
-	0, // [0:7] is the sub-list for field type_name
+	2,  // 0: berean.v1.AnswerRequest.conversation_context:type_name -> berean.v1.ConversationTurn
+	5,  // 1: berean.v1.AnswerRequest.filter_spec:type_name -> berean.v1.FilterSpec
+	6,  // 2: berean.v1.AnswerRequest.contested_loci:type_name -> berean.v1.ContestedLocus
+	7,  // 3: berean.v1.AnswerRequest.previous_failures:type_name -> berean.v1.VerificationResult
+	8,  // 4: berean.v1.AnswerRequest.answer_failures:type_name -> berean.v1.AnswerFailure
+	9,  // 5: berean.v1.AnswerResponse.answer:type_name -> berean.v1.AnswerObject
+	4,  // 6: berean.v1.AnswerResponse.generation_failure:type_name -> berean.v1.GenerationFailure
+	10, // 7: berean.v1.AnswerResponse.trace:type_name -> berean.v1.RetrievalTrace
+	0,  // 8: berean.v1.GenerationFailure.code:type_name -> berean.v1.GenerationFailureCode
+	1,  // 9: berean.v1.CatenaService.Answer:input_type -> berean.v1.AnswerRequest
+	3,  // 10: berean.v1.CatenaService.Answer:output_type -> berean.v1.AnswerResponse
+	10, // [10:11] is the sub-list for method output_type
+	9,  // [9:10] is the sub-list for method input_type
+	9,  // [9:9] is the sub-list for extension type_name
+	9,  // [9:9] is the sub-list for extension extendee
+	0,  // [0:9] is the sub-list for field type_name
 }
 
 func init() { file_berean_v1_catena_proto_init() }
@@ -320,18 +521,23 @@ func file_berean_v1_catena_proto_init() {
 	file_berean_v1_filter_proto_init()
 	file_berean_v1_trace_proto_init()
 	file_berean_v1_verification_proto_init()
+	file_berean_v1_catena_proto_msgTypes[2].OneofWrappers = []any{
+		(*AnswerResponse_Answer)(nil),
+		(*AnswerResponse_GenerationFailure)(nil),
+	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_berean_v1_catena_proto_rawDesc), len(file_berean_v1_catena_proto_rawDesc)),
-			NumEnums:      0,
-			NumMessages:   3,
+			NumEnums:      1,
+			NumMessages:   4,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
 		GoTypes:           file_berean_v1_catena_proto_goTypes,
 		DependencyIndexes: file_berean_v1_catena_proto_depIdxs,
+		EnumInfos:         file_berean_v1_catena_proto_enumTypes,
 		MessageInfos:      file_berean_v1_catena_proto_msgTypes,
 	}.Build()
 	File_berean_v1_catena_proto = out.File
