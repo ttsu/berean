@@ -118,7 +118,10 @@ re-measured alongside ADR-0018 rather than treated as settled.
 - `services/catena/src/catena/serve/schema.py` — the derivation, with the probe results in the
   module docstring
 - `services/catena/src/catena/serve/generate.py` — `reasoning_effort: "none"`, and `_content`
-  reading `content` alone
+  reading `content` alone. **Annotated by ADR-0026:** that module is now the package
+  `services/catena/src/catena/serve/generate/`; `_content` lives in `generate/openai_chat.py`, and
+  `reasoning_effort: "none"` is set from the `ollama` entry's `params` in `generate/__init__.py`'s
+  provider table rather than hardcoded in the adapter
 - `services/catena/tests/test_serve_schema.py` — `test_no_count_constraint_anywhere` guards the
   reintroduction of `minItems`
 - `specs/001-phase-1-pca-baseline/TECHNICAL-SPEC.md` — the Generation section records the derived

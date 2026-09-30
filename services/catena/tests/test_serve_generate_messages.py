@@ -219,6 +219,18 @@ class WhatItRaises(unittest.TestCase):
             generator(client).generate(PROMPT, SCHEMA)
         self.assertIn("anthropic", str(caught.exception))
 
+    def test_a_prompt_with_no_non_system_message_raises(self) -> None:
+        """The other half of the adapter's discipline: a malformed *request*
+        raises rather than reports. `_split` pulls the system role out and has
+        nothing left to send as a message, so this never reaches the client.
+        """
+        client = FakeClient(text_reply('{"position": "p"}'))
+        system_only = [{"role": "system", "content": "rules"}]
+        with self.assertRaises(ServeError) as caught:
+            generator(client).generate(system_only, SCHEMA)
+        self.assertIn("non-system message", str(caught.exception))
+        self.assertIsNone(client.request)
+
 
 class WhatItReportsBack(unittest.TestCase):
     def test_carries_usage_and_the_model_that_answered(self) -> None:
