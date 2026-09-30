@@ -321,6 +321,68 @@ func TestValidateRefusals(t *testing.T) {
 	}
 }
 
+// generationFailedTurn is a turn where neither attempt produced an answer
+// object — Catena reported a failure on both, consuming the one regeneration
+// ADR-0010 grants.
+func generationFailedTurn() turn.Turn {
+	failure := func(code bereanv1.GenerationFailureCode) *bereanv1.GenerationFailure {
+		return &bereanv1.GenerationFailure{
+			Code:   code,
+			Detail: "an invented provider category",
+		}
+	}
+	return turn.Turn{
+		RequestID: "00000000-0000-4000-8000-00000000000b",
+		Query:     "An invented question?",
+		Profile:   "probe",
+		Answer:    nil,
+		Overall:   bereanv1.OverallResult_OVERALL_RESULT_GENERATION_FAILED,
+		Attempts: []turn.Attempt{
+			{Number: 1, Trace: retrievalTrace(),
+				Failure: failure(bereanv1.GenerationFailureCode_GENERATION_FAILURE_CODE_TRUNCATED)},
+			{Number: 2, Trace: retrievalTrace(),
+				Failure: failure(bereanv1.GenerationFailureCode_GENERATION_FAILURE_CODE_PROVIDER_REFUSED)},
+		},
+	}
+}
+
+// A generation failure is the one outcome with no answer object, and it must be
+// persistable — the missing row is the whole defect (ACCEPTANCE.md, Q4 and Q10).
+func TestValidateAcceptsAGenerationFailureWithNoAnswer(t *testing.T) {
+	turned := generationFailedTurn()
+
+	if err := validate(turned); err != nil {
+		t.Fatalf("validate() = %v, want nil", err)
+	}
+}
+
+// Every other outcome still requires one. The nil-answer allowance is bound to
+// the outcome, not opened generally.
+func TestValidateStillRefusesANilAnswerOnEveryOtherOutcome(t *testing.T) {
+	for _, overall := range []bereanv1.OverallResult{
+		bereanv1.OverallResult_OVERALL_RESULT_VERIFIED,
+		bereanv1.OverallResult_OVERALL_RESULT_REGENERATED,
+		bereanv1.OverallResult_OVERALL_RESULT_DEGRADED,
+	} {
+		turned := generationFailedTurn()
+		turned.Overall = overall
+		if err := validate(turned); err == nil {
+			t.Errorf("validate() with %v and no answer = nil, want ErrIncomplete", overall)
+		}
+	}
+}
+
+// And the converse: an answer alongside GENERATION_FAILED is incoherent, and the
+// schema CHECK would reject it — so it must not reach the database.
+func TestValidateRefusesAnAnswerOnAGenerationFailure(t *testing.T) {
+	turned := generationFailedTurn()
+	turned.Answer = &bereanv1.AnswerObject{}
+
+	if err := validate(turned); err == nil {
+		t.Error("validate() = nil, want ErrIncomplete for an answer on a failed generation")
+	}
+}
+
 // TestValidateAcceptsAnEmptyCitationReference is the counterpart to the
 // refusals above, and the reason migration 000005 exists.
 //
