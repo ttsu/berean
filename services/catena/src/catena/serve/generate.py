@@ -157,6 +157,7 @@ class GenerationFailed:
     #: Factual. Never the model's account of its own reasoning: for a refusal
     #: this is the provider's category, never its explanation (constraint 5).
     detail: str
+    prompt_tokens: int = 0
     completion_tokens: int = 0
 
 
@@ -237,25 +238,30 @@ class OllamaGenerator:
         except json.JSONDecodeError as error:
             raise ServeError(f"ollama returned a body that is not JSON: {error}") from error
 
+        usage = response.get("usage") or {}
+        prompt_tokens = int(usage.get("prompt_tokens", 0))
+        completion_tokens = int(usage.get("completion_tokens", 0))
+
         choices = response.get("choices") or []
         if not choices:
-            return GenerationFailed(code="empty", detail="ollama returned no choices")
+            return GenerationFailed(
+                code="empty", detail="ollama returned no choices", prompt_tokens=prompt_tokens
+            )
         choice = choices[0]
-
-        usage = response.get("usage") or {}
-        completion_tokens = int(usage.get("completion_tokens", 0))
 
         if choice.get("finish_reason") == "length":
             return GenerationFailed(
                 code="truncated",
                 detail=f"finish_reason=length at max_tokens={self._max_tokens}",
+                prompt_tokens=prompt_tokens,
                 completion_tokens=completion_tokens,
             )
 
         result = self._content(choice)
         if isinstance(result, GenerationFailed):
             return GenerationFailed(
-                code=result.code, detail=result.detail, completion_tokens=completion_tokens
+                code=result.code, detail=result.detail,
+                prompt_tokens=prompt_tokens, completion_tokens=completion_tokens,
             )
         return Generation(
             payload=result,

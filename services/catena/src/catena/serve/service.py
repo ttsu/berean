@@ -113,7 +113,7 @@ class CatenaService(catena_pb2_grpc.CatenaServiceServicer):
                     # factual kind (constraint 5), so it is safe as an output.
                     observed.finish(
                         output={"code": result.code, "detail": result.detail},
-                        usage={"output": result.completion_tokens},
+                        usage={"input": result.prompt_tokens, "output": result.completion_tokens},
                     )
                 else:
                     observed.finish(

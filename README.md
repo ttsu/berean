@@ -225,7 +225,7 @@ Four outcomes, and they read differently on purpose:
 | **An answer** | Position, arguments, descriptions, each with citations that verified, and a confidence with a stated reason |
 | **Silence** | "The sources in scope are silent on this question", above the model's own brief statement of why. A **pass** — the corpus really is silent (UC-2) |
 | **A refusal** | "I can't source this adequately", and nothing else. Verification refused to ship after a regeneration; no partial content, no warning beside one |
-| **A generation failure** | "I couldn't produce an answer for this question", and nothing else. The final attempt produced no answer object at all, so nothing was ever checked (ADR-0025) |
+| **A generation failure** | "I couldn't produce an answer for this question", and nothing else. Decided by the turn's final attempt: it produced no answer object at all, even when an earlier attempt in the same turn was checked and failed (ADR-0025) |
 
 Answering takes minutes on CPU, almost all of it generation — see the cost table above. Exit status
 is 0 for all four outcomes, including the refusal and the generation failure: each is the system

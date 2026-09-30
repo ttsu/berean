@@ -963,6 +963,14 @@ the upstream sibling of `answer_failures`: that table names the slot a rule brok
 generation with no object has no slots (ADR-0024, ADR-0025). Its `detail` is non-blank by
 constraint, and factual by the rule stated with the response contract above.
 
+A row here is per-attempt, not per-turn: a turn writes one whenever *any* attempt produced no
+object, whether or not that turn's outcome ends `GENERATION_FAILED`. Attempt 1 failing generation
+followed by attempt 2 verifying writes a row here and ends `REGENERATED`; attempt 1 failing
+generation followed by attempt 2 failing verification writes a row here and ends `DEGRADED`. A row
+in this table therefore does not imply the turn it belongs to failed — the turn's outcome is
+`trace.responses.overall_result`, decided by the final attempt alone (ADR-0025). Use this table for
+the per-attempt code breakdown, not for counting generation-failed turns.
+
 **`responses.answer`, `.confidence_level` and `.confidence_reason` are nullable, and NULL exactly
 when `overall_result` is `generation-failed`.** Three CHECK constraints tie the absences to the
 outcome — `responses_answer_absent_iff_generation_failed`,

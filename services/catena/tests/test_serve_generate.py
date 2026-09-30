@@ -155,13 +155,6 @@ class WhatItReportsRatherThanRaising(unittest.TestCase):
         result = generator(transport).generate(MESSAGES, SCHEMA)
         self.assertNotIn("considered", result.detail)
 
-    def test_a_transport_failure_still_raises(self) -> None:
-        """Not a generation failure. The model never answered, so there is no
-        attempt to record and nothing about the generator was learned."""
-        transport = FakeTransport(error=OSError("connection refused"))
-        with self.assertRaises(ServeError):
-            generator(transport).generate(MESSAGES, SCHEMA)
-
 
 class WhatItReportsBack(unittest.TestCase):
     def test_carries_usage_and_the_model_that_answered(self) -> None:

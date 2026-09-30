@@ -65,7 +65,7 @@ exist in the request path:
 | `CONTEXT_EXHAUSTED` | the model ran out of context window |
 | `NOT_JSON` | the content did not parse |
 | `NOT_AN_OBJECT` | it parsed to a JSON value that is not an object |
-| `EMPTY` | no content, or no choices at all |
+| `EMPTY` | no choices in the response at all (empty content in a choice that exists is `NOT_JSON`) |
 | `PROVIDER_REFUSED` | the provider declined the request on policy grounds |
 
 **`detail` is factual and `PROVIDER_REFUSED` records the category only.** A refusal often arrives

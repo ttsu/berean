@@ -43,7 +43,8 @@ const (
 	GenerationFailureCode_GENERATION_FAILURE_CODE_NOT_JSON GenerationFailureCode = 3
 	// It parsed to a JSON value that is not an object.
 	GenerationFailureCode_GENERATION_FAILURE_CODE_NOT_AN_OBJECT GenerationFailureCode = 4
-	// No content, or no choices at all.
+	// No choices in the response at all. Empty content in a choice that exists
+	// produces NOT_JSON instead, because `json.loads("")` raises.
 	GenerationFailureCode_GENERATION_FAILURE_CODE_EMPTY GenerationFailureCode = 5
 	// The provider declined the request on policy grounds. The category is
 	// recorded in `detail`; the explanation is never read.

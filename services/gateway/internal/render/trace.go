@@ -42,6 +42,7 @@ func Trace(w io.Writer, t turn.Turn, sources Sources, version string) error {
 		candidates(out, attempt.Trace, sources)
 		checks(out, attempt.Results)
 		answerFailures(out, attempt.Failures)
+		generationFailure(out, attempt.Failure)
 	}
 	return out.err
 }
@@ -162,6 +163,23 @@ func answerFailures(out *writer, failures []*bereanv1.AnswerFailure) {
 	}
 }
 
+// generationFailure logs why an attempt produced no answer object at all —
+// the code and the factual detail, and nothing else.
+//
+// `detail` is printed exactly as it arrived. It is factual by contract
+// (ADR-0025) — never the model's own account of its reasoning — and this
+// function does not interpret it or add anything alongside it that would:
+// shipping model introspection is a hard constraint, not a style choice.
+func generationFailure(out *writer, failure *bereanv1.GenerationFailure) {
+	if failure == nil {
+		return
+	}
+	out.indented("generation failure", generationFailureCode(failure.GetCode()))
+	if detail := strings.TrimSpace(failure.GetDetail()); detail != "" {
+		out.line("    " + detail)
+	}
+}
+
 func yesno(ok bool) string {
 	if ok {
 		return "yes"
@@ -178,6 +196,10 @@ func overall(r bereanv1.OverallResult) string {
 
 func code(c bereanv1.AnswerFailureCode) string {
 	return label(c.String(), "ANSWER_FAILURE_CODE_")
+}
+
+func generationFailureCode(c bereanv1.GenerationFailureCode) string {
+	return label(c.String(), "GENERATION_FAILURE_CODE_")
 }
 
 func label(constant, prefix string) string {

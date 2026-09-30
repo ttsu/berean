@@ -115,7 +115,8 @@ enum GenerationFailureCode {
   GENERATION_FAILURE_CODE_NOT_JSON = 3;
   // It parsed to a JSON value that is not an object.
   GENERATION_FAILURE_CODE_NOT_AN_OBJECT = 4;
-  // No content, or no choices at all.
+  // No choices in the response at all. Empty content in a choice that exists
+  // produces NOT_JSON instead, because `json.loads("")` raises.
   GENERATION_FAILURE_CODE_EMPTY = 5;
   // The provider declined the request on policy grounds. The category is
   // recorded in `detail`; the explanation is never read.

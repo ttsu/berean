@@ -257,6 +257,8 @@ on the request, decided by the rates these rows now record.
 - `specs/001-phase-1-pca-baseline/TECHNICAL-SPEC.md` — the failure-then-regenerate-then-degrade
   paragraph is scoped to an attempt that produced an answer object, with the fourth outcome carved
   out; the retry rule restated to cover a generation failure as well as a verification failure.
+- `docs/ARCHITECTURE.md` — the same failure-then-regenerate-then-degrade sentence gets the same
+  scoping, so the architecture detail and the spec agree.
 - `README.md` — the CLI section's outcome table gains the fourth row and its fixed string; the exit
   status paragraph covers all four outcomes.
 - `.agents/skills/run-evals/SKILL.md` — a new section on tracking the generation-failure rate per

@@ -42,10 +42,12 @@ const (
 	// the verification system, not an error; metrics must not count it as a
 	// failure rate.
 	OverallResult_OVERALL_RESULT_DEGRADED OverallResult = 3
-	// The generator produced no answer object across both attempts. Distinct from
-	// DEGRADED on purpose: DEGRADED means verification refused to ship something
-	// it checked, and the degradation rate ADR-0010 needs kept clean must not mix
-	// the two. Nothing was checked here, because nothing was produced.
+	// The turn's final attempt produced no answer object. Decided by the final
+	// attempt only: a first attempt that was verified and failed verification,
+	// followed by a second that produced no object, still ends here — even
+	// though the first attempt was checked. Distinct from DEGRADED on purpose:
+	// DEGRADED means verification refused to ship something it checked, and
+	// the degradation rate ADR-0010 needs kept clean must not mix the two.
 	OverallResult_OVERALL_RESULT_GENERATION_FAILED OverallResult = 4
 )
 

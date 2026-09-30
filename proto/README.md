@@ -28,19 +28,21 @@ make proto-lint   # lint only
 ```
 
 Go output lands in `gen/`, under the root module. Python output goes to `services/catena/gen/`.
-Both are **gitignored and regenerated locally**; whether to commit them instead is CI policy
-rather than contract design, and is deferred to Phase 2 (ADR-0013). Run `make test` after
-regenerating — the contract suite in `services/catena/tests/test_proto_contract.py` skips itself
-when the stubs are absent, so a clean clone that has never generated reports green.
+Both are **committed** (ADR-0022) — after regenerating, commit what `make proto` writes, the same
+as any other generated code in this repo. Run `make check` after regenerating: `guard-proto-fresh`
+regenerates again and fails on any diff or any untracked stub, so a stale commit is a build failure
+rather than silent drift. The contract suite in `services/catena/tests/test_proto_contract.py` used
+to skip itself until the stubs existed; now their absence is a defect — an `ImportError` — because a
+clean clone already has them.
 
 `buf` runs in a pinned container, so it is not a host prerequisite. Plugin versions are pinned in
 `buf.gen.yaml` for the same reason the images and the model weights are.
 
-`go.mod` requires `google.golang.org/grpc` and `google.golang.org/protobuf` even though nothing in
-the committed tree imports them yet — the generated code does, and `protodeps.go` is what keeps
-`go mod tidy` from dropping them on a clean clone. gRPC is pinned at the newest release that still
-builds under the pinned Go image, which is now 1.25 — the toolchain was raised in its own commit
-so the dependency bump did not carry a stack change along with it.
+`go.mod` requires `google.golang.org/grpc` and `google.golang.org/protobuf`, and the committed tree
+imports both directly now — `gen/` itself, and `services/gateway/internal/catena/client.go`, which
+calls into Catena over the generated client. gRPC is pinned at the newest release that still builds
+under the pinned Go image, which is now 1.25 — the toolchain was raised in its own commit so the
+dependency bump did not carry a stack change along with it.
 
 ## Fields it is easy to get wrong
 

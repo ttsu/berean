@@ -40,12 +40,13 @@ import (
 // rows this suite can clear on its next start, and in a range the schema
 // suite's own probes do not use.
 const (
-	verifiedID         = "00000000-0000-4000-8000-0000000009a1"
-	degradedID         = "00000000-0000-4000-8000-0000000009a2"
-	atomicID           = "00000000-0000-4000-8000-0000000009a3"
-	emptyRefID         = "00000000-0000-4000-8000-0000000009a4"
-	generationFailedID = "00000000-0000-4000-8000-0000000009a5"
-	probeVersion       = "0.0.0-probe"
+	verifiedID                          = "00000000-0000-4000-8000-0000000009a1"
+	degradedID                          = "00000000-0000-4000-8000-0000000009a2"
+	atomicID                            = "00000000-0000-4000-8000-0000000009a3"
+	emptyRefID                          = "00000000-0000-4000-8000-0000000009a4"
+	generationFailedID                  = "00000000-0000-4000-8000-0000000009a5"
+	regeneratedAfterGenerationFailureID = "00000000-0000-4000-8000-0000000009a6"
+	probeVersion                        = "0.0.0-probe"
 )
 
 // connect opens a connection as the gateway role.
@@ -616,6 +617,121 @@ func TestWriteRecordsAGenerationFailure(t *testing.T) {
 		if failure != want[index] {
 			t.Errorf("generation_failures row %d = %+v, want %+v", index+1, failure, want[index])
 		}
+	}
+}
+
+// TestWriteRecordsARegeneratedTurnAfterAGenerationFailure is the mixed case
+// AGENTS.md and ADR-0025 describe and INTEGRATION-SPEC's `generation_failures`
+// section now states explicitly: a row in that table does not imply the turn
+// it belongs to failed. Attempt 1 here produced no answer object; attempt 2
+// verified. The outcome is decided by the final attempt alone, so it is
+// REGENERATED, with a real answer recorded — and exactly one
+// `trace.generation_failures` row, for the attempt that produced none.
+func TestWriteRecordsARegeneratedTurnAfterAGenerationFailure(t *testing.T) {
+	clear(t, regeneratedAfterGenerationFailureID)
+
+	answer := &bereanv1.AnswerObject{
+		Position: "An invented position, reached on the second attempt.",
+		Arguments: []*bereanv1.Argument{{
+			Claim: "An invented claim.",
+			Citations: []*bereanv1.Citation{{
+				CorpusId: "probe-0000-invented",
+				Locator:  "Probe 1.1",
+				Quote:    "An invented quotation, long enough to clear the forty-character floor.",
+			}},
+		}},
+		Confidence: confidence(bereanv1.ConfidenceLevel_CONFIDENCE_LEVEL_MEDIUM,
+			"1 binding or governing citation, second attempt, not contested"),
+	}
+
+	subject := turn.Turn{
+		RequestID: regeneratedAfterGenerationFailureID,
+		Query:     "An invented question about an invented locus?",
+		Profile:   "probe",
+		Answer:    answer,
+		Overall:   bereanv1.OverallResult_OVERALL_RESULT_REGENERATED,
+		Attempts: []turn.Attempt{
+			{
+				Number: 1,
+				Trace:  probeTrace(),
+				Failure: &bereanv1.GenerationFailure{
+					Code:             bereanv1.GenerationFailureCode_GENERATION_FAILURE_CODE_TRUNCATED,
+					Detail:           "an invented truncation detail",
+					CompletionTokens: 128,
+				},
+				Verify: time.Millisecond,
+			},
+			{
+				Number: 2,
+				Answer: answer,
+				Trace:  probeTrace(),
+				Results: []*bereanv1.VerificationResult{{
+					CitationRef: &bereanv1.CitationRef{
+						CorpusId: "probe-0000-invented", Locator: "Probe 1.1"},
+					LocatorResolved: true, QuoteMatched: true,
+					TierPermitted: true, LicensePermitted: true,
+				}},
+				Verify: 5 * time.Millisecond,
+			},
+		},
+	}
+
+	if err := store(t).Write(context.Background(), subject); err != nil {
+		t.Fatalf("a regenerated-after-generation-failure turn was not persisted: %v", err)
+	}
+
+	db := reading(t)
+
+	var (
+		overall    string
+		attempts   int
+		answerJSON []byte
+	)
+	err := db.QueryRow(
+		`SELECT overall_result, attempts, answer FROM trace.responses WHERE request_id = $1`,
+		regeneratedAfterGenerationFailureID).Scan(&overall, &attempts, &answerJSON)
+	if err != nil {
+		t.Fatalf("the response is not visible to another connection: %v", err)
+	}
+	if overall != "regenerated" || attempts != 2 {
+		t.Errorf("overall_result=%q attempts=%d, want regenerated/2 — decided by the final"+
+			" attempt, which verified, even though the first produced no object", overall, attempts)
+	}
+	if answerJSON == nil {
+		t.Fatal("answer is NULL, want the second attempt's verified answer — a row in" +
+			" generation_failures does not make the turn's answer absent")
+	}
+	var decoded map[string]any
+	if err := json.Unmarshal(answerJSON, &decoded); err != nil {
+		t.Fatalf("the answer column is not JSON: %v", err)
+	}
+	if decoded["position"] != "An invented position, reached on the second attempt." {
+		t.Errorf("answer.position = %v", decoded["position"])
+	}
+
+	assertAttemptRows(t, db, regeneratedAfterGenerationFailureID, 1, 1000)
+	assertAttemptRows(t, db, regeneratedAfterGenerationFailureID, 2, 5000)
+
+	var failureCount int
+	if err := db.QueryRow(
+		`SELECT count(*) FROM trace.generation_failures WHERE request_id = $1`,
+		regeneratedAfterGenerationFailureID).Scan(&failureCount); err != nil {
+		t.Fatalf("count generation_failures: %v", err)
+	}
+	if failureCount != 1 {
+		t.Errorf("wrote %d generation_failures rows, want exactly 1 — one per failed attempt,"+
+			" not per failed turn", failureCount)
+	}
+
+	var attempt int
+	var code string
+	if err := db.QueryRow(
+		`SELECT attempt, code FROM trace.generation_failures WHERE request_id = $1`,
+		regeneratedAfterGenerationFailureID).Scan(&attempt, &code); err != nil {
+		t.Fatalf("the generation_failures row is not visible: %v", err)
+	}
+	if attempt != 1 || code != "truncated" {
+		t.Errorf("generation_failures row attempt=%d code=%q, want 1/truncated", attempt, code)
 	}
 }
 
