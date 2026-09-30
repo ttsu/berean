@@ -64,6 +64,16 @@ MUST / SHOULD / MAY are used in the RFC 2119 sense.
 - When an answer flags a locus contested, it MUST carry no affirmative arguments (ADR-0019).
 - On verification failure the system MUST regenerate once, then degrade. It MUST NOT ship
   unverified content with a warning attached.
+- A generation attempt that produced **no answer object** — truncated, not JSON, not an object,
+  empty, or declined by the provider — MUST NOT be reported as degraded. It is a fourth outcome
+  (`GENERATION_FAILED`), it consumes the one regeneration like any other failure, and the turn
+  renders a fixed string that claims nothing about the sources, because nothing was learned about
+  them (ADR-0025).
+- **A turn that produced no answer object MUST still record a trace row**, for the response and for
+  every attempt it made. The retrieval happened, so the evidence of it exists and MUST NOT be
+  discarded along with the failed generation; where no answer and no confidence exist, their absence
+  MUST be recorded as absence rather than as an empty answer object, which is the honest-silence
+  shape and means the opposite thing (ADR-0020, ADR-0025).
 - Verification MUST run in the Go gateway. It MUST NOT be delegated to the model layer.
 - Any `contrary`-tier citation MUST be labelled as another tradition's position at render time, and
   any `excluded`-tier citation MUST be labelled as repudiated by the active tradition. Neither MAY
@@ -124,6 +134,10 @@ MUST / SHOULD / MAY are used in the RFC 2119 sense.
 - Golden sets MUST be tradition-parameterised. A correct Catholic answer on justification is a
   wrong PCA answer; every tradition needs its own.
 - Retrieval recall@k MUST be measured **separately** from answer faithfulness.
+- A turn that produced no answer object MUST be distinguishable **in the data** from one that
+  verification refused to ship. The harness reads the trace tables, so a failure mode with no row —
+  or with a row a query cannot tell apart from a degradation — is a failure mode no baseline can
+  contain and no later phase can claim to have improved (ADR-0025).
 - Cross-contamination tests are mandatory: assert no Tridentine source appears at `binding` tier
   under a PCA profile, and equivalents for every tradition pair.
 - Phase 2 (eval harness and golden set) MUST complete before Phase 3 (hybrid retrieval and

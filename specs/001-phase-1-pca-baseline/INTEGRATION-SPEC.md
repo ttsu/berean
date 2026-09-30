@@ -95,7 +95,14 @@ a user attribute. A locus and a locator are neither (ADR-0015).
 
 ### Response: Python → Go
 
-Two top-level parts: the **answer object** and the **retrieval trace**.
+Two top-level parts: an **outcome** and the **retrieval trace**.
+
+The outcome is exactly one of an **answer object** or a **`GenerationFailure`**, carried as a
+`oneof`: a response holding both is not a state this system has a meaning for, and one holding
+neither is a turn that did not happen. **The trace sits outside the `oneof` and is present on both
+branches.** A generation that failed still performed the retrieval, and discarding that evidence
+along with the failure is the defect ADR-0025 fixes — it is why two of ten acceptance questions left
+no row anywhere.
 
 ```
 AnswerObject:
@@ -134,6 +141,36 @@ Contested:
   citations: [ Citation ]        # MUST include the locus's ruling, when is_contested
   state_of_debate: string        # MUST quote the ruling verbatim
 ```
+
+The other branch, when the attempt produced no answer object:
+
+```
+GenerationFailure:
+  code: GenerationFailureCode    # closed set; see below
+  detail: string                 # factual; never empty
+  completion_tokens: int         # how far the attempt got; 0 when it produced nothing
+```
+
+| `GenerationFailureCode` | Fires when | Phase 1 |
+| --- | --- | --- |
+| `TRUNCATED` | The completion hit the token ceiling | produced |
+| `CONTEXT_EXHAUSTED` | The context window ran out rather than the ceiling | reserved |
+| `NOT_JSON` | The content did not parse as JSON | produced |
+| `NOT_AN_OBJECT` | It parsed to a JSON value that is not an object | produced |
+| `EMPTY` | No content, or no choices at all | produced |
+| `PROVIDER_REFUSED` | The provider declined the request on policy grounds | reserved |
+
+The two reserved codes are defined and unproduced in Phase 1: the local default neither declines on
+policy grounds nor distinguishes an exhausted context window from a hit ceiling. They are in the
+closed set now so that adding a provider adds a provider, rather than a proto field, a migration and
+a gateway change. Read them as reserved, not as dead code.
+
+**`detail` is factual, and this is a constraint rather than a description.** It carries what
+happened — the finish reason and the ceiling, the JSON decoder's own message, "no choices" — and
+never the model's narrative about its own reasoning. For `PROVIDER_REFUSED` it records the
+provider's **category** and never its explanation: a refusal's explanation is exactly the
+introspection SHARED §4 forbids shipping, and a free-text field beside a failure is exactly how it
+would arrive.
 
 Constraints Go enforces on receipt — Python's output is untrusted:
 
@@ -302,7 +339,7 @@ AnswerFailure:
   citation_ref: { corpus_id, locator }   # only for the rules that name a citation
   detail: string               # never empty
 
-OverallResult: VERIFIED | REGENERATED | DEGRADED
+OverallResult: VERIFIED | REGENERATED | DEGRADED | GENERATION_FAILED
 ```
 
 **Which findings go where is decided by what the rule is about, not by severity.** The four checks
@@ -358,6 +395,21 @@ rendered with its own text rather than the degraded string, and counted as its o
 UC-5 are the two most important non-answers in Phase 1 and they mean opposite things: one is the
 corpus being silent, the other is verification refusing to ship. Collapsing them makes the
 degradation rate unreadable, which is the metric ADR-0010 already needs kept clean.
+
+`GENERATION_FAILED` is **not** `DEGRADED` either, and for the same reason one layer earlier. It means
+both attempts came back with no answer object, so nothing was verified and nothing was learned about
+the sources. It always follows exactly two attempts — a generation failure consumes ADR-0010's one
+regeneration, and `responses_generation_failed_is_second_attempt` holds that the way
+`responses_degraded_is_second_attempt` holds it for degradation. Go never calls the verifier on an
+attempt that produced no object: a verifier handed nothing produces findings about an answer that
+does not exist.
+
+Three outcomes a user might loosely call "no answer" are therefore three things a query can tell
+apart: the corpus was silent (`VERIFIED` with `no_answer_reason`), verification refused to ship
+(`DEGRADED`), the generator produced nothing (`GENERATION_FAILED`). The renderer prints a distinct
+fixed string for each. The third shares no words with the refusal on purpose — "I can't source this
+adequately" reports a checked citation that did not hold, and claiming it where no citation was ever
+produced would misreport what the system did (ADR-0025).
 
 ## Profile document schema
 
@@ -899,6 +951,29 @@ does this generator break most often" is a `GROUP BY` rather than a `LIKE`. Its 
 `locator` are empty for the rules that name no citation, held whole-or-absent by a constraint:
 half a citation reference resolves to a whole corpus, which is not a thing any rule here is about.
 
+`generation_failures` is one row per attempt that produced **no answer object**, keyed to the
+attempt like every other trace table, with `code` a Postgres enum mirroring `GenerationFailureCode`
+and an index on it so "which way does this generator fail" is a `GROUP BY` over a closed set. It is
+the upstream sibling of `answer_failures`: that table names the slot a rule broke in, and a
+generation with no object has no slots (ADR-0024, ADR-0025). Its `detail` is non-blank by
+constraint, and factual by the rule stated with the response contract above.
+
+**`responses.answer`, `.confidence_level` and `.confidence_reason` are nullable, and NULL exactly
+when `overall_result` is `generation-failed`.** Three CHECK constraints tie the absences to the
+outcome — `responses_answer_absent_iff_generation_failed`,
+`responses_confidence_absent_iff_generation_failed` and
+`responses_generation_failed_is_second_attempt` — so a row recording an answer beside a failed
+generation, a confidence beside one, or a failed generation at one attempt is unwritable rather than
+merely unwritten. `responses_confidence_reason_not_blank` restates the non-blank rule the column
+carried while it was `NOT NULL`.
+
+The answer column is NULL rather than `{}` because an answer object with every slot empty is the
+**honest-silence** shape — ADR-0020 put UC-2 there — so writing `{}` would record a truncated
+generation as considered silence in the one table the Phase 2 harness reads, which is a worse defect
+than the missing row it replaces. The confidence follows it: Go derives both halves from the
+verification result, there was no verification, and a synthetic floor value would be a number the
+harness could average without anything in the row disclosing that it was invented.
+
 `verification_results` is one row per citation per attempt. It carries `corpus_id` and `locator` as
 plain columns with **no foreign key into `corpus`** — a citation to a corpus that does not exist is
 precisely what check 1 records, and a foreign key would make the fabrication unrecordable. The same
@@ -965,8 +1040,9 @@ carry no reference at all.
 Constraints hold the invariants the proto states in prose: `attempts` is 1 or 2 and a third is the
 seam moving (ADR-0002, ADR-0010); a `verified` turn took one attempt and a `regenerated` turn took
 two, so the degradation rate stays readable; `failure_detail` is empty exactly when all four checks
-passed; a candidate carries an `exclusion_reason` exactly when it was excluded; and a `degraded`
-turn took two attempts, which Task 3 left open and ADR-0024 closed.
+passed; a candidate carries an `exclusion_reason` exactly when it was excluded; a `degraded`
+turn took two attempts, which Task 3 left open and ADR-0024 closed; and a `generation-failed` turn
+took two attempts as well, carrying no answer and no confidence (ADR-0025).
 
 ## Versioning
 

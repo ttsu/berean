@@ -185,5 +185,7 @@ in `generate.py` so the argument is not had again.
 
 ## Status
 
-Design approved. Plan to follow. `specs/001-phase-1-pca-baseline/GENERATION-PROVIDERS-DESIGN.md`
-depends on this landing first.
+Implemented. See ADR-0025. (2026-09-30)
+
+`specs/001-phase-1-pca-baseline/GENERATION-PROVIDERS-DESIGN.md` was waiting on this and is now
+unblocked.

@@ -1,6 +1,6 @@
 # ADR-0010: A verification failure permits one regeneration call
 
-- **Status:** Accepted
+- **Status:** Accepted (amended by ADR-0025 — a generation failure also consumes the one regeneration)
 - **Date:** 2026-08-30
 - **Phase:** 1 — clarifies ADR-0002 before the verification engine is built
 
@@ -27,6 +27,13 @@ at most two calls, and only ever two.
 Everything else ADR-0002 rejects still stands: no per-step orchestration from Go, no multi-hop
 retrieval across the boundary, no agent loop split across languages. The retry is not a loop — it is
 bounded at one, and a second failure degrades rather than retrying again.
+
+**Amended by ADR-0025:** a verification failure is not the only thing that spends the one
+regeneration. An attempt that came back with no answer object at all spends it too — there is
+nothing to verify, and the second attempt is what separates a deterministic inadequacy in the
+generator from a transient one in the run — so the `generation_failed` outcome, like `degraded`,
+always follows exactly two attempts. The ceiling this ADR set is unchanged: still one call per
+attempt, still at most two per turn.
 
 ## Alternatives rejected
 

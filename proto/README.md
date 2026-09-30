@@ -13,11 +13,11 @@ option go_package = "github.com/ttsu/berean/gen/berean/v1;bereanv1";
 
 | File | Holds |
 | --- | --- |
-| `catena.proto` | `CatenaService.Answer`, `AnswerRequest`, `AnswerResponse` |
+| `catena.proto` | `CatenaService.Answer`, `AnswerRequest`, `AnswerResponse`, `GenerationFailure`, `GenerationFailureCode` |
 | `filter.proto` | `FilterSpec`, `CorpusFilter`, `TierWeight`, `ContestedLocus` |
 | `answer.proto` | `AnswerObject` and everything under it, `Citation`, `Confidence` |
 | `trace.proto` | `RetrievalTrace`, `Candidate`, `Timings` |
-| `verification.proto` | `VerificationResult`, `AnswerFailure`, `AnswerFailureCode`, `OverallResult` |
+| `verification.proto` | `VerificationResult`, `AnswerFailure`, `AnswerFailureCode`, `OverallResult` (four values — `GENERATION_FAILED` is the fourth) |
 | `common.proto` | `Tier` and `CitationRef` — used by both sides, owned by neither |
 
 ## Generating
@@ -56,6 +56,24 @@ nothing carried its reasons), `no_answer_reason` on the answer object (ADR-0020)
 Both are asserted by `services/catena/tests/test_proto_contract.py`, which exists because
 `buf breaking` is deferred: until Phase 2, that suite is the only mechanical thing standing
 between a field and its quiet removal.
+
+**`AnswerResponse.trace` is outside the `oneof`, and that placement is the contract.** The outcome is
+exactly one of `answer` or `generation_failure`; the trace is present on both branches, because a
+generation that failed still performed the retrieval and losing that evidence is the defect the
+channel exists to fix (ADR-0025). Moving `trace` inside the `oneof`, or adding a third outcome that
+omits it, reopens it.
+
+`GenerationFailure` and `GenerationFailureCode` are used from Phase 1, and **four of the six codes
+are produced by it**: `TRUNCATED`, `NOT_JSON`, `NOT_AN_OBJECT` and `EMPTY`. `CONTEXT_EXHAUSTED` and
+`PROVIDER_REFUSED` are **reserved, not dead** — the local default neither declines on policy grounds
+nor distinguishes an exhausted context window from a hit ceiling, and the closed set is defined here
+so that adding a provider adds a provider rather than a proto field, a migration and a gateway
+change. Do not remove them because nothing produces them.
+
+`GenerationFailure.detail` is factual and never the model's account of its own reasoning; for
+`PROVIDER_REFUSED` it carries the provider's category and never its explanation. That is the field a
+new sibling would most plausibly be added beside, and it is the one place model introspection could
+enter the contract.
 
 ## Two shapes that differ from how INTEGRATION-SPEC draws them
 
