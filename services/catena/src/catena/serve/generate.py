@@ -129,6 +129,24 @@ class Generation:
     completion_tokens: int
 
 
+@dataclass(frozen=True)
+class GenerationFailed:
+    """No answer object, and why. Returned rather than raised.
+
+    Raising killed the turn inside this service and discarded the
+    `RetrievalTrace` with it, so the failure left no row in `trace.responses`
+    and was invisible to the harness that reads them (ACCEPTANCE.md, Q4 and
+    Q10). The code is the proto enum's short name; this module imports no
+    proto — `service.py` maps it.
+    """
+
+    code: str
+    #: Factual. Never the model's account of its own reasoning: for a refusal
+    #: this is the provider's category, never its explanation (constraint 5).
+    detail: str
+    completion_tokens: int = 0
+
+
 class Generator(Protocol):
     """What the request path needs of a model, and nothing more."""
 
@@ -137,8 +155,8 @@ class Generator(Protocol):
 
     def generate(
         self, messages: Sequence[dict[str, str]], schema: dict[str, Any]
-    ) -> Generation:
-        """One constrained completion, or `ServeError`."""
+    ) -> Generation | GenerationFailed:
+        """One constrained completion, a reported failure, or `ServeError`."""
         ...
 
 
@@ -170,7 +188,7 @@ class OllamaGenerator:
 
     def generate(
         self, messages: Sequence[dict[str, str]], schema: dict[str, Any]
-    ) -> Generation:
+    ) -> Generation | GenerationFailed:
         body = json.dumps({
             "model": self.model,
             "messages": list(messages),
@@ -200,7 +218,7 @@ class OllamaGenerator:
 
         return self._parse(raw)
 
-    def _parse(self, raw: bytes) -> Generation:
+    def _parse(self, raw: bytes) -> Generation | GenerationFailed:
         try:
             response = json.loads(raw)
         except json.JSONDecodeError as error:
@@ -208,29 +226,33 @@ class OllamaGenerator:
 
         choices = response.get("choices") or []
         if not choices:
-            raise ServeError("ollama returned no choices; there is no answer to verify")
+            return GenerationFailed(code="empty", detail="ollama returned no choices")
         choice = choices[0]
 
+        usage = response.get("usage") or {}
+        completion_tokens = int(usage.get("completion_tokens", 0))
+
         if choice.get("finish_reason") == "length":
-            # Never handed upstream as an empty answer. An all-slots-empty
-            # answer with no reason is the honest-silence shape, and a
-            # truncation must not be able to wear it (ADR-0020).
-            raise ServeError(
-                f"the generation was truncated at {self._max_tokens} tokens; the answer "
-                "object is incomplete and must not be presented as considered silence"
+            return GenerationFailed(
+                code="truncated",
+                detail=f"finish_reason=length at max_tokens={self._max_tokens}",
+                completion_tokens=completion_tokens,
             )
 
-        payload = self._content(choice)
-        usage = response.get("usage") or {}
+        result = self._content(choice)
+        if isinstance(result, GenerationFailed):
+            return GenerationFailed(
+                code=result.code, detail=result.detail, completion_tokens=completion_tokens
+            )
         return Generation(
-            payload=payload,
+            payload=result,
             model=response.get("model") or self.model,
             prompt_tokens=int(usage.get("prompt_tokens", 0)),
-            completion_tokens=int(usage.get("completion_tokens", 0)),
+            completion_tokens=completion_tokens,
         )
 
     @staticmethod
-    def _content(choice: dict[str, Any]) -> dict[str, Any]:
+    def _content(choice: dict[str, Any]) -> dict[str, Any] | GenerationFailed:
         """`content`, and deliberately nothing else.
 
         A thinking model also returns `reasoning`. It is not read here, not
@@ -242,14 +264,14 @@ class OllamaGenerator:
         try:
             payload = json.loads(content)
         except json.JSONDecodeError as error:
-            raise ServeError(
-                "the model returned content that is not JSON despite constrained "
-                f"decoding: {error}"
-            ) from error
+            return GenerationFailed(
+                code="not_json",
+                detail=f"the model returned content that is not JSON: {error}",
+            )
         if not isinstance(payload, dict):
-            raise ServeError(
-                f"the model returned a JSON {type(payload).__name__} where the answer "
-                "object requires an object"
+            return GenerationFailed(
+                code="not_an_object",
+                detail=f"the model returned a JSON {type(payload).__name__}, not an object",
             )
         return payload
 

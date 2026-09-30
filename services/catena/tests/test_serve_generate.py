@@ -102,36 +102,63 @@ class WhatItRefusesToRead(unittest.TestCase):
 
 
 class WhatItRefusesToAccept(unittest.TestCase):
-    def test_a_truncated_generation_is_an_error(self) -> None:
-        """`finish_reason: length` means the object is incomplete.
-
-        Not passed upstream as an empty answer: an all-slots-empty answer with
-        no reason is the honest-silence shape, and a truncation must never be
-        able to wear it (ADR-0020).
-        """
-        transport = FakeTransport(completion('{"position": "p"}', finish="length"))
-        with self.assertRaises(ServeError) as caught:
-            generator(transport).generate(MESSAGES, SCHEMA)
-        self.assertIn("truncated", str(caught.exception).lower())
-
-    def test_content_that_is_not_json_is_an_error(self) -> None:
-        transport = FakeTransport(completion("I'm afraid I can't do that."))
-        with self.assertRaises(ServeError):
-            generator(transport).generate(MESSAGES, SCHEMA)
-
-    def test_content_that_is_not_an_object_is_an_error(self) -> None:
-        transport = FakeTransport(completion('["a list"]'))
-        with self.assertRaises(ServeError):
-            generator(transport).generate(MESSAGES, SCHEMA)
-
     def test_a_transport_failure_is_an_error_naming_the_service(self) -> None:
         transport = FakeTransport(error=OSError("connection refused"))
         with self.assertRaises(ServeError) as caught:
             generator(transport).generate(MESSAGES, SCHEMA)
         self.assertIn("ollama", str(caught.exception).lower())
 
-    def test_a_response_with_no_choices_is_an_error(self) -> None:
+
+class WhatItReportsRatherThanRaising(unittest.TestCase):
+    """The six failures that are the model's, not the transport's.
+
+    Each one used to raise, which killed the turn inside Catena and discarded
+    the RetrievalTrace with it — no row in `trace.responses`, and the failure
+    invisible to the Phase 2 harness (ACCEPTANCE.md, Q4 and Q10).
+    """
+
+    def test_a_truncated_generation_is_reported(self) -> None:
+        transport = FakeTransport(completion('{"position": "p"}', finish="length"))
+        result = generator(transport).generate(MESSAGES, SCHEMA)
+        self.assertIsInstance(result, generate_module.GenerationFailed)
+        self.assertEqual(result.code, "truncated")
+
+    def test_content_that_is_not_json_is_reported(self) -> None:
+        transport = FakeTransport(completion("I'm afraid I can't do that."))
+        result = generator(transport).generate(MESSAGES, SCHEMA)
+        self.assertEqual(result.code, "not_json")
+
+    def test_content_that_is_not_an_object_is_reported(self) -> None:
+        transport = FakeTransport(completion('["a list"]'))
+        result = generator(transport).generate(MESSAGES, SCHEMA)
+        self.assertEqual(result.code, "not_an_object")
+
+    def test_a_response_with_no_choices_is_reported(self) -> None:
         transport = FakeTransport({"model": "m", "choices": []})
+        result = generator(transport).generate(MESSAGES, SCHEMA)
+        self.assertEqual(result.code, "empty")
+
+    def test_a_failure_carries_how_far_it_got(self) -> None:
+        """The trace records it, so a deterministic ceiling is visible as one."""
+        transport = FakeTransport(completion('{"position": "p"}', finish="length"))
+        result = generator(transport).generate(MESSAGES, SCHEMA)
+        self.assertEqual(result.completion_tokens, 22)
+
+    def test_a_failure_detail_never_carries_the_models_reasoning(self) -> None:
+        """Constraint 5, at the field most likely to leak it.
+
+        `reasoning` is present on the response and must not reach `detail`,
+        which is a factual description of what broke.
+        """
+        transport = FakeTransport(
+            completion("not json", reasoning="First I considered the passages..."))
+        result = generator(transport).generate(MESSAGES, SCHEMA)
+        self.assertNotIn("considered", result.detail)
+
+    def test_a_transport_failure_still_raises(self) -> None:
+        """Not a generation failure. The model never answered, so there is no
+        attempt to record and nothing about the generator was learned."""
+        transport = FakeTransport(error=OSError("connection refused"))
         with self.assertRaises(ServeError):
             generator(transport).generate(MESSAGES, SCHEMA)
 

@@ -24,7 +24,7 @@ import grpc
 from google.protobuf import json_format
 
 from berean.v1 import answer_pb2, catena_pb2, catena_pb2_grpc, filter_pb2, trace_pb2
-from catena.serve import ServeError, prompt, retrieval, schema
+from catena.serve import ServeError, generate, prompt, retrieval, schema
 
 #: INTEGRATION-SPEC's default. Go configures `top_k` and `--top-k` overrides it,
 #: so this is the floor for a request that carried none — a zero would retrieve
@@ -33,6 +33,18 @@ DEFAULT_TOP_K = 20
 
 #: 1 on the first call, 2 on the regeneration. Nothing else is valid (ADR-0010).
 VALID_ATTEMPTS = (1, 2)
+
+#: The short names `generate` reports, mapped to the contract's enum. The
+#: mapping lives here because `generate` imports no proto — the wire format is
+#: this layer's business, not the provider's.
+_FAILURE_CODES = {
+    "truncated": catena_pb2.GENERATION_FAILURE_CODE_TRUNCATED,
+    "context_exhausted": catena_pb2.GENERATION_FAILURE_CODE_CONTEXT_EXHAUSTED,
+    "not_json": catena_pb2.GENERATION_FAILURE_CODE_NOT_JSON,
+    "not_an_object": catena_pb2.GENERATION_FAILURE_CODE_NOT_AN_OBJECT,
+    "empty": catena_pb2.GENERATION_FAILURE_CODE_EMPTY,
+    "provider_refused": catena_pb2.GENERATION_FAILURE_CODE_PROVIDER_REFUSED,
+}
 
 
 class CatenaService(catena_pb2_grpc.CatenaServiceServicer):
@@ -93,36 +105,64 @@ class CatenaService(catena_pb2_grpc.CatenaServiceServicer):
             )
 
             with span.generation(model=self._generator.model, messages=messages) as observed:
-                generate_ms, generation = _timed(
+                generate_ms, result = _timed(
                     lambda: self._generator.generate(messages, schema.answer_schema())
                 )
-                observed.finish(
-                    output=generation.payload,
-                    usage={"input": generation.prompt_tokens,
-                           "output": generation.completion_tokens},
-                )
+                if isinstance(result, generate.GenerationFailed):
+                    # No narrative to close with — `detail` is already the
+                    # factual kind (constraint 5), so it is safe as an output.
+                    observed.finish(
+                        output={"code": result.code, "detail": result.detail},
+                        usage={"output": result.completion_tokens},
+                    )
+                else:
+                    observed.finish(
+                        output=result.payload,
+                        usage={"input": result.prompt_tokens,
+                               "output": result.completion_tokens},
+                    )
 
-        return catena_pb2.AnswerResponse(
-            answer=_parse(generation.payload),
-            trace=trace_pb2.RetrievalTrace(
-                # Phase 1 has no query rewriting, so this is the query. The
-                # field exists so Phase 3 adds behaviour rather than breaking
-                # the contract.
-                rewritten_query=request.query,
-                candidates=[trace_pb2.Candidate(**c) for c in selection.candidates],
-                embedding_model=self._embedder.name,
-                dim=self._embedder.dim,
-                generation_model=generation.model,
-                # The value actually used, never the configured default: with
-                # Scripture at ~90% of the index and no tier weighting, this is
-                # the only thing deciding whether a confessional chunk reached
-                # the generator at all.
-                top_k=top_k,
-                timings=trace_pb2.Timings(
-                    embed_ms=embed_ms, search_ms=search_ms, generate_ms=generate_ms
-                ),
+        trace = trace_pb2.RetrievalTrace(
+            # Phase 1 has no query rewriting, so this is the query. The
+            # field exists so Phase 3 adds behaviour rather than breaking
+            # the contract.
+            rewritten_query=request.query,
+            candidates=[trace_pb2.Candidate(**c) for c in selection.candidates],
+            embedding_model=self._embedder.name,
+            dim=self._embedder.dim,
+            # The model that actually answered when there was one; the model
+            # that was asked when there wasn't — a failure still names what
+            # attempted it.
+            generation_model=(
+                result.model if isinstance(result, generate.Generation) else self._generator.model
+            ),
+            # The value actually used, never the configured default: with
+            # Scripture at ~90% of the index and no tier weighting, this is
+            # the only thing deciding whether a confessional chunk reached
+            # the generator at all.
+            top_k=top_k,
+            timings=trace_pb2.Timings(
+                embed_ms=embed_ms, search_ms=search_ms, generate_ms=generate_ms
             ),
         )
+
+        if isinstance(result, generate.GenerationFailed):
+            # The trace is the point. A failed generation still did the
+            # retrieval, and discarding that evidence alongside a raise is the
+            # defect this channel fixes (ACCEPTANCE.md, Q4 and Q10).
+            code = _FAILURE_CODES.get(result.code)
+            if code is None:
+                # A programming error, not a model failure: defaulting to
+                # UNSPECIFIED would report a bug as a model inadequacy.
+                raise ServeError(f"generate reported an unmapped failure code: {result.code!r}")
+            return catena_pb2.AnswerResponse(
+                generation_failure=catena_pb2.GenerationFailure(
+                    code=code, detail=result.detail, completion_tokens=result.completion_tokens,
+                ),
+                trace=trace,
+            )
+
+        return catena_pb2.AnswerResponse(answer=_parse(result.payload), trace=trace)
 
     def _retrieve(
         self,

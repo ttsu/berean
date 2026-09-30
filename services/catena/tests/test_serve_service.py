@@ -17,7 +17,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 
 import grpc  # noqa: E402
 from berean.v1 import catena_pb2, common_pb2  # noqa: E402
-from catena.serve import retrieval  # noqa: E402
+from catena.serve import generate, retrieval  # noqa: E402
 from catena.serve.observability import NullObservability  # noqa: E402
 from catena.serve.service import CatenaService  # noqa: E402
 from fakes import FakeCorpusReader, FakeEmbedder, FakeGenerator  # noqa: E402
@@ -245,6 +245,44 @@ class PreviousFailures(unittest.TestCase):
         user = generator.messages[1]["content"]
         self.assertIn("quote not found in chunk", user)
         self.assertIn("attempt 2", user)
+
+
+class WhenTheGenerationProducesNoObject(unittest.TestCase):
+    class _FailingGenerator:
+        """Stands in for `OllamaGenerator` when the model answered uselessly.
+
+        Not `FakeGenerator`: that fake's `generate` returns `Generation` or
+        raises, matching the old contract. This one returns `GenerationFailed`,
+        matching the new one.
+        """
+
+        model = "fake-generator"
+
+        def generate(self, messages, schema):
+            return generate.GenerationFailed(code="truncated", detail="d", completion_tokens=7)
+
+    def _answer_with_failure(self) -> catena_pb2.AnswerResponse:
+        return service(generator=self._FailingGenerator()).Answer(request(), Context())
+
+    def test_the_response_carries_the_failure_and_the_trace(self) -> None:
+        """The trace is the point. A failed generation still did the retrieval,
+        and discarding that evidence is the defect this channel fixes."""
+        response = self._answer_with_failure()
+        self.assertEqual(response.WhichOneof("outcome"), "generation_failure")
+        self.assertEqual(
+            response.generation_failure.code,
+            catena_pb2.GENERATION_FAILURE_CODE_TRUNCATED,
+        )
+        self.assertTrue(response.HasField("trace"))
+        self.assertGreater(
+            len([c for c in response.trace.candidates if c.included]), 0
+        )
+
+    def test_no_answer_object_is_set(self) -> None:
+        """Not an empty AnswerObject: that is the honest-silence shape and it
+        means the opposite thing (ADR-0020)."""
+        response = self._answer_with_failure()
+        self.assertFalse(response.HasField("answer"))
 
 
 if __name__ == "__main__":
