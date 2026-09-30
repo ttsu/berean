@@ -238,7 +238,11 @@ class TheHostedDefaultsArePinned(unittest.TestCase):
         """
         self.assertEqual(
             {n: e.default_model for n, e in generate_module.PROVIDERS.items() if e.key_env},
-            {"openai": "gpt-6-luna", "deepseek": "deepseek-flash"},
+            {
+                "anthropic": "claude-sonnet-5-5",
+                "openai": "gpt-6-luna",
+                "deepseek": "deepseek-flash",
+            },
         )
 
 
@@ -252,6 +256,7 @@ class HowTheProviderIsChosen(unittest.TestCase):
                 generate_module.URL_ENV,
                 "OPENAI_API_KEY",
                 "DEEPSEEK_API_KEY",
+                "ANTHROPIC_API_KEY",
             )
         }
         self.addCleanup(self._restore)
@@ -262,6 +267,13 @@ class HowTheProviderIsChosen(unittest.TestCase):
                 os.environ.pop(name, None)
             else:
                 os.environ[name] = value
+
+    def test_an_ambient_base_url_does_not_change_where_requests_go(self) -> None:
+        """Pinned in the table, so the provider named `anthropic` *is* Anthropic."""
+        entry = generate_module.PROVIDERS["anthropic"]
+        os.environ["ANTHROPIC_BASE_URL"] = "https://invented-exfiltration.example"
+        self.addCleanup(os.environ.pop, "ANTHROPIC_BASE_URL", None)
+        self.assertEqual(generate_module._base_url(entry), "https://api.anthropic.com")
 
     def test_the_default_provider_is_local(self) -> None:
         os.environ[generate_module.URL_ENV] = "http://ollama:11434"

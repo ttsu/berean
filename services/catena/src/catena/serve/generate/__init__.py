@@ -185,6 +185,23 @@ PROVIDERS: dict[str, Provider] = {
         # docstring gives; it is not a blanket rule.
         params=(("temperature", 0.0), ("reasoning_effort", "none")),
     ),
+    "anthropic": Provider(
+        name="anthropic",
+        wire=MESSAGES,
+        base_url="https://api.anthropic.com",
+        url_env="",
+        key_env="ANTHROPIC_API_KEY",
+        default_model="claude-sonnet-5-5",
+        # `output_config.format` documents support for `$ref`/`$defs`, string
+        # enums and `additionalProperties: false` (which it requires on every
+        # object), and documents as unsupported only recursive schemas,
+        # numeric and string constraints, and complex array constraints -- none
+        # of which the derived schema uses. Read from documentation rather than
+        # probed against the live provider, hence `probed=False`; Task 7's probe
+        # confirms rather than decides.
+        delivery=CONSTRAINED,
+        probed=False,
+    ),
     "openai": Provider(
         name="openai",
         wire=OPENAI_CHAT,
@@ -341,6 +358,7 @@ def connect(provider: str | None = None, model: str | None = None) -> Generator:
     # Local: the adapters import this module's primitives, so importing them at
     # module scope is a cycle -- and it keeps a vendor SDK off the import path
     # of a deployment that never selects it.
+    from catena.serve.generate import messages as messages_wire
     from catena.serve.generate import openai_chat
 
     name = (provider or os.environ.get(PROVIDER_ENV) or DEFAULT_PROVIDER).strip()
@@ -354,5 +372,12 @@ def connect(provider: str | None = None, model: str | None = None) -> Generator:
     if entry.wire == OPENAI_CHAT:
         return openai_chat.OpenAIChatGenerator(
             entry, _model(entry, model), _base_url(entry), api_key=_api_key(entry)
+        )
+    if entry.wire == MESSAGES:
+        return messages_wire.MessagesGenerator(
+            entry,
+            _model(entry, model),
+            _api_key(entry),
+            base_url=_base_url(entry),
         )
     raise ServeError(f"provider {name!r} names wire format {entry.wire!r}, which has no adapter")
