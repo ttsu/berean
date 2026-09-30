@@ -422,13 +422,28 @@ func TestGenerationFailureOnBothAttempts(t *testing.T) {
 // The regeneration still works: a failed first attempt then a verified second
 // is REGENERATED, exactly as a failed verification then a verified second is.
 func TestGenerationFailureThenVerified(t *testing.T) {
-	result := mustAsk(t, runnerFailingThenVerifying())
+	// The delegate is the real engine, not a trivial pass: without it, an
+	// implementation that verifies attempt 1's nil answer would still exit
+	// the loop after one call (a nil answer trivially "passing" some stub),
+	// which is indistinguishable from attempt 1 being skipped. Wired to the
+	// real engine, that nil answer fails verification for real, so the buggy
+	// path runs the loop a second time and the call count below catches it.
+	spy := &countingVerifier{delegate: verify.New(corpora(), false)}
+	result := mustAskWith(t, runnerFailingThenVerifying(), spy)
 
 	if result.Overall != bereanv1.OverallResult_OVERALL_RESULT_REGENERATED {
 		t.Fatalf("Overall = %v, want REGENERATED", result.Overall)
 	}
 	if result.Answer == nil {
 		t.Fatal("Answer = nil, want the verified answer")
+	}
+	// The name's claim: only attempt 2 was ever checked. An implementation
+	// that verifies attempt 1's failure response too would call Verify twice
+	// (once failing on the nil answer, once passing on the regeneration) and
+	// still land on REGENERATED with a non-nil Answer — the two assertions
+	// above alone cannot tell that apart from a correctly skipped attempt 1.
+	if spy.calls != 1 {
+		t.Fatalf("verifier called %d times, want 1 — only the second attempt should be verified", spy.calls)
 	}
 }
 
@@ -522,14 +537,23 @@ func runnerUnverifiedThenFailing() turn.Generator {
 }
 
 // countingVerifier spies on how many times Verify is called, to prove a
-// generation failure is never checked.
+// generation failure is never checked. A zero-value countingVerifier answers
+// every call as passed, which is all TestAGenerationFailureIsNotVerified
+// needs since it asserts zero calls. Give it a delegate to also preserve real
+// pass/fail behaviour — TestGenerationFailureThenVerified needs the real
+// engine's judgement that a nil answer fails, or it cannot tell a skipped
+// verification from one that ran and happened to pass.
 type countingVerifier struct {
-	calls int
+	calls    int
+	delegate turn.Verifier
 }
 
-func (c *countingVerifier) Verify(_ context.Context, _ *bereanv1.AnswerObject,
-	_ *bereanv1.FilterSpec, _ []*bereanv1.ContestedLocus) (verify.Outcome, error) {
+func (c *countingVerifier) Verify(ctx context.Context, answer *bereanv1.AnswerObject,
+	spec *bereanv1.FilterSpec, loci []*bereanv1.ContestedLocus) (verify.Outcome, error) {
 	c.calls++
+	if c.delegate != nil {
+		return c.delegate.Verify(ctx, answer, spec, loci)
+	}
 	return verify.Outcome{}, nil
 }
 
