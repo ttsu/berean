@@ -65,19 +65,27 @@ func TopK(lookup func(string) string) (int32, error) {
 	if err != nil {
 		return 0, fmt.Errorf("%s=%q is not a number", TopKEnv, raw)
 	}
+	return CheckTopK(TopKEnv, value)
+}
+
+// CheckTopK validates a retrieval depth arriving from any route -- the
+// environment or a flag -- so both apply one rule and name their own source in
+// the error.
+//
+// `Atoi` returns a 64-bit int and the contract's depth is an int32, so the
+// conversion narrows. Without the upper bound the lower-bound guard passes and
+// the narrowing wraps: 2147483648 becomes -2147483648, which survives all the
+// way to `trace.traces.top_k CHECK (top_k > 0)` and fails the insert a whole
+// turn away from the typo that caused it -- the exact distance this function
+// exists to close.
+func CheckTopK(source string, value int) (int32, error) {
 	if value <= 0 {
-		return 0, fmt.Errorf("%s=%d: a depth of zero or less retrieves nothing, which reads as an empty corpus", TopKEnv, value)
+		return 0, fmt.Errorf("%s=%d: a depth of zero or less retrieves nothing, which reads as an empty corpus", source, value)
 	}
-	// `Atoi` returns a 64-bit int and the contract's depth is an int32, so the
-	// conversion below narrows. Without this the guard above passes and the
-	// narrowing wraps: 2147483648 becomes -2147483648, which survives all the
-	// way to `trace.traces.top_k CHECK (top_k > 0)` and fails the insert a
-	// whole turn away from the typo that caused it — the exact distance this
-	// function exists to close.
 	if value > math.MaxInt32 {
-		return 0, fmt.Errorf("%s=%d is beyond the contract's int32 depth", TopKEnv, value)
+		return 0, fmt.Errorf("%s=%d is beyond the contract's int32 depth", source, value)
 	}
-	return int32(value), nil
+	return int32(value), nil //nolint:gosec // bounded to int32 above; the linter cannot see the guard
 }
 
 // ProfileDir is the directory `--profile <name>` selects a document from.

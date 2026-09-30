@@ -38,11 +38,4 @@ jobs:
           enable-cache: true
           cache-dependency-glob: services/catena/uv.lock
 
-      # `make check` lints the contract but does not generate it, and the stubs
-      # are gitignored (ADR-0013). Without this step `test_proto_contract.py`
-      # skips itself on a clean runner -- and with `buf breaking` deferred to
-      # Phase 2, that suite is the only mechanical guard the contract has, so
-      # the one place it must not silently skip is CI.
-      - run: make proto
-
       - run: make check

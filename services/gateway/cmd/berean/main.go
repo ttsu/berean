@@ -132,11 +132,15 @@ func parseAsk(args []string) (options, error) {
 	}
 
 	// The same rule `internal/config` applies to `BEREAN_TOP_K`, because it is
-	// the same value arriving by a different route.
-	if visited(fs, "top-k") && topK <= 0 {
-		return options{}, fmt.Errorf("--top-k %d: a depth of zero or less retrieves nothing, which reads as an empty corpus", topK)
+	// the same value arriving by a different route. Unset stays 0, which means
+	// "use the configured default".
+	if visited(fs, "top-k") {
+		depth, err := config.CheckTopK("--top-k", topK)
+		if err != nil {
+			return options{}, err
+		}
+		opts.topK = depth
 	}
-	opts.topK = int32(topK)
 	return opts, nil
 }
 

@@ -27,6 +27,8 @@ UV      := uv
 # stack.
 BUF_IMAGE := bufbuild/buf:1.72.0
 GO_IMAGE  := golang:1.25-alpine
+LINT_GO_IMAGE := golangci/golangci-lint:v2.5.0
+RUFF      := ruff@0.14.0
 
 BUF = docker run --rm \
 	  --user "$$(id -u):$$(id -g)" --env HOME=/tmp \
@@ -192,15 +194,13 @@ ingest-all: env dirs build ## Plan every staged corpus, smallest first; APPLY=1 
 	$(INGEST) --all $(APPLY_FLAG)
 
 # ---------------------------------------------------------------------------
-# The contract -- proto/ is normative, and its output is gitignored
+# The contract -- proto/ is normative, and its output is committed (ADR-0022)
 # ---------------------------------------------------------------------------
 
 .PHONY: proto
 proto: proto-lint ## Regenerate the Go and Python protobuf stubs from proto/
-	@# Generated code is not committed; whether it should be is CI policy rather
-	@# than contract design, and is deferred to Phase 2 (ADR-0013). Regenerate
-	@# after every change to proto/, and run `make test` afterwards -- the
-	@# contract suite skips itself when the stubs are absent.
+	@# Generated code is committed (ADR-0022). Regenerate after every change to
+	@# proto/, commit what it writes, and run `make test` afterwards.
 	$(BUF) generate
 	@echo "proto: Go stubs in gen/, Python stubs in services/catena/gen/"
 
@@ -339,7 +339,7 @@ test-gateway-db: ## Assert the corpus registry, profile load and trace persisten
 # ---------------------------------------------------------------------------
 
 .PHONY: check
-check: guard-corpus guard-make-targets guard-proto-fresh test config ## Run every check that needs no image build
+check: guard-corpus guard-make-targets guard-proto-fresh lint test config ## Run every check that needs no image build
 
 .PHONY: guard-corpus
 guard-corpus: ## Fail on any tracked file that could carry corpus text (ADR-0014)
@@ -390,6 +390,23 @@ test-catena: ## The Python suite, including its half of the normalisation contra
 	    $(UV) run --quiet --project services/catena python "$$suite" -q || exit 1; \
 	done
 	@echo "catena: OK"
+
+.PHONY: lint
+lint: lint-go lint-py ## Static analysis: golangci-lint on the gateway, ruff on catena and tools
+
+.PHONY: lint-go
+lint-go: ## golangci-lint (govet, staticcheck, gosec, errcheck), configured in .golangci.yml
+	@docker run --rm \
+	    --volume "$(CURDIR):/src" --workdir /src \
+	    --volume berean-go-mod:/go/pkg/mod \
+	    --volume berean-go-build:/root/.cache/go-build \
+	    $(LINT_GO_IMAGE) golangci-lint run ./...
+	@echo "lint-go: OK"
+
+.PHONY: lint-py
+lint-py: ## ruff over catena and tools, configured in services/catena/pyproject.toml
+	@$(UV) tool run $(RUFF) check --config services/catena/pyproject.toml services/catena tools
+	@echo "lint-py: OK"
 
 .PHONY: test-gateway
 test-gateway: ## The Go suite, in a container -- no local Go toolchain needed

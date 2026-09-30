@@ -58,9 +58,10 @@ func TestTheConfiguredDefaultStandsWithoutAnOverride(t *testing.T) {
 
 // A depth of zero or less retrieves nothing, which reads as an empty corpus.
 // `internal/config` refuses it from the environment for that reason, and the
-// flag is the same value arriving by a different route.
-func TestADepthOfZeroOrLessIsAUsageError(t *testing.T) {
-	for _, value := range []string{"0", "-1"} {
+// flag is the same value arriving by a different route -- including a depth
+// too large for the contract's int32, which would otherwise wrap.
+func TestADepthOutsideTheContractIsAUsageError(t *testing.T) {
+	for _, value := range []string{"0", "-1", "2147483648", "4294967296"} {
 		if _, err := parseAsk([]string{"--profile", "pca", "--top-k", value, "a question"}); err == nil {
 			t.Errorf("--top-k %s was accepted", value)
 		}

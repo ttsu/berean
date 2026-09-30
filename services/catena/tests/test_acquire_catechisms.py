@@ -177,7 +177,7 @@ class TestDivisionHeadings(unittest.TestCase):
 
     def test_a_heading_interrupting_a_pair_fails(self) -> None:
         broken = "\n".join(
-            [f"Q. 1. Invented question number 1?", self.HEADING, answer(1)]
+            ["Q. 1. Invented question number 1?", self.HEADING, answer(1)]
         ) + "\n"
         with self.assertRaises(AcquisitionError):
             segments(broken, questions=1, divisions=1)
