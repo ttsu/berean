@@ -202,9 +202,17 @@ defect this channel exists to fix (ACCEPTANCE.md, Q4 and Q10)."
   `trace.generation_failures` table; `trace.responses.answer`/`confidence_level`/`confidence_reason`
   nullable with CHECKs binding them to the outcome
 
+**SQL enum labels in this schema are kebab-case, not snake_case.** `enumValue` in
+`services/gateway/internal/trace/store.go:291` derives a label from the proto constant by lowercasing
+and mapping `_` to `-`, and `trace.answer_failure_code` follows it — `'citations-required'`,
+`'argument-lacks-authority'`, twelve of them. So the new labels are `'generation-failed'`,
+`'context-exhausted'`, `'not-json'`, `'not-an-object'`, `'provider-refused'`. Every literal below is
+written that way. **If the enum-agreement test fails, the label is wrong — never `enumValue` and
+never the test**: changing either would break all twelve existing labels.
+
 **Why two migrations and not one.** golang-migrate runs each file in a transaction. PostgreSQL 17
 permits `ALTER TYPE ... ADD VALUE` inside a transaction but **forbids using the new value in that
-same transaction** — and a CHECK constraint containing the literal `'generation_failed'` casts it at
+same transaction** — and a CHECK constraint containing the literal `'generation-failed'` casts it at
 DDL time. One file would fail at `make dev` on a clean clone. Splitting is the whole fix; do not
 merge them back.
 
@@ -217,7 +225,7 @@ merge them back.
 -- attempts. Alone in its own migration because Postgres forbids using a new
 -- enum value in the transaction that added it, and 000007's CHECK constraints
 -- cast this literal at DDL time.
-ALTER TYPE trace.overall_result ADD VALUE IF NOT EXISTS 'generation_failed';
+ALTER TYPE trace.overall_result ADD VALUE IF NOT EXISTS 'generation-failed';
 ```
 
 `db/migrations/000006_generation_failed_outcome.down.sql`:
@@ -241,11 +249,11 @@ SELECT 1;
 -- generation with no object has no slots (ADR-0024, ADR-0025).
 CREATE TYPE trace.generation_failure_code AS ENUM (
     'truncated',
-    'context_exhausted',
-    'not_json',
-    'not_an_object',
+    'context-exhausted',
+    'not-json',
+    'not-an-object',
     'empty',
-    'provider_refused'
+    'provider-refused'
 );
 
 CREATE TABLE trace.generation_failures (
@@ -290,14 +298,14 @@ ALTER TABLE trace.responses
 -- The absences and the outcome are one fact, so they cannot be recorded apart.
 ALTER TABLE trace.responses
     ADD CONSTRAINT responses_answer_absent_iff_generation_failed
-        CHECK ((answer IS NULL) = (overall_result = 'generation_failed')),
+        CHECK ((answer IS NULL) = (overall_result = 'generation-failed')),
     ADD CONSTRAINT responses_confidence_absent_iff_generation_failed
-        CHECK ((confidence_level IS NULL) = (overall_result = 'generation_failed')
-               AND (confidence_reason IS NULL) = (overall_result = 'generation_failed')),
+        CHECK ((confidence_level IS NULL) = (overall_result = 'generation-failed')
+               AND (confidence_reason IS NULL) = (overall_result = 'generation-failed')),
     -- Symmetric with responses_degraded_is_second_attempt: a generation failure
     -- consumes the one regeneration ADR-0010 grants, so it always follows two.
     ADD CONSTRAINT responses_generation_failed_is_second_attempt
-        CHECK (overall_result <> 'generation_failed' OR attempts = 2);
+        CHECK (overall_result <> 'generation-failed' OR attempts = 2);
 
 -- The non-blank check has to stop applying to NULL, which it already does, but
 -- the original column carried it as a column constraint on a NOT NULL column.
@@ -363,19 +371,19 @@ that must all be **rejected**, and one that must be accepted.
 -- Rejected: an answer alongside generation_failed
 INSERT INTO trace.responses (request_id, profile, query, answer, overall_result,
     confidence_level, confidence_reason, attempts, gateway_version)
-VALUES (gen_random_uuid(), 'pca', 'q', '{}'::jsonb, 'generation_failed',
+VALUES (gen_random_uuid(), 'pca', 'q', '{}'::jsonb, 'generation-failed',
     NULL, NULL, 2, 'test');
 
 -- Rejected: generation_failed at one attempt
 INSERT INTO trace.responses (request_id, profile, query, answer, overall_result,
     confidence_level, confidence_reason, attempts, gateway_version)
-VALUES (gen_random_uuid(), 'pca', 'q', NULL, 'generation_failed',
+VALUES (gen_random_uuid(), 'pca', 'q', NULL, 'generation-failed',
     NULL, NULL, 1, 'test');
 
 -- Rejected: a confidence on a failed generation
 INSERT INTO trace.responses (request_id, profile, query, answer, overall_result,
     confidence_level, confidence_reason, attempts, gateway_version)
-VALUES (gen_random_uuid(), 'pca', 'q', NULL, 'generation_failed',
+VALUES (gen_random_uuid(), 'pca', 'q', NULL, 'generation-failed',
     'low', 'because', 2, 'test');
 
 -- Rejected: a NULL answer on a degraded turn
@@ -387,7 +395,7 @@ VALUES (gen_random_uuid(), 'pca', 'q', NULL, 'degraded',
 -- Accepted: the shape this feature writes
 INSERT INTO trace.responses (request_id, profile, query, answer, overall_result,
     confidence_level, confidence_reason, attempts, gateway_version)
-VALUES (gen_random_uuid(), 'pca', 'q', NULL, 'generation_failed',
+VALUES (gen_random_uuid(), 'pca', 'q', NULL, 'generation-failed',
     NULL, NULL, 2, 'test');
 ```
 
@@ -1249,7 +1257,17 @@ line of work two fixes.
 - [ ] **Step 7: Commit**
 
 ```bash
-git add docs/ specs/ proto/README.md services/catena/AGENTS.md services/gateway/AGENTS.md
+# Explicit paths, never `git add docs/`: the working tree carries unrelated
+# untracked work under docs/agents/ that is not part of this branch.
+git add docs/adr/0025-generation-failures-are-their-own-channel.md \
+        docs/adr/README.md \
+        docs/adr/0010-regeneration-retry-exception.md \
+        docs/adr/0024-answer-level-failures-are-their-own-channel.md \
+        specs/SHARED-TECHNICAL-SPEC.md \
+        specs/001-phase-1-pca-baseline/INTEGRATION-SPEC.md \
+        specs/001-phase-1-pca-baseline/ACCEPTANCE.md \
+        specs/001-phase-1-pca-baseline/GENERATION-FAILURE-CHANNEL-DESIGN.md \
+        proto/README.md services/catena/AGENTS.md services/gateway/AGENTS.md
 git commit -m "The generation-failure channel: the decision, and the record
 
 ADR-0025 records it and annotates the two ADRs whose reasoning it extends:
