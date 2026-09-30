@@ -253,6 +253,58 @@ BEGIN
     END;
 END $$;
 
+-- What migration 000007 makes recordable: a turn whose generator produced no
+-- answer object, held apart from every other outcome by CHECK constraints
+-- rather than by care taken in Go.
+DO $$
+BEGIN
+    -- Rejected: an answer alongside generation_failed
+    BEGIN
+        INSERT INTO trace.responses (request_id, profile, query, answer, overall_result,
+            confidence_level, confidence_reason, attempts, gateway_version)
+        VALUES (gen_random_uuid(), 'pca', 'q', '{}'::jsonb, 'generation-failed',
+            NULL, NULL, 2, 'test');
+        RAISE EXCEPTION 'an answer was recorded alongside generation_failed';
+    EXCEPTION WHEN check_violation THEN NULL;
+    END;
+
+    -- Rejected: generation_failed at one attempt
+    BEGIN
+        INSERT INTO trace.responses (request_id, profile, query, answer, overall_result,
+            confidence_level, confidence_reason, attempts, gateway_version)
+        VALUES (gen_random_uuid(), 'pca', 'q', NULL, 'generation-failed',
+            NULL, NULL, 1, 'test');
+        RAISE EXCEPTION 'a generation_failed turn was recorded as taking one attempt';
+    EXCEPTION WHEN check_violation THEN NULL;
+    END;
+
+    -- Rejected: a confidence on a failed generation
+    BEGIN
+        INSERT INTO trace.responses (request_id, profile, query, answer, overall_result,
+            confidence_level, confidence_reason, attempts, gateway_version)
+        VALUES (gen_random_uuid(), 'pca', 'q', NULL, 'generation-failed',
+            'low', 'because', 2, 'test');
+        RAISE EXCEPTION 'a confidence was recorded on a failed generation';
+    EXCEPTION WHEN check_violation THEN NULL;
+    END;
+
+    -- Rejected: a NULL answer on a degraded turn
+    BEGIN
+        INSERT INTO trace.responses (request_id, profile, query, answer, overall_result,
+            confidence_level, confidence_reason, attempts, gateway_version)
+        VALUES (gen_random_uuid(), 'pca', 'q', NULL, 'degraded',
+            'low', 'because', 2, 'test');
+        RAISE EXCEPTION 'a NULL answer was recorded on a degraded turn';
+    EXCEPTION WHEN check_violation THEN NULL;
+    END;
+END $$;
+
+-- Accepted: the shape this feature writes
+INSERT INTO trace.responses (request_id, profile, query, answer, overall_result,
+    confidence_level, confidence_reason, attempts, gateway_version)
+VALUES (gen_random_uuid(), 'pca', 'q', NULL, 'generation-failed',
+    NULL, NULL, 2, 'test');
+
 -- What migration 000005 makes recordable. Nothing constrains the generator to a
 -- non-empty corpus_id -- Catena's structured-output schema requires the key and
 -- sets no minLength -- so check 1 really does reject citations that name

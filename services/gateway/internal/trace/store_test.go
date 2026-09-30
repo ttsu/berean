@@ -8,6 +8,7 @@ package trace
 
 import (
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
@@ -22,7 +23,14 @@ import (
 // migrations is the repository root's db/migrations, from this package.
 const migrations = "../../../../db/migrations/"
 
-// declaredLabels reads the labels a Postgres enum is created with.
+// declaredLabels reads the labels a Postgres enum is created with, plus any
+// values a later migration added with `ALTER TYPE ... ADD VALUE` — as
+// trace.overall_result's fourth outcome was, since Postgres forbids using a
+// new enum value in the transaction that adds it, so the literal that uses it
+// has to live in a migration after the one that created the type. Every
+// migration is scanned for one, not just `file`, so a value arriving this way
+// cannot go unnoticed by only ever being looked for in the file that declared
+// the type.
 //
 // The migration is the source of truth for what the column accepts, and reading
 // it is what lets this correspondence be asserted with nothing running. A hand-
@@ -52,6 +60,23 @@ func declaredLabels(t *testing.T, file, typeName string) map[string]bool {
 	for _, quoted := range regexp.MustCompile(`'([^']+)'`).FindAllStringSubmatch(body, -1) {
 		labels[quoted[1]] = true
 	}
+
+	others, err := filepath.Glob(migrations + "*.up.sql")
+	if err != nil {
+		t.Fatalf("glob %s: %v", migrations, err)
+	}
+	alterPattern := regexp.MustCompile(`ALTER TYPE trace\.` + typeName + ` ADD VALUE(?: IF NOT EXISTS)? '([^']+)'`)
+	for _, path := range others {
+		added, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("read %s: %v", path, err)
+		}
+		clean := regexp.MustCompile(`--[^\n]*`).ReplaceAllString(string(added), "")
+		for _, m := range alterPattern.FindAllStringSubmatch(clean, -1) {
+			labels[m[1]] = true
+		}
+	}
+
 	if len(labels) == 0 {
 		t.Fatalf("trace.%s declares no labels", typeName)
 	}
@@ -80,6 +105,8 @@ func TestEnumValuesMatchTheSchema(t *testing.T) {
 			"CONFIDENCE_LEVEL_", bereanv1.ConfidenceLevel_name},
 		{"answer failure code", "000003_answer_failures.up.sql", "answer_failure_code",
 			"ANSWER_FAILURE_CODE_", bereanv1.AnswerFailureCode_name},
+		{"generation failure code", "000007_generation_failures.up.sql", "generation_failure_code",
+			"GENERATION_FAILURE_CODE_", bereanv1.GenerationFailureCode_name},
 	}
 
 	for _, testCase := range cases {

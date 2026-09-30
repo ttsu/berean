@@ -110,9 +110,12 @@ BEGIN
         = ARRAY['tr', 'critical', 'majority', 'not-applicable']::text[],
         'corpus.text_form labels';
 
+    -- 'generation-failed' arrives via ALTER TYPE in migration 000006, not in
+    -- this type's original CREATE TYPE, because Postgres forbids using a new
+    -- enum value in the transaction that added it.
     ASSERT (SELECT array_agg(enumlabel::text ORDER BY enumsortorder)
               FROM pg_enum WHERE enumtypid = 'trace.overall_result'::regtype)
-        = ARRAY['verified', 'regenerated', 'degraded']::text[],
+        = ARRAY['verified', 'regenerated', 'degraded', 'generation-failed']::text[],
         'trace.overall_result labels';
 
     ASSERT (SELECT array_agg(enumlabel::text ORDER BY enumsortorder)
