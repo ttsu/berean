@@ -36,14 +36,16 @@ const Refusal = "I can't source this adequately."
 // things, and a reader must be able to tell them apart at a glance.
 const Silence = "The sources in scope are silent on this question."
 
-// NoAnswer is what a turn prints when the generator produced no answer object
-// across both attempts, and the whole of what it prints.
+// NoAnswer is what a turn prints when its final attempt produced no answer
+// object, and the whole of what it prints.
 //
 // It shares no content word with Refusal deliberately. Refusal means citations were
-// checked and did not hold; this means none was produced and nothing was
-// learned about the sources, so claiming a sourcing failure would misreport
-// what the system did. Fixed here for the same reason Refusal is: a renderer
-// free to phrase it is one that can imply something about the corpus.
+// checked and did not hold; this means the attempt that decided the outcome
+// produced none, so nothing was learned about the sources from it — even
+// when an earlier attempt in the same turn was checked and failed — and
+// claiming a sourcing failure would misreport what the system did. Fixed
+// here for the same reason Refusal is: a renderer free to phrase it is one
+// that can imply something about the corpus.
 const NoAnswer = "I couldn't produce an answer for this question."
 
 // Corpus is what a citation's source is called, and what standing this
