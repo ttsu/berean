@@ -955,11 +955,11 @@ In `validate`, replace the unconditional nil-answer rejection at `store.go:313-3
 	}
 ```
 
-In `writeResponse`, make the three values nullable and derive them from the outcome:
+In `writeResponse`, turn the three values nullable and derive them from the outcome:
 
 ```go
 	// A failed generation has no answer and no confidence, and both absences are
-	// recorded as absences. The schema's CHECKs make the incoherent combinations
+	// recorded as absences. The schema's CHECKs leave the incoherent combinations
 	// unwritable; this is the code that respects them.
 	var (
 		answerArg any = string(answer)

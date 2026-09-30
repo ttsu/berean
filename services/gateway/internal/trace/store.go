@@ -180,7 +180,7 @@ func writeResponse(ctx context.Context, tx *sql.Tx, t turn.Turn, answer []byte, 
 	}
 
 	// A failed generation has no answer and no confidence, and both absences are
-	// recorded as absences. The schema's CHECKs make the incoherent combinations
+	// recorded as absences. The schema's CHECKs leave the incoherent combinations
 	// unwritable; this is the code that respects them.
 	var (
 		answerArg any = string(answer)
