@@ -78,8 +78,9 @@ var constraintLedger = map[string]constraint{
 	"traces_generate_ms_check": {breach: breaksTrace(func(r *bereanv1.RetrievalTrace) {
 		r.Timings.GenerateMs = -1
 	})},
-	"traces_generation_model_check": {breach: breaksTrace(func(r *bereanv1.RetrievalTrace) { r.GenerationModel = " " })},
-	"traces_rewritten_query_check":  {breach: breaksTrace(func(r *bereanv1.RetrievalTrace) { r.RewrittenQuery = " " })},
+	"traces_generation_model_check":        {breach: breaksTrace(func(r *bereanv1.RetrievalTrace) { r.GenerationModel = " " })},
+	"traces_generation_provider_not_blank": {breach: breaksTrace(func(r *bereanv1.RetrievalTrace) { r.GenerationProvider = " " })},
+	"traces_rewritten_query_check":         {breach: breaksTrace(func(r *bereanv1.RetrievalTrace) { r.RewrittenQuery = " " })},
 	"traces_search_ms_check": {breach: breaksTrace(func(r *bereanv1.RetrievalTrace) {
 		r.Timings.SearchMs = -1
 	})},

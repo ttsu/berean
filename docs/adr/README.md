@@ -52,11 +52,12 @@ Use [0000-template.md](0000-template.md).
 | [0015](0015-contested-loci-cross-the-boundary.md) | Contested loci cross the boundary; profile identity does not | Accepted (amended by 0019) |
 | [0016](0016-affirmative-claims-are-a-slot.md) | Affirmative claims are a slot, not a category | Accepted |
 | [0017](0017-serving-is-the-licensed-act.md) | Serving is the licensed act; PCA-published corpora acquired on deployer terms | Accepted |
-| [0018](0018-qwen3-8b-as-the-generation-default.md) | Qwen3-8B as the Phase 1 generation default | Accepted (provisional) |
+| [0018](0018-qwen3-8b-as-the-generation-default.md) | Qwen3-8B as the Phase 1 generation default | Accepted (provisional; amended by 0026 — the pin applies to the default, and hosted is no longer refused) |
 | [0019](0019-a-contested-locus-admits-no-arguments.md) | A contested locus admits no affirmative arguments | Accepted |
 | [0020](0020-the-uncited-surface-of-the-answer-object.md) | The answer object's uncited surface, and what verification guarantees | Accepted |
 | [0021](0021-the-edition-diagnostic-is-verified-not-quoted.md) | The edition diagnostic is verified, not quoted | Accepted |
 | [0022](0022-generated-code-is-committed.md) | The generated protobuf is committed, not gitignored | Accepted (resolves 0013's deferral) |
-| [0023](0023-the-decoding-constraint-is-derived-and-permissive.md) | The decoding constraint is derived, permissive, and unthinking | Accepted |
+| [0023](0023-the-decoding-constraint-is-derived-and-permissive.md) | The decoding constraint is derived, permissive, and unthinking | Accepted (amended by 0026 — the schema is unchanged; its enforcement is provider-dependent) |
 | [0024](0024-answer-level-failures-are-their-own-channel.md) | Answer-level failures are their own channel | Accepted (amends 0010's retry payload; extended by 0025) |
 | [0025](0025-generation-failures-are-their-own-channel.md) | Generation failures are their own channel | Accepted (extends 0024; annotates 0010) |
+| [0026](0026-the-generation-provider-layer.md) | The generation provider layer: four providers, one typed protocol | Accepted (amends 0018 and 0023) |

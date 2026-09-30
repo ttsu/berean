@@ -334,19 +334,56 @@ assertions in the suite rather than numbers in a report, so a regression fails a
 Structured output. Citations are first-class fields, never inline prose — prose citations cannot
 be validated, which is the whole reason for the answer object.
 
-The provider sits behind an OpenAI-compatible interface. Default local via Ollama so the
-acceptance test holds with no accounts. **The default model is Qwen3-8B** (Apache-2.0), with
-`AnswerObject` validity enforced by JSON-schema-constrained decoding rather than by asking the model
-for JSON. The exact tag is pinned in provisioning and written into every trace: the generator is the
-largest single variable in the Phase 2 baseline, and a silent change to it would move that number
-invisibly. Provisional on the same terms as the embedder — re-decided at Phase 2 against the golden
-set (ADR-0018, ADR-0006).
+The provider sits behind the typed `Generator` protocol, with one module per wire format
+(ADR-0026). Four providers ship; `ollama` is the default, and the default is local so the acceptance
+test holds with no accounts. **The default model is Qwen3-8B** (Apache-2.0), with `AnswerObject`
+validity enforced by JSON-schema-constrained decoding rather than by asking the model for JSON. The
+exact tag is pinned in provisioning and written into every trace, alongside the provider that
+answered and the schema-delivery mode its request enforced — `generation_model`,
+`generation_provider`, `schema_delivery`: the generator is the largest single variable in the
+Phase 2 baseline, and a silent change to it would move that number invisibly. Provisional on the
+same terms as the embedder — re-decided at Phase 2 against the golden set, now with four candidates
+rather than one (ADR-0018, ADR-0006).
 
-The constraint travels as `response_format: {type: json_schema}` on the OpenAI-compatible endpoint
-rather than as Ollama's native `format` field, so the provider stays interchangeable. **The schema
-is derived from `AnswerObject`'s protobuf descriptor, never hand-written** — a hand-written copy is
-a second place the contract lives. It departs from a naive translation in three ways, each measured
-rather than assumed (ADR-0023):
+`CATENA_GENERATION_PROVIDER` selects the provider; `CATENA_GENERATION_MODEL` optionally selects a
+model within it and must name a model that provider serves. Base URLs are pinned in the table and
+never read from the environment — an ambient variable must not be able to choose who receives
+retrieved corpus text.
+
+| provider | wire | base URL | key | default model | schema delivery | probed |
+| --- | --- | --- | --- | --- | --- | --- |
+| `ollama` *(default)* | `openai_chat` | `CATENA_OLLAMA_URL` | — | `qwen3:8b-q4_K_M` | **constrained** | yes |
+| `anthropic` | `messages` | `https://api.anthropic.com` | `ANTHROPIC_API_KEY` | `claude-sonnet-5-5` | **constrained** | no — read from documentation |
+| `openai` | `openai_chat` | `https://api.openai.com` | `OPENAI_API_KEY` | `gpt-6-luna` | **shaped** | no |
+| `deepseek` | `openai_chat` | `https://api.deepseek.com` | `DEEPSEEK_API_KEY` | `deepseek-flash` | **shaped** | yes |
+
+A hosted provider is never the default, requires a deployer-supplied key, and fails loudly under
+`make dev-offline` rather than degrading quietly. It also receives retrieved corpus text before
+verification check 4 has ruled on whether that text may be served, so
+[../../docs/CORPUS-POLICY.md](../../docs/CORPUS-POLICY.md) names the recipient per provider.
+
+The constraint travels as `response_format: {type: json_schema}` rather than as Ollama's native
+`format` field, because that is the shape the `openai_chat` adapter speaks — not because the wire
+format is what keeps providers interchangeable. The typed protocol is what does that (ADR-0026).
+
+**What a provider enforces of the schema varies; the schema does not.** There are three delivery
+modes, and the property that earns them is that each fails into a channel that already exists:
+
+| mode | the request enforces | what can go wrong | which channel catches it |
+| --- | --- | --- | --- |
+| **constrained** | the decoder is held to the schema | semantic violations only | verification, `trace.answer_failures` |
+| **shaped** | JSON-ness only; the schema is requested | fields missing, extra, or wrong-typed | `trace.answer_failures` — the object parses |
+| **unconstrained** | nothing | the reply may not be JSON | `trace.generation_failures` |
+
+ADR-0023's rules hold unaltered under all three, and each adapter puts the schema where its own wire
+and mode require it — `prompt.py` learns nothing about providers. The cost is stated rather than
+discovered later: providers receive different prompts, so cross-provider quality comparison is
+confounded. The trace records the mode, so the confound is visible in the data rather than hidden in
+it.
+
+**The schema is derived from `AnswerObject`'s protobuf descriptor, never hand-written** — a
+hand-written copy is a second place the contract lives. It departs from a naive translation in three
+ways, each measured rather than assumed (ADR-0023):
 
 - `confidence` is subtracted, so Go's field is *unpopulatable* rather than merely unpopulated.
 - `required` follows the **list-only rule**: fields are required in messages reachable only through
@@ -357,11 +394,17 @@ rather than assumed (ADR-0023):
 - **No count constraints.** `minItems` is honoured by the decoder, and what it buys is a fabricated
   citation to pad the count. An uncitable argument emits `citations: []`, which Go fails loudly.
 
-**Thinking is disabled** (`reasoning_effort: "none"`). Qwen3's reasoning trace is not covered by the
-decoding constraint, and it is the model's narrative about its own reasoning — SHARED §4 forbids
-emitting that, and nothing in Catena reads the field. It is also not optional in practice: with
-thinking on, a schema-constrained probe spent its entire token budget inside `reasoning` and
-returned empty content.
+**Thinking is configured per provider**, and no provider's account of its own reasoning is read.
+On the local default thinking is off (`reasoning_effort: "none"`): Qwen3's reasoning trace is not
+covered by the decoding constraint, and it is the model's narrative about its own reasoning — SHARED
+§4 forbids emitting that, and nothing in Catena reads the field. It is also not optional in
+practice: with thinking on, a schema-constrained probe spent its entire token budget inside
+`reasoning` and returned empty content. **That is Qwen3's mechanism and not a blanket rule.** On the
+Messages API `thinking` is sent explicitly as `{"type": "adaptive"}`, because omitting it there is
+not the same as leaving thinking enabled and thinking-off on that family can push reasoning into the
+visible text; `effort` is `medium`, a deliberate downgrade from that model's default of `high` on
+ADR-0018's finding that reasoning ability is close to irrelevant to routing claims into slots and
+copying text verbatim (ADR-0026).
 
 The generator's context window is set on the Ollama service (`OLLAMA_CONTEXT_LENGTH`, 8192).
 Ollama's own default is 4096 and it **truncates silently** past it, which would drop most of what

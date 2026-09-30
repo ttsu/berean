@@ -124,6 +124,29 @@ displayed, an esv.org link on each page, and no sharing or publishing of the acc
 **Open question:** the ESV API caching clause constrains what may be stored. Resolve before
 building the render path.
 
+## Who receives corpus text — per generation provider
+
+Verification check 4 runs in Go, **after** generation. So a hosted generation provider receives
+retrieved corpus text *before* the gateway has ruled on whether that text may be served. ADR-0017
+already settles the principle for the ESV — the deployer's key, the deployer's terms, and a project
+that automates nothing around anyone's terms — and it applies unchanged here. What changes is
+arithmetic: there are three hosted counterparties, not one, so the recipient is named per provider
+rather than in prose. A deployer weighing a `local-only` corpus against a hosted generator should be
+able to read who receives the text (ADR-0026).
+
+| provider | who receives the retrieved passages | terms accepted by |
+| --- | --- | --- |
+| `ollama` *(default)* | nobody outside the deployment | — |
+| `anthropic` | Anthropic | the deployer, by setting `ANTHROPIC_API_KEY` |
+| `openai` | OpenAI | the deployer, by setting `OPENAI_API_KEY` |
+| `deepseek` | DeepSeek | the deployer, by setting `DEEPSEEK_API_KEY` |
+
+The default sends nothing anywhere, and `make dev-offline` proves it by blocking egress entirely.
+
+**ESV and NIV remain unaffected under every configuration.** They are never ingested, are fetched at
+render time in Go, and are therefore unable to appear in a Catena prompt at all — no provider
+setting changes that.
+
 ## No corpus text in the repository
 
 **This repository contains no corpus text, from any source, whatever its licence** (ADR-0014). Not

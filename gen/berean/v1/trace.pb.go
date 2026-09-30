@@ -27,6 +27,68 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+// What a provider's request enforced of the answer schema. The schema itself
+// never varies -- it is derived from the proto descriptor and ADR-0023's rules
+// hold unaltered. Each mode fails into a channel that already exists.
+type SchemaDelivery int32
+
+const (
+	SchemaDelivery_SCHEMA_DELIVERY_UNSPECIFIED SchemaDelivery = 0
+	// The decoder was held to the schema. Only semantic violations get through,
+	// and verification and `answer_failures` catch those.
+	SchemaDelivery_SCHEMA_DELIVERY_CONSTRAINED SchemaDelivery = 1
+	// JSON-ness was enforced and the schema was requested as text. Fields can be
+	// missing, extra or wrong-typed, but the object parses -- so a wrong slot
+	// regenerates through ADR-0024's machinery with no new code.
+	SchemaDelivery_SCHEMA_DELIVERY_SHAPED SchemaDelivery = 2
+	// Nothing was enforced. The reply may not be JSON at all, which is what
+	// GENERATION_FAILURE_CODE_NOT_JSON catches (ADR-0025).
+	SchemaDelivery_SCHEMA_DELIVERY_UNCONSTRAINED SchemaDelivery = 3
+)
+
+// Enum value maps for SchemaDelivery.
+var (
+	SchemaDelivery_name = map[int32]string{
+		0: "SCHEMA_DELIVERY_UNSPECIFIED",
+		1: "SCHEMA_DELIVERY_CONSTRAINED",
+		2: "SCHEMA_DELIVERY_SHAPED",
+		3: "SCHEMA_DELIVERY_UNCONSTRAINED",
+	}
+	SchemaDelivery_value = map[string]int32{
+		"SCHEMA_DELIVERY_UNSPECIFIED":   0,
+		"SCHEMA_DELIVERY_CONSTRAINED":   1,
+		"SCHEMA_DELIVERY_SHAPED":        2,
+		"SCHEMA_DELIVERY_UNCONSTRAINED": 3,
+	}
+)
+
+func (x SchemaDelivery) Enum() *SchemaDelivery {
+	p := new(SchemaDelivery)
+	*p = x
+	return p
+}
+
+func (x SchemaDelivery) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (SchemaDelivery) Descriptor() protoreflect.EnumDescriptor {
+	return file_berean_v1_trace_proto_enumTypes[0].Descriptor()
+}
+
+func (SchemaDelivery) Type() protoreflect.EnumType {
+	return &file_berean_v1_trace_proto_enumTypes[0]
+}
+
+func (x SchemaDelivery) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use SchemaDelivery.Descriptor instead.
+func (SchemaDelivery) EnumDescriptor() ([]byte, []int) {
+	return file_berean_v1_trace_proto_rawDescGZIP(), []int{0}
+}
+
 type RetrievalTrace struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Phase 1: identical to the query — there is no query rewriting yet. Present
@@ -42,10 +104,22 @@ type RetrievalTrace struct {
 	// The pinned generation tag, e.g. `qwen3:8b-q4_K_M` (ADR-0018).
 	GenerationModel string `protobuf:"bytes,5,opt,name=generation_model,json=generationModel,proto3" json:"generation_model,omitempty"`
 	// The value actually used for this request, not the configured default.
-	TopK          int32    `protobuf:"varint,6,opt,name=top_k,json=topK,proto3" json:"top_k,omitempty"`
-	Timings       *Timings `protobuf:"bytes,7,opt,name=timings,proto3" json:"timings,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	TopK    int32    `protobuf:"varint,6,opt,name=top_k,json=topK,proto3" json:"top_k,omitempty"`
+	Timings *Timings `protobuf:"bytes,7,opt,name=timings,proto3" json:"timings,omitempty"`
+	// Which provider answered, or which was asked when the attempt produced
+	// nothing. A string for the same reason `generation_model` is one: it is an
+	// identifier, and the set is closed by the provider table in
+	// `catena.serve.generate` rather than by this contract -- adding a fifth
+	// provider is a code change and an ADR, not a contract change (ADR-0026).
+	GenerationProvider string `protobuf:"bytes,8,opt,name=generation_provider,json=generationProvider,proto3" json:"generation_provider,omitempty"`
+	// What that provider's request actually enforced of the answer schema. An
+	// enum rather than a string, because this is the classification the Phase 2
+	// harness groups by: two runs of one model under different enforcement are
+	// otherwise indistinguishable, and that becomes live the moment a probe
+	// reclassifies a provider (ADR-0026).
+	SchemaDelivery SchemaDelivery `protobuf:"varint,9,opt,name=schema_delivery,json=schemaDelivery,proto3,enum=berean.v1.SchemaDelivery" json:"schema_delivery,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *RetrievalTrace) Reset() {
@@ -125,6 +199,20 @@ func (x *RetrievalTrace) GetTimings() *Timings {
 		return x.Timings
 	}
 	return nil
+}
+
+func (x *RetrievalTrace) GetGenerationProvider() string {
+	if x != nil {
+		return x.GenerationProvider
+	}
+	return ""
+}
+
+func (x *RetrievalTrace) GetSchemaDelivery() SchemaDelivery {
+	if x != nil {
+		return x.SchemaDelivery
+	}
+	return SchemaDelivery_SCHEMA_DELIVERY_UNSPECIFIED
 }
 
 // Candidate is one retrieved chunk and what happened to it.
@@ -274,7 +362,7 @@ var File_berean_v1_trace_proto protoreflect.FileDescriptor
 
 const file_berean_v1_trace_proto_rawDesc = "" +
 	"\n" +
-	"\x15berean/v1/trace.proto\x12\tberean.v1\"\x98\x02\n" +
+	"\x15berean/v1/trace.proto\x12\tberean.v1\"\x8d\x03\n" +
 	"\x0eRetrievalTrace\x12'\n" +
 	"\x0frewritten_query\x18\x01 \x01(\tR\x0erewrittenQuery\x124\n" +
 	"\n" +
@@ -284,7 +372,9 @@ const file_berean_v1_trace_proto_rawDesc = "" +
 	"\x03dim\x18\x04 \x01(\x05R\x03dim\x12)\n" +
 	"\x10generation_model\x18\x05 \x01(\tR\x0fgenerationModel\x12\x13\n" +
 	"\x05top_k\x18\x06 \x01(\x05R\x04topK\x12,\n" +
-	"\atimings\x18\a \x01(\v2\x12.berean.v1.TimingsR\atimings\"\x9f\x01\n" +
+	"\atimings\x18\a \x01(\v2\x12.berean.v1.TimingsR\atimings\x12/\n" +
+	"\x13generation_provider\x18\b \x01(\tR\x12generationProvider\x12B\n" +
+	"\x0fschema_delivery\x18\t \x01(\x0e2\x19.berean.v1.SchemaDeliveryR\x0eschemaDelivery\"\x9f\x01\n" +
 	"\tCandidate\x12\x1b\n" +
 	"\tcorpus_id\x18\x01 \x01(\tR\bcorpusId\x12\x18\n" +
 	"\alocator\x18\x02 \x01(\tR\alocator\x12\x14\n" +
@@ -295,7 +385,12 @@ const file_berean_v1_trace_proto_rawDesc = "" +
 	"\bembed_ms\x18\x01 \x01(\x03R\aembedMs\x12\x1b\n" +
 	"\tsearch_ms\x18\x02 \x01(\x03R\bsearchMs\x12\x1f\n" +
 	"\vgenerate_ms\x18\x03 \x01(\x03R\n" +
-	"generateMsB/Z-github.com/ttsu/berean/gen/berean/v1;bereanv1b\x06proto3"
+	"generateMs*\x91\x01\n" +
+	"\x0eSchemaDelivery\x12\x1f\n" +
+	"\x1bSCHEMA_DELIVERY_UNSPECIFIED\x10\x00\x12\x1f\n" +
+	"\x1bSCHEMA_DELIVERY_CONSTRAINED\x10\x01\x12\x1a\n" +
+	"\x16SCHEMA_DELIVERY_SHAPED\x10\x02\x12!\n" +
+	"\x1dSCHEMA_DELIVERY_UNCONSTRAINED\x10\x03B/Z-github.com/ttsu/berean/gen/berean/v1;bereanv1b\x06proto3"
 
 var (
 	file_berean_v1_trace_proto_rawDescOnce sync.Once
@@ -309,20 +404,23 @@ func file_berean_v1_trace_proto_rawDescGZIP() []byte {
 	return file_berean_v1_trace_proto_rawDescData
 }
 
+var file_berean_v1_trace_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
 var file_berean_v1_trace_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
 var file_berean_v1_trace_proto_goTypes = []any{
-	(*RetrievalTrace)(nil), // 0: berean.v1.RetrievalTrace
-	(*Candidate)(nil),      // 1: berean.v1.Candidate
-	(*Timings)(nil),        // 2: berean.v1.Timings
+	(SchemaDelivery)(0),    // 0: berean.v1.SchemaDelivery
+	(*RetrievalTrace)(nil), // 1: berean.v1.RetrievalTrace
+	(*Candidate)(nil),      // 2: berean.v1.Candidate
+	(*Timings)(nil),        // 3: berean.v1.Timings
 }
 var file_berean_v1_trace_proto_depIdxs = []int32{
-	1, // 0: berean.v1.RetrievalTrace.candidates:type_name -> berean.v1.Candidate
-	2, // 1: berean.v1.RetrievalTrace.timings:type_name -> berean.v1.Timings
-	2, // [2:2] is the sub-list for method output_type
-	2, // [2:2] is the sub-list for method input_type
-	2, // [2:2] is the sub-list for extension type_name
-	2, // [2:2] is the sub-list for extension extendee
-	0, // [0:2] is the sub-list for field type_name
+	2, // 0: berean.v1.RetrievalTrace.candidates:type_name -> berean.v1.Candidate
+	3, // 1: berean.v1.RetrievalTrace.timings:type_name -> berean.v1.Timings
+	0, // 2: berean.v1.RetrievalTrace.schema_delivery:type_name -> berean.v1.SchemaDelivery
+	3, // [3:3] is the sub-list for method output_type
+	3, // [3:3] is the sub-list for method input_type
+	3, // [3:3] is the sub-list for extension type_name
+	3, // [3:3] is the sub-list for extension extendee
+	0, // [0:3] is the sub-list for field type_name
 }
 
 func init() { file_berean_v1_trace_proto_init() }
@@ -335,13 +433,14 @@ func file_berean_v1_trace_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_berean_v1_trace_proto_rawDesc), len(file_berean_v1_trace_proto_rawDesc)),
-			NumEnums:      0,
+			NumEnums:      1,
 			NumMessages:   3,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
 		GoTypes:           file_berean_v1_trace_proto_goTypes,
 		DependencyIndexes: file_berean_v1_trace_proto_depIdxs,
+		EnumInfos:         file_berean_v1_trace_proto_enumTypes,
 		MessageInfos:      file_berean_v1_trace_proto_msgTypes,
 	}.Build()
 	File_berean_v1_trace_proto = out.File

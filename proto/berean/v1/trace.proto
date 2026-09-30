@@ -31,6 +31,37 @@ message RetrievalTrace {
   int32 top_k = 6;
 
   Timings timings = 7;
+
+  // Which provider answered, or which was asked when the attempt produced
+  // nothing. A string for the same reason `generation_model` is one: it is an
+  // identifier, and the set is closed by the provider table in
+  // `catena.serve.generate` rather than by this contract -- adding a fifth
+  // provider is a code change and an ADR, not a contract change (ADR-0026).
+  string generation_provider = 8;
+
+  // What that provider's request actually enforced of the answer schema. An
+  // enum rather than a string, because this is the classification the Phase 2
+  // harness groups by: two runs of one model under different enforcement are
+  // otherwise indistinguishable, and that becomes live the moment a probe
+  // reclassifies a provider (ADR-0026).
+  SchemaDelivery schema_delivery = 9;
+}
+
+// What a provider's request enforced of the answer schema. The schema itself
+// never varies -- it is derived from the proto descriptor and ADR-0023's rules
+// hold unaltered. Each mode fails into a channel that already exists.
+enum SchemaDelivery {
+  SCHEMA_DELIVERY_UNSPECIFIED = 0;
+  // The decoder was held to the schema. Only semantic violations get through,
+  // and verification and `answer_failures` catch those.
+  SCHEMA_DELIVERY_CONSTRAINED = 1;
+  // JSON-ness was enforced and the schema was requested as text. Fields can be
+  // missing, extra or wrong-typed, but the object parses -- so a wrong slot
+  // regenerates through ADR-0024's machinery with no new code.
+  SCHEMA_DELIVERY_SHAPED = 2;
+  // Nothing was enforced. The reply may not be JSON at all, which is what
+  // GENERATION_FAILURE_CODE_NOT_JSON catches (ADR-0025).
+  SCHEMA_DELIVERY_UNCONSTRAINED = 3;
 }
 
 // Candidate is one retrieved chunk and what happened to it.

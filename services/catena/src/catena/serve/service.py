@@ -46,6 +46,15 @@ _FAILURE_CODES = {
     "provider_refused": catena_pb2.GENERATION_FAILURE_CODE_PROVIDER_REFUSED,
 }
 
+#: The short names the provider table uses, mapped to the contract's enum. Here
+#: for the same reason `_FAILURE_CODES` is: `generate` imports no proto, so the
+#: wire format is this layer's business and not the provider's.
+_DELIVERY_MODES = {
+    generate.CONSTRAINED: trace_pb2.SCHEMA_DELIVERY_CONSTRAINED,
+    generate.SHAPED: trace_pb2.SCHEMA_DELIVERY_SHAPED,
+    generate.UNCONSTRAINED: trace_pb2.SCHEMA_DELIVERY_UNCONSTRAINED,
+}
+
 
 class CatenaService(catena_pb2_grpc.CatenaServiceServicer):
     def __init__(self, embedder, generator, store_factory, observability) -> None:
@@ -73,6 +82,15 @@ class CatenaService(catena_pb2_grpc.CatenaServiceServicer):
             raise ServeError(
                 f"attempt {attempt} is not valid; ADR-0010 fixes the retry at exactly "
                 "one regeneration, so only 1 and 2 exist"
+            )
+
+        delivery = _DELIVERY_MODES.get(self._generator.delivery)
+        if delivery is None:
+            # A programming error, not a provider's property: defaulting to
+            # UNSPECIFIED would write a bug into the column the Phase 2 harness
+            # groups by, and it would average cleanly.
+            raise ServeError(
+                f"the generator reports an unmapped delivery mode: {self._generator.delivery!r}"
             )
 
         spec = request.filter_spec
@@ -136,6 +154,10 @@ class CatenaService(catena_pb2_grpc.CatenaServiceServicer):
             generation_model=(
                 result.model if isinstance(result, generate.Generation) else self._generator.model
             ),
+            # Read off the adapter rather than off the result, so a failed
+            # attempt still names what attempted it and under what enforcement.
+            generation_provider=self._generator.provider,
+            schema_delivery=delivery,
             # The value actually used, never the configured default: with
             # Scripture at ~90% of the index and no tier weighting, this is
             # the only thing deciding whether a confessional chunk reached

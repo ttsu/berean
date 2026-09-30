@@ -275,7 +275,10 @@ on the request, decided by the rates these rows now record.
   produced no object has no slot to name and travels in a sibling channel one layer upstream.
 - `services/catena/src/catena/serve/generate.py` — an unusable completion returns `GenerationFailed`
   instead of raising; a transport failure still raises. The ceiling measurements were already here and
-  are unchanged; what is annotated is what now happens at the ceiling.
+  are unchanged; what is annotated is what now happens at the ceiling. **Annotated by ADR-0026:**
+  that module is now the package `services/catena/src/catena/serve/generate/`; this behaviour lives
+  in both `generate/openai_chat.py` and `generate/messages.py`, one per wire format, and
+  `GenerationFailed` itself is defined in `generate/__init__.py`.
 - `services/catena/src/catena/serve/service.py` — the short-name-to-enum map for all six codes, and
   the failure response carrying the trace the attempt built. An unmapped code raises, because a
   programming error reported as `UNSPECIFIED` reads as a model inadequacy.

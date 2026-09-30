@@ -259,10 +259,18 @@ class TheTrace(unittest.TestCase):
                 "embedding_model",
                 "dim",
                 "generation_model",
+                "generation_provider",
+                "schema_delivery",
                 "top_k",
                 "timings",
             },
         )
+
+    def test_trace_records_what_the_provider_enforced(self) -> None:
+        """A model name alone cannot tell two enforcement regimes apart."""
+        fields = field_names(trace_pb2.RetrievalTrace)
+        self.assertIn("generation_provider", fields)
+        self.assertIn("schema_delivery", fields)
 
     def test_every_candidate_records_whether_it_was_used(self) -> None:
         self.assertEqual(
@@ -328,6 +336,27 @@ class ClosedEnums(unittest.TestCase):
                 "CONFIDENCE_LEVEL_LOW",
             },
         )
+
+    def test_schema_delivery_modes(self) -> None:
+        """Three modes and an unspecified zero. A fourth would need an ADR."""
+        self.assertEqual(
+            set(trace_pb2.SchemaDelivery.keys()),
+            {
+                "SCHEMA_DELIVERY_UNSPECIFIED",
+                "SCHEMA_DELIVERY_CONSTRAINED",
+                "SCHEMA_DELIVERY_SHAPED",
+                "SCHEMA_DELIVERY_UNCONSTRAINED",
+            },
+        )
+
+    def test_every_delivery_mode_the_generator_can_report_has_a_contract_value(self) -> None:
+        """The table's short names and the enum cannot drift apart silently."""
+        from catena.serve import generate as generate_module
+        from catena.serve import service
+
+        for mode in generate_module.DELIVERY_MODES:
+            with self.subTest(mode=mode):
+                self.assertIn(mode, service._DELIVERY_MODES)
 
 
 class DeferredFields(unittest.TestCase):

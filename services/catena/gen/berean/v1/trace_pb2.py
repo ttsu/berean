@@ -24,7 +24,7 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x15\x62\x65rean/v1/trace.proto\x12\tberean.v1\"\x98\x02\n\x0eRetrievalTrace\x12\'\n\x0frewritten_query\x18\x01 \x01(\tR\x0erewrittenQuery\x12\x34\n\ncandidates\x18\x02 \x03(\x0b\x32\x14.berean.v1.CandidateR\ncandidates\x12\'\n\x0f\x65mbedding_model\x18\x03 \x01(\tR\x0e\x65mbeddingModel\x12\x10\n\x03\x64im\x18\x04 \x01(\x05R\x03\x64im\x12)\n\x10generation_model\x18\x05 \x01(\tR\x0fgenerationModel\x12\x13\n\x05top_k\x18\x06 \x01(\x05R\x04topK\x12,\n\x07timings\x18\x07 \x01(\x0b\x32\x12.berean.v1.TimingsR\x07timings\"\x9f\x01\n\tCandidate\x12\x1b\n\tcorpus_id\x18\x01 \x01(\tR\x08\x63orpusId\x12\x18\n\x07locator\x18\x02 \x01(\tR\x07locator\x12\x14\n\x05score\x18\x03 \x01(\x02R\x05score\x12\x1a\n\x08included\x18\x04 \x01(\x08R\x08included\x12)\n\x10\x65xclusion_reason\x18\x05 \x01(\tR\x0f\x65xclusionReason\"b\n\x07Timings\x12\x19\n\x08\x65mbed_ms\x18\x01 \x01(\x03R\x07\x65mbedMs\x12\x1b\n\tsearch_ms\x18\x02 \x01(\x03R\x08searchMs\x12\x1f\n\x0bgenerate_ms\x18\x03 \x01(\x03R\ngenerateMsB/Z-github.com/ttsu/berean/gen/berean/v1;bereanv1b\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x15\x62\x65rean/v1/trace.proto\x12\tberean.v1\"\x8d\x03\n\x0eRetrievalTrace\x12\'\n\x0frewritten_query\x18\x01 \x01(\tR\x0erewrittenQuery\x12\x34\n\ncandidates\x18\x02 \x03(\x0b\x32\x14.berean.v1.CandidateR\ncandidates\x12\'\n\x0f\x65mbedding_model\x18\x03 \x01(\tR\x0e\x65mbeddingModel\x12\x10\n\x03\x64im\x18\x04 \x01(\x05R\x03\x64im\x12)\n\x10generation_model\x18\x05 \x01(\tR\x0fgenerationModel\x12\x13\n\x05top_k\x18\x06 \x01(\x05R\x04topK\x12,\n\x07timings\x18\x07 \x01(\x0b\x32\x12.berean.v1.TimingsR\x07timings\x12/\n\x13generation_provider\x18\x08 \x01(\tR\x12generationProvider\x12\x42\n\x0fschema_delivery\x18\t \x01(\x0e\x32\x19.berean.v1.SchemaDeliveryR\x0eschemaDelivery\"\x9f\x01\n\tCandidate\x12\x1b\n\tcorpus_id\x18\x01 \x01(\tR\x08\x63orpusId\x12\x18\n\x07locator\x18\x02 \x01(\tR\x07locator\x12\x14\n\x05score\x18\x03 \x01(\x02R\x05score\x12\x1a\n\x08included\x18\x04 \x01(\x08R\x08included\x12)\n\x10\x65xclusion_reason\x18\x05 \x01(\tR\x0f\x65xclusionReason\"b\n\x07Timings\x12\x19\n\x08\x65mbed_ms\x18\x01 \x01(\x03R\x07\x65mbedMs\x12\x1b\n\tsearch_ms\x18\x02 \x01(\x03R\x08searchMs\x12\x1f\n\x0bgenerate_ms\x18\x03 \x01(\x03R\ngenerateMs*\x91\x01\n\x0eSchemaDelivery\x12\x1f\n\x1bSCHEMA_DELIVERY_UNSPECIFIED\x10\x00\x12\x1f\n\x1bSCHEMA_DELIVERY_CONSTRAINED\x10\x01\x12\x1a\n\x16SCHEMA_DELIVERY_SHAPED\x10\x02\x12!\n\x1dSCHEMA_DELIVERY_UNCONSTRAINED\x10\x03\x42/Z-github.com/ttsu/berean/gen/berean/v1;bereanv1b\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -32,10 +32,12 @@ _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'berean.v1.trace_pb2', _glob
 if not _descriptor._USE_C_DESCRIPTORS:
   _globals['DESCRIPTOR']._loaded_options = None
   _globals['DESCRIPTOR']._serialized_options = b'Z-github.com/ttsu/berean/gen/berean/v1;bereanv1'
+  _globals['_SCHEMADELIVERY']._serialized_start=699
+  _globals['_SCHEMADELIVERY']._serialized_end=844
   _globals['_RETRIEVALTRACE']._serialized_start=37
-  _globals['_RETRIEVALTRACE']._serialized_end=317
-  _globals['_CANDIDATE']._serialized_start=320
-  _globals['_CANDIDATE']._serialized_end=479
-  _globals['_TIMINGS']._serialized_start=481
-  _globals['_TIMINGS']._serialized_end=579
+  _globals['_RETRIEVALTRACE']._serialized_end=434
+  _globals['_CANDIDATE']._serialized_start=437
+  _globals['_CANDIDATE']._serialized_end=596
+  _globals['_TIMINGS']._serialized_start=598
+  _globals['_TIMINGS']._serialized_end=696
 # @@protoc_insertion_point(module_scope)

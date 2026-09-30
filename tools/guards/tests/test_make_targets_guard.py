@@ -48,6 +48,14 @@ class ReferencesInDocumentation(unittest.TestCase):
     def test_a_variable_override_is_not_mistaken_for_a_target(self):
         self.assertEqual(guard.referenced_targets("`make TOP_K=5 dev`"), {"dev"})
 
+    def test_a_hyphenated_make_word_is_not_a_target(self):
+        # The guard's own success message, quoted as expected output, must not be
+        # read as an invocation of a target named `OK`.
+        self.assertEqual(guard.referenced_targets("`make-targets: OK`"), set())
+
+    def test_make_check_next_to_that_word_is_still_found(self):
+        self.assertEqual(guard.referenced_targets("`make-targets: OK`, then `make check`."), {"check"})
+
 
 class MakefileParsing(unittest.TestCase):
     def test_a_plain_rule_is_a_target(self):

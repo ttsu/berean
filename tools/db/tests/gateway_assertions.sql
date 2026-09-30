@@ -34,12 +34,15 @@ VALUES
 
 INSERT INTO trace.traces
     (request_id, attempt, rewritten_query, embedding_model, dim,
-     generation_model, top_k, embed_ms, search_ms, generate_ms, verify_us)
+     generation_model, generation_provider, schema_delivery, top_k,
+     embed_ms, search_ms, generate_ms, verify_us)
 VALUES
     ('00000000-0000-4000-8000-000000000001', 1, 'An invented question?',
-     'probe-embedder', 1024, 'probe-generator:tag', 20, 1, 2, 3, 4),
+     'probe-embedder', 1024, 'probe-generator:tag', 'probe-provider', 'constrained',
+     20, 1, 2, 3, 4),
     ('00000000-0000-4000-8000-000000000001', 2, 'An invented question?',
-     'probe-embedder', 1024, 'probe-generator:tag', 20, 1, 2, 3, 4);
+     'probe-embedder', 1024, 'probe-generator:tag', 'probe-provider', 'constrained',
+     20, 1, 2, 3, 4);
 
 INSERT INTO trace.candidates
     (request_id, attempt, rank, corpus_id, locator, score, included, exclusion_reason)
@@ -404,11 +407,39 @@ BEGIN
     BEGIN
         INSERT INTO trace.traces
             (request_id, attempt, rewritten_query, embedding_model, dim,
-             generation_model, top_k, embed_ms, search_ms, generate_ms, verify_us)
+             generation_model, generation_provider, schema_delivery, top_k,
+             embed_ms, search_ms, generate_ms, verify_us)
         VALUES ('00000000-0000-4000-8000-000000000001', 1, 'q',
-                'probe-embedder', 1024, 'probe-generator:tag', 20, 1, 2, 3, -1);
+                'probe-embedder', 1024, 'probe-generator:tag', 'probe-provider', 'constrained',
+                20, 1, 2, 3, -1);
         RAISE EXCEPTION 'a negative verify_us was accepted';
     EXCEPTION WHEN check_violation THEN NULL;
+    END;
+
+    -- A run the Phase 2 harness cannot attribute is a run it cannot compare,
+    -- and a mode outside the three is a provider nobody probed (ADR-0026).
+    BEGIN
+        INSERT INTO trace.traces
+            (request_id, attempt, rewritten_query, embedding_model, dim,
+             generation_model, generation_provider, schema_delivery, top_k,
+             embed_ms, search_ms, generate_ms, verify_us)
+        VALUES ('00000000-0000-4000-8000-000000000001', 1, 'q',
+                'probe-embedder', 1024, 'probe-generator:tag', '   ', 'constrained',
+                20, 1, 2, 3, 4);
+        RAISE EXCEPTION 'a blank generation_provider was accepted';
+    EXCEPTION WHEN check_violation THEN NULL;
+    END;
+
+    BEGIN
+        INSERT INTO trace.traces
+            (request_id, attempt, rewritten_query, embedding_model, dim,
+             generation_model, generation_provider, schema_delivery, top_k,
+             embed_ms, search_ms, generate_ms, verify_us)
+        VALUES ('00000000-0000-4000-8000-000000000001', 1, 'q',
+                'probe-embedder', 1024, 'probe-generator:tag', 'probe-provider', 'invented-mode',
+                20, 1, 2, 3, 4);
+        RAISE EXCEPTION 'a schema_delivery outside the enum was accepted';
+    EXCEPTION WHEN invalid_text_representation THEN NULL;
     END;
 END $$;
 

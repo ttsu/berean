@@ -298,8 +298,20 @@ class FakeCorpusReader:
 class FakeGenerator:
     """Returns a canned payload and records what it was asked."""
 
-    def __init__(self, payload=None, error=None, model="fake-generator") -> None:
+    def __init__(
+        self,
+        payload=None,
+        error=None,
+        model="fake-generator",
+        provider="fake-provider",
+        delivery="constrained",
+    ) -> None:
         self.model = model
+        #: The widened `Generator` protocol (ADR-0026). Present on the adapter
+        #: rather than on `Generation`, so a failed attempt still names what
+        #: attempted it.
+        self.provider = provider
+        self.delivery = delivery
         self._payload = payload if payload is not None else {}
         self._error = error
         self.messages = None

@@ -30,7 +30,9 @@ FENCED = re.compile(
 )
 SHELL_FENCES = {"", "bash", "sh", "shell", "zsh", "console"}
 INLINE = re.compile(r"(`+)(.+?)\1", re.DOTALL)
-MAKE_CALL = re.compile(r"\bmake\b(?P<rest>[^\n]*)")
+# A hyphenated word beginning with `make` -- `make-targets`, as in this guard's own
+# `make-targets: OK` success message, quoted in a doc -- is a word, not an invocation.
+MAKE_CALL = re.compile(r"\bmake(?![\w-])(?P<rest>[^\n]*)")
 TARGET_NAME = re.compile(r"^[A-Za-z][A-Za-z0-9._-]*$")
 
 

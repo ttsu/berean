@@ -1,6 +1,6 @@
 # ADR-0018: Qwen3-8B as the Phase 1 generation default — pinned, not locked
 
-- **Status:** Accepted (provisional; decoding constraint detailed by ADR-0023)
+- **Status:** Accepted (provisional; decoding constraint detailed by ADR-0023; amended by ADR-0026 — the pin applies to the default, and hosted is no longer refused)
 - **Date:** 2026-09-01
 - **Phase:** 1 — `make provision` needs a name; re-decided at Phase 2 against the golden set
 
@@ -46,7 +46,13 @@ copy text out of context, and the trust boundary catches it when it does not.
   than as Ollama's native `format`, which keeps the provider interface this ADR requires; and
   the schema is derived from the proto descriptor rather than written by hand.
 - The provider stays behind the OpenAI-compatible interface SHARED §1 requires, so this is a
-  configuration default rather than a coupling.
+  configuration default rather than a coupling. **Amended by ADR-0026:** what makes this a
+  configuration default is the typed `Generator` protocol, not the OpenAI-compatible wire format —
+  the Anthropic Messages API is a different wire behind the same protocol, and it is a provider this
+  reasoning would have refused for the wrong reason. SHARED §1 has since been rewritten to require
+  the typed interface rather than the chat-completions shape this bullet cites, so the requirement
+  named here no longer exists in that form. Four providers now ship and three are hosted: what this
+  ADR pins is the *default*, and its rejection of a hosted API **by default** stands unchanged.
 - A smaller fallback is documented for low-RAM machines. It is a documented degradation, not a
   second supported configuration.
 

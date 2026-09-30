@@ -690,14 +690,16 @@ started; `make test-catena-db` asserts the SQL against a live database.
 - [x] Consumes `previous_failures` and `attempt` on a regeneration — rendered into the prompt by
       Python from the structured results, so Go still composes no prose
 - [x] Routes claims into `arguments` or `descriptions` per the slot rules
-- [x] Generation behind an OpenAI-compatible interface, default Ollama running the pinned Qwen3-8B
-      tag (ADR-0018). stdlib `urllib`: the wire format is what makes providers interchangeable, not
-      a vendor SDK. A test asserts the constant matches `models.lock.yaml`
+- [x] Generation behind the typed `Generator` protocol, default Ollama running the pinned Qwen3-8B
+      tag (ADR-0018). The protocol is what makes providers interchangeable, not the wire format —
+      three providers speak OpenAI chat-completions over stdlib `urllib` and one speaks the
+      Anthropic Messages API through its vendor SDK (ADR-0026). A test asserts the local constant
+      matches `models.lock.yaml`, and one asserts each hosted default against the provider table
 - [x] Structured output conforming to `AnswerObject`, enforced by JSON-schema-constrained decoding
       — schema **derived from the proto descriptor** rather than hand-written, minus `confidence`
       (ADR-0023)
-- [x] `RetrievalTrace` populated including excluded candidates with reasons, plus `generation_model`
-      and the `top_k` actually used
+- [x] `RetrievalTrace` populated including excluded candidates with reasons, plus
+      `generation_model`, `generation_provider`, `schema_delivery` and the `top_k` actually used
 - [x] Langfuse instrumentation on every model call, carrying token counts (SHARED §6) — verified
       end to end by querying ClickHouse after a live request: a `catena.answer` span and a
       `generate` generation, correlated by `request_id` and naming the pinned tag. Recorded even
@@ -722,9 +724,12 @@ an ADR in the same change:
   elsewhere. `minItems` is honoured by the decoder and is still not used — forced to produce two
   citations from one passage, the model padded with a fabricated sub-quote.
 - **The pinned generator thinks, and its thinking is unconstrained.** `reasoning_effort: "none"` is
-  required, not tuning: with thinking on, a schema-constrained probe spent its whole budget inside
-  `reasoning` and returned empty content. The field is also model introspection, which SHARED §4
-  forbids emitting — so nothing reads it.
+  required for Qwen3, not tuning: with thinking on, a schema-constrained probe spent its whole
+  budget inside `reasoning` and returned empty content. The field is also model introspection,
+  which SHARED §4 forbids emitting — so nothing reads it. **This is Qwen3's mechanism and not a
+  blanket rule:** on `claude-sonnet-5-5` thinking is sent explicitly as `{"type": "adaptive"}`,
+  because omitting it there is not the same as leaving thinking on, and thinking-off on that family
+  can push reasoning into the visible text (ADR-0026).
 - **Ollama's default context is 4096 and it truncates silently.** `OLLAMA_CONTEXT_LENGTH: 8192` on
   the ollama service, mirrored in Catena, which fits candidates to a budget derived from it. This is
   what makes `Candidate.exclusion_reason` mean something in Phase 1 — a live query included 11 of 20

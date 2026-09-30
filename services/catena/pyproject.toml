@@ -74,6 +74,23 @@ dependencies = [
     # /models -- a TCP check would report healthy through the whole of it. It is
     # the generated health stubs and a servicer, nothing more.
     "grpcio-health-checking>=1.76,<2",
+    # The one vendor SDK in the request path, and a considered reversal of this
+    # project's own convention (ADR-0026). `catena.serve.generate.openai_chat`
+    # is stdlib `urllib` on the reasoning that keeps `acquire.fetch` on stdlib,
+    # and the Anthropic Messages API is the case that shows the wire format was
+    # never what made providers interchangeable -- the typed `Generator`
+    # protocol is. Hand-rolling a second wire format would mean hand-maintaining
+    # `thinking`, `output_config` and the refusal shape against a moving API,
+    # for no gain the protocol does not already give.
+    #
+    # MIT, which permits the commercial downstream use CLAUDE.md tells us to
+    # assume. The floor is the 1.x surface this adapter sends -- `max_retries`
+    # on the constructor, `output_config` and adaptive `thinking` on
+    # `messages.create` -- and the exact version is pinned in
+    # services/catena/uv.lock. It is imported lazily, so a deployment on the
+    # local default never loads it and `docker compose up` still needs no
+    # account.
+    "anthropic>=1.10,<2",
 ]
 
 [project.scripts]

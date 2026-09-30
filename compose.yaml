@@ -261,6 +261,15 @@ services:
       CATENA_DATABASE_URL: postgresql://catena:${BEREAN_DB_CATENA_PASSWORD}@postgres:5432/${POSTGRES_DB}
       CATENA_OLLAMA_URL: http://ollama:11434
       CATENA_MODELS_DIR: /models
+      # The provider selection and the three keys. Empty by default and empty is
+      # correct: `connect()` refuses a hosted provider whose key is unset, which
+      # is a configuration error reported at startup rather than a stack that
+      # comes up healthy and cannot answer.
+      CATENA_GENERATION_PROVIDER: ${CATENA_GENERATION_PROVIDER:-ollama}
+      CATENA_GENERATION_MODEL: ${CATENA_GENERATION_MODEL:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
       LANGFUSE_HOST: http://langfuse-web:3000
       LANGFUSE_PUBLIC_KEY: ${LANGFUSE_INIT_PROJECT_PUBLIC_KEY}
       LANGFUSE_SECRET_KEY: ${LANGFUSE_INIT_PROJECT_SECRET_KEY}

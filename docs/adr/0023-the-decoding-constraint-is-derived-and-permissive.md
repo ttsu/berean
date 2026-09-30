@@ -1,6 +1,6 @@
 # ADR-0023: The decoding constraint is derived, permissive, and unthinking
 
-- **Status:** Accepted
+- **Status:** Accepted (amended by ADR-0026 — the schema is unchanged; its enforcement is provider-dependent)
 - **Date:** 2026-09-10
 - **Phase:** 1 — Task 7; re-measured at Phase 2 alongside the generator
 
@@ -16,6 +16,15 @@ that the pinned generator thinks before it answers.
 
 Probes against the pinned tag (`qwen3:8b-q4_K_M`, digest `500a1f067a9f`) settled all three, and the
 evidence is recorded here because the arguments read as close calls without it.
+
+**Amended by ADR-0026:** everything decided below is unchanged, and the derived schema is the same
+schema under every provider. What is no longer a property of the system is the premise this section
+opens with — that `AnswerObject` validity *is* enforced by constrained decoding. Enforcement is now
+per provider: `constrained` holds the decoder to the schema, `shaped` guarantees only JSON with the
+schema requested, `unconstrained` guarantees nothing. Two of the four providers that ship are
+`shaped`, so a structurally invalid object is a live outcome rather than an impossible one, and it
+is caught by ADR-0024's channel rather than by the decoder. The trace records the mode, because two
+runs of one model under different enforcement are otherwise indistinguishable.
 
 ## Decision
 
@@ -45,7 +54,12 @@ empty when `arguments` is).
 
 **Three: no count constraints — no `minItems`, anywhere.**
 
-**Four: thinking is disabled** — `reasoning_effort: "none"` on every request.
+**Four: thinking is disabled** — `reasoning_effort: "none"` on every request. **Amended by
+ADR-0026:** on every request *to this generator*. The parameter is Qwen3's mechanism and not a
+blanket rule — on the Messages API thinking is sent explicitly as `{"type": "adaptive"}`, because
+omitting it there is not the same as leaving thinking on and thinking-off on that family can push
+reasoning into the visible text. What does hold under every provider is the rule this decision
+exists for: no model's account of its own reasoning is ever read.
 
 ## Alternatives rejected
 
@@ -104,7 +118,10 @@ re-measured alongside ADR-0018 rather than treated as settled.
 - `services/catena/src/catena/serve/schema.py` — the derivation, with the probe results in the
   module docstring
 - `services/catena/src/catena/serve/generate.py` — `reasoning_effort: "none"`, and `_content`
-  reading `content` alone
+  reading `content` alone. **Annotated by ADR-0026:** that module is now the package
+  `services/catena/src/catena/serve/generate/`; `_content` lives in `generate/openai_chat.py`, and
+  `reasoning_effort: "none"` is set from the `ollama` entry's `params` in `generate/__init__.py`'s
+  provider table rather than hardcoded in the adapter
 - `services/catena/tests/test_serve_schema.py` — `test_no_count_constraint_anywhere` guards the
   reintroduction of `minItems`
 - `specs/001-phase-1-pca-baseline/TECHNICAL-SPEC.md` — the Generation section records the derived
