@@ -32,6 +32,11 @@ CREATE TABLE trace.generation_failures (
 
 CREATE INDEX generation_failures_code_idx ON trace.generation_failures (code);
 
+-- Re-asserted for the same reason every other grant in this schema is.
+GRANT SELECT, INSERT, UPDATE, DELETE ON trace.generation_failures TO gateway;
+
+-- catena is granted nothing here and is never granted USAGE on this schema.
+
 -- A turn that produced no answer object has no answer and no confidence, and
 -- both absences have to be recordable as absences.
 --
