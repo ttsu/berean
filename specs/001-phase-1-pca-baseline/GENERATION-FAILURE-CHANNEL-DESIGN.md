@@ -177,7 +177,8 @@ in `generate.py` so the argument is not had again.
 | `proto/berean/v1/catena.proto` | The `oneof`, `GenerationFailure`, `GenerationFailureCode` |
 | `proto/berean/v1/verification.proto` | `OVERALL_RESULT_GENERATION_FAILED` |
 | `proto/README.md` | The new fields, and which are used from Phase 1 |
-| `db/migrations/000006_generation_failures.*.sql` | The enum value, the table, the nullable columns and their CHECKs |
+| `db/migrations/000006_generation_failed_outcome.*.sql` | The enum value, alone — Postgres forbids using a new enum value in the transaction that added it |
+| `db/migrations/000007_generation_failures.*.sql` | The table, the nullable columns and their CHECKs |
 | `specs/SHARED-TECHNICAL-SPEC.md` | §3 and §7: the fourth outcome, and that a turn producing no answer still records |
 | `specs/001-phase-1-pca-baseline/INTEGRATION-SPEC.md` | The response contract and the trace tables |
 | `specs/001-phase-1-pca-baseline/ACCEPTANCE.md` | Q4 and Q10 gain a note that the invisibility is fixed — **the recorded results are not rewritten** |
