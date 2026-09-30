@@ -28,7 +28,7 @@ from berean.v1 import trace_pb2 as berean_dot_v1_dot_trace__pb2
 from berean.v1 import verification_pb2 as berean_dot_v1_dot_verification__pb2
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x16\x62\x65rean/v1/catena.proto\x12\tberean.v1\x1a\x16\x62\x65rean/v1/answer.proto\x1a\x16\x62\x65rean/v1/filter.proto\x1a\x15\x62\x65rean/v1/trace.proto\x1a\x1c\x62\x65rean/v1/verification.proto\"\xb7\x03\n\rAnswerRequest\x12\x14\n\x05query\x18\x01 \x01(\tR\x05query\x12N\n\x14\x63onversation_context\x18\x02 \x03(\x0b\x32\x1b.berean.v1.ConversationTurnR\x13\x63onversationContext\x12\x36\n\x0b\x66ilter_spec\x18\x03 \x01(\x0b\x32\x15.berean.v1.FilterSpecR\nfilterSpec\x12@\n\x0e\x63ontested_loci\x18\x04 \x03(\x0b\x32\x19.berean.v1.ContestedLocusR\rcontestedLoci\x12\x1d\n\nrequest_id\x18\x05 \x01(\tR\trequestId\x12J\n\x11previous_failures\x18\x06 \x03(\x0b\x32\x1d.berean.v1.VerificationResultR\x10previousFailures\x12\x41\n\x0f\x61nswer_failures\x18\x08 \x03(\x0b\x32\x18.berean.v1.AnswerFailureR\x0e\x61nswerFailures\x12\x18\n\x07\x61ttempt\x18\x07 \x01(\x05R\x07\x61ttempt\"\x12\n\x10\x43onversationTurn\"r\n\x0e\x41nswerResponse\x12/\n\x06\x61nswer\x18\x01 \x01(\x0b\x32\x17.berean.v1.AnswerObjectR\x06\x61nswer\x12/\n\x05trace\x18\x02 \x01(\x0b\x32\x19.berean.v1.RetrievalTraceR\x05trace2N\n\rCatenaService\x12=\n\x06\x41nswer\x12\x18.berean.v1.AnswerRequest\x1a\x19.berean.v1.AnswerResponseB/Z-github.com/ttsu/berean/gen/berean/v1;bereanv1b\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x16\x62\x65rean/v1/catena.proto\x12\tberean.v1\x1a\x16\x62\x65rean/v1/answer.proto\x1a\x16\x62\x65rean/v1/filter.proto\x1a\x15\x62\x65rean/v1/trace.proto\x1a\x1c\x62\x65rean/v1/verification.proto\"\xb7\x03\n\rAnswerRequest\x12\x14\n\x05query\x18\x01 \x01(\tR\x05query\x12N\n\x14\x63onversation_context\x18\x02 \x03(\x0b\x32\x1b.berean.v1.ConversationTurnR\x13\x63onversationContext\x12\x36\n\x0b\x66ilter_spec\x18\x03 \x01(\x0b\x32\x15.berean.v1.FilterSpecR\nfilterSpec\x12@\n\x0e\x63ontested_loci\x18\x04 \x03(\x0b\x32\x19.berean.v1.ContestedLocusR\rcontestedLoci\x12\x1d\n\nrequest_id\x18\x05 \x01(\tR\trequestId\x12J\n\x11previous_failures\x18\x06 \x03(\x0b\x32\x1d.berean.v1.VerificationResultR\x10previousFailures\x12\x41\n\x0f\x61nswer_failures\x18\x08 \x03(\x0b\x32\x18.berean.v1.AnswerFailureR\x0e\x61nswerFailures\x12\x18\n\x07\x61ttempt\x18\x07 \x01(\x05R\x07\x61ttempt\"\x12\n\x10\x43onversationTurn\"\xce\x01\n\x0e\x41nswerResponse\x12\x31\n\x06\x61nswer\x18\x01 \x01(\x0b\x32\x17.berean.v1.AnswerObjectH\x00R\x06\x61nswer\x12M\n\x12generation_failure\x18\x03 \x01(\x0b\x32\x1c.berean.v1.GenerationFailureH\x00R\x11generationFailure\x12/\n\x05trace\x18\x02 \x01(\x0b\x32\x19.berean.v1.RetrievalTraceR\x05traceB\t\n\x07outcome\"\x8e\x01\n\x11GenerationFailure\x12\x34\n\x04\x63ode\x18\x01 \x01(\x0e\x32 .berean.v1.GenerationFailureCodeR\x04\x63ode\x12\x16\n\x06\x64\x65tail\x18\x02 \x01(\tR\x06\x64\x65tail\x12+\n\x11\x63ompletion_tokens\x18\x03 \x01(\x05R\x10\x63ompletionTokens*\xb8\x02\n\x15GenerationFailureCode\x12\'\n#GENERATION_FAILURE_CODE_UNSPECIFIED\x10\x00\x12%\n!GENERATION_FAILURE_CODE_TRUNCATED\x10\x01\x12-\n)GENERATION_FAILURE_CODE_CONTEXT_EXHAUSTED\x10\x02\x12$\n GENERATION_FAILURE_CODE_NOT_JSON\x10\x03\x12)\n%GENERATION_FAILURE_CODE_NOT_AN_OBJECT\x10\x04\x12!\n\x1dGENERATION_FAILURE_CODE_EMPTY\x10\x05\x12,\n(GENERATION_FAILURE_CODE_PROVIDER_REFUSED\x10\x06\x32N\n\rCatenaService\x12=\n\x06\x41nswer\x12\x18.berean.v1.AnswerRequest\x1a\x19.berean.v1.AnswerResponseB/Z-github.com/ttsu/berean/gen/berean/v1;bereanv1b\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -36,12 +36,16 @@ _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'berean.v1.catena_pb2', _glo
 if not _descriptor._USE_C_DESCRIPTORS:
   _globals['DESCRIPTOR']._loaded_options = None
   _globals['DESCRIPTOR']._serialized_options = b'Z-github.com/ttsu/berean/gen/berean/v1;bereanv1'
+  _globals['_GENERATIONFAILURECODE']._serialized_start=955
+  _globals['_GENERATIONFAILURECODE']._serialized_end=1267
   _globals['_ANSWERREQUEST']._serialized_start=139
   _globals['_ANSWERREQUEST']._serialized_end=578
   _globals['_CONVERSATIONTURN']._serialized_start=580
   _globals['_CONVERSATIONTURN']._serialized_end=598
-  _globals['_ANSWERRESPONSE']._serialized_start=600
-  _globals['_ANSWERRESPONSE']._serialized_end=714
-  _globals['_CATENASERVICE']._serialized_start=716
-  _globals['_CATENASERVICE']._serialized_end=794
+  _globals['_ANSWERRESPONSE']._serialized_start=601
+  _globals['_ANSWERRESPONSE']._serialized_end=807
+  _globals['_GENERATIONFAILURE']._serialized_start=810
+  _globals['_GENERATIONFAILURE']._serialized_end=952
+  _globals['_CATENASERVICE']._serialized_start=1269
+  _globals['_CATENASERVICE']._serialized_end=1347
 # @@protoc_insertion_point(module_scope)

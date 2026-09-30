@@ -67,6 +67,11 @@ type Attempt struct {
 	Results  []*bereanv1.VerificationResult
 	Failures []*bereanv1.AnswerFailure
 
+	// Why this attempt produced no answer object, or nil when it produced one.
+	// Never set alongside Answer: the contract's oneof makes both impossible
+	// and this mirrors it.
+	Failure *bereanv1.GenerationFailure
+
 	// How long verification took on this attempt.
 	//
 	// Measured here rather than inside the engine because it is the trust
@@ -143,6 +148,19 @@ func (r *Runner) Ask(ctx context.Context, question Question) (Turn, error) {
 			return Turn{}, fmt.Errorf("catena attempt %d: %w", number, err)
 		}
 
+		if failure := response.GetGenerationFailure(); failure != nil {
+			// Not verified: there is no object to check, and calling the
+			// verifier with nil would produce failures about an answer that
+			// does not exist. The attempt is still recorded — the trace is the
+			// evidence this channel exists to keep (ADR-0025).
+			result.Attempts = append(result.Attempts, Attempt{
+				Number:  number,
+				Trace:   response.GetTrace(),
+				Failure: failure,
+			})
+			continue
+		}
+
 		answer := response.GetAnswer()
 		started := time.Now()
 		outcome, err := r.verifier.Verify(ctx, answer, question.Spec, question.Loci)
@@ -179,6 +197,15 @@ func (r *Runner) Ask(ctx context.Context, question Question) (Turn, error) {
 
 		previousResults = failedResults(outcome.Results)
 		previousFailures = outcome.Failures
+	}
+
+	// The outcome describes how the last attempt ended. A final attempt that
+	// produced no object is GENERATION_FAILED — there was nothing to refuse to
+	// ship — and `Answer` stays nil, because an empty AnswerObject is the
+	// honest-silence shape and means the opposite thing (ADR-0020).
+	if last := result.Attempts[len(result.Attempts)-1]; last.Failure != nil {
+		result.Overall = bereanv1.OverallResult_OVERALL_RESULT_GENERATION_FAILED
+		return result, nil
 	}
 
 	// Degraded. Nothing from either attempt survives into what renders: not a

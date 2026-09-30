@@ -44,7 +44,7 @@ Use [0000-template.md](0000-template.md).
 | [0007](0007-apache-2-0.md) | Apache-2.0, and what it forbids depending on | Accepted |
 | [0008](0008-original-languages-as-a-tool.md) | Hebrew/Greek as a deterministic tool | Accepted (amended by 0012) |
 | [0009](0009-langfuse-over-langsmith.md) | Langfuse (self-hosted) for tracing and evals | Accepted (container count annotated) |
-| [0010](0010-regeneration-retry-exception.md) | A verification failure permits one regeneration call | Accepted |
+| [0010](0010-regeneration-retry-exception.md) | A verification failure permits one regeneration call | Accepted (amended by 0025 — a generation failure also consumes the regeneration) |
 | [0011](0011-scripture-tier-is-profile-configurable.md) | Scripture's tier is profile-configurable, defaulting to binding | Accepted (check 3 restated by 0016) |
 | [0012](0012-drop-tyndale-house-gnt.md) | Drop Tyndale House GNT; SBLGNT and OSHB are the base texts | Accepted |
 | [0013](0013-go-cli-in-phase-1.md) | Phase 1 includes a minimal Go CLI, not a Python-only one | Accepted |
@@ -58,4 +58,5 @@ Use [0000-template.md](0000-template.md).
 | [0021](0021-the-edition-diagnostic-is-verified-not-quoted.md) | The edition diagnostic is verified, not quoted | Accepted |
 | [0022](0022-generated-code-is-committed.md) | The generated protobuf is committed, not gitignored | Accepted (resolves 0013's deferral) |
 | [0023](0023-the-decoding-constraint-is-derived-and-permissive.md) | The decoding constraint is derived, permissive, and unthinking | Accepted |
-| [0024](0024-answer-level-failures-are-their-own-channel.md) | Answer-level failures are their own channel | Accepted (amends 0010's retry payload) |
+| [0024](0024-answer-level-failures-are-their-own-channel.md) | Answer-level failures are their own channel | Accepted (amends 0010's retry payload; extended by 0025) |
+| [0025](0025-generation-failures-are-their-own-channel.md) | Generation failures are their own channel | Accepted (extends 0024; annotates 0010) |

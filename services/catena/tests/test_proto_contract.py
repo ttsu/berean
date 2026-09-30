@@ -290,7 +290,7 @@ class ClosedEnums(unittest.TestCase):
     """A closed domain is the whole point of each of these.
 
     A tier that is not one of the five, or an outcome that is not one of the
-    three, is a value nothing downstream knows how to render or count.
+    four, is a value nothing downstream knows how to render or count.
     """
 
     def test_tiers(self) -> None:
@@ -314,6 +314,7 @@ class ClosedEnums(unittest.TestCase):
                 "OVERALL_RESULT_VERIFIED",
                 "OVERALL_RESULT_REGENERATED",
                 "OVERALL_RESULT_DEGRADED",
+                "OVERALL_RESULT_GENERATION_FAILED",
             },
         )
 

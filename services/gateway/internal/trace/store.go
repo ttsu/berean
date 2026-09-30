@@ -33,6 +33,7 @@ import (
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 
+	bereanv1 "github.com/ttsu/berean/gen/berean/v1"
 	"github.com/ttsu/berean/services/gateway/internal/turn"
 )
 
@@ -135,9 +136,15 @@ func (s *Store) Write(ctx context.Context, t turn.Turn) error {
 		return err
 	}
 
-	answer, err := answerJSON.Marshal(t.Answer)
-	if err != nil {
-		return fmt.Errorf("trace %s: marshalling the answer object: %w", t.RequestID, err)
+	// A generation failure carries no answer object at all, and marshalling
+	// nil is not the NULL this outcome needs — writeResponse decides that.
+	var answer []byte
+	if t.Overall != bereanv1.OverallResult_OVERALL_RESULT_GENERATION_FAILED {
+		marshalled, err := answerJSON.Marshal(t.Answer)
+		if err != nil {
+			return fmt.Errorf("trace %s: marshalling the answer object: %w", t.RequestID, err)
+		}
+		answer = marshalled
 	}
 
 	tx, err := s.db.BeginTx(ctx, nil)
@@ -155,6 +162,9 @@ func (s *Store) Write(ctx context.Context, t turn.Turn) error {
 		if err := writeAttempt(ctx, tx, t.RequestID, attempt); err != nil {
 			return err
 		}
+		if err := writeGenerationFailure(ctx, tx, t.RequestID, attempt); err != nil {
+			return err
+		}
 	}
 
 	if err := tx.Commit(); err != nil {
@@ -168,9 +178,24 @@ func writeResponse(ctx context.Context, tx *sql.Tx, t turn.Turn, answer []byte, 
 	if err != nil {
 		return fmt.Errorf("trace %s: overall_result: %w", t.RequestID, err)
 	}
-	level, err := enumValue("CONFIDENCE_LEVEL_", t.Answer.GetConfidence().GetLevel().String())
-	if err != nil {
-		return fmt.Errorf("trace %s: confidence.level: %w", t.RequestID, err)
+
+	// A failed generation has no answer and no confidence, and both absences are
+	// recorded as absences. The schema's CHECKs leave the incoherent combinations
+	// unwritable; this is the code that respects them.
+	var (
+		answerArg any = string(answer)
+		levelArg  any
+		reasonArg any
+	)
+	if t.Overall == bereanv1.OverallResult_OVERALL_RESULT_GENERATION_FAILED {
+		answerArg = nil
+	} else {
+		level, err := enumValue("CONFIDENCE_LEVEL_", t.Answer.GetConfidence().GetLevel().String())
+		if err != nil {
+			return fmt.Errorf("trace %s: confidence.level: %w", t.RequestID, err)
+		}
+		levelArg = level
+		reasonArg = t.Answer.GetConfidence().GetReason()
 	}
 
 	_, err = tx.ExecContext(ctx,
@@ -178,8 +203,8 @@ func writeResponse(ctx context.Context, tx *sql.Tx, t turn.Turn, answer []byte, 
 		     (request_id, profile, query, answer, overall_result,
 		      confidence_level, confidence_reason, attempts, gateway_version)
 		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-		t.RequestID, t.Profile, t.Query, string(answer), overall,
-		level, t.Answer.GetConfidence().GetReason(), len(t.Attempts), version)
+		t.RequestID, t.Profile, t.Query, answerArg, overall,
+		levelArg, reasonArg, len(t.Attempts), version)
 	if err != nil {
 		return fmt.Errorf("trace %s: response: %w", t.RequestID, err)
 	}
@@ -267,6 +292,32 @@ func writeAttempt(ctx context.Context, tx *sql.Tx, requestID string, attempt tur
 	return nil
 }
 
+// writeGenerationFailure records why one attempt produced no answer object.
+// The upstream sibling of the answer-failures loop above: that table names
+// the slot a rule broke in, and a generation with no object has no slots
+// (ADR-0024, ADR-0025).
+func writeGenerationFailure(ctx context.Context, tx *sql.Tx, requestID string, attempt turn.Attempt) error {
+	failure := attempt.Failure
+	if failure == nil {
+		return nil
+	}
+	code, err := enumValue("GENERATION_FAILURE_CODE_", failure.GetCode().String())
+	if err != nil {
+		return fmt.Errorf("trace %s attempt %d: generation failure code: %w",
+			requestID, attempt.Number, err)
+	}
+	_, err = tx.ExecContext(ctx,
+		`INSERT INTO trace.generation_failures
+		     (request_id, attempt, code, detail, completion_tokens)
+		 VALUES ($1, $2, $3, $4, $5)`,
+		requestID, attempt.Number, code, failure.GetDetail(), failure.GetCompletionTokens())
+	if err != nil {
+		return fmt.Errorf("trace %s attempt %d: generation failure: %w",
+			requestID, attempt.Number, err)
+	}
+	return nil
+}
+
 // enumValue turns a proto enum constant into the Postgres enum label.
 //
 // Derived rather than mapped by hand. The Postgres types were written as the
@@ -310,10 +361,18 @@ func validate(t turn.Turn) error {
 	if strings.TrimSpace(t.RequestID) == "" {
 		return fmt.Errorf("%w: no request ID", ErrIncomplete)
 	}
-	if t.Answer == nil {
+	failedGeneration := t.Overall == bereanv1.OverallResult_OVERALL_RESULT_GENERATION_FAILED
+	if t.Answer == nil && !failedGeneration {
 		// Including a degraded turn, which carries the derived confidence and
-		// nothing else. A nil answer here means the turn never finished.
+		// nothing else. A nil answer on any other outcome means the turn never
+		// finished.
 		return fmt.Errorf("trace %s: %w: no answer object", t.RequestID, ErrIncomplete)
+	}
+	if t.Answer != nil && failedGeneration {
+		// The schema's CHECK would reject this; failing here names the reason
+		// instead of surfacing a constraint violation.
+		return fmt.Errorf("trace %s: %w: a generation failure carries no answer object",
+			t.RequestID, ErrIncomplete)
 	}
 	if len(t.Attempts) == 0 {
 		return fmt.Errorf("trace %s: %w: no attempts", t.RequestID, ErrIncomplete)

@@ -184,11 +184,12 @@ func deliver(ctx context.Context, store recorderStore, out io.Writer,
 
 // ask runs one turn, and returns the process's exit status.
 //
-// A degraded answer exits 0. Degradation is a *successful* outcome of the
-// verification system rather than an error — the user was told the sources
-// could not carry the answer, which is the product working — and an exit code
-// saying otherwise would invite a caller to read the degradation rate off it.
-// That rate lives in `trace.responses.overall_result`, where it can be counted
+// A degraded answer exits 0, and so does a generation failure. Both are
+// *successful* outcomes of the verification system rather than errors — the
+// user was told the sources could not carry the answer, or that no answer
+// object was produced, which is the product working — and an exit code
+// saying otherwise would invite a caller to read either rate off it. Both
+// rates live in `trace.responses.overall_result`, where they can be counted
 // against the turns that verified.
 func ask(args []string) int {
 	opts, err := parseAsk(args)

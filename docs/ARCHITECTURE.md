@@ -102,7 +102,9 @@ three other uncited surfaces are enumerated in the Phase 1 INTEGRATION-SPEC; Pha
 scoring is what measures them.
 
 On failure: regenerate once, then degrade to "I can't source this adequately" rather than
-shipping unverified.
+shipping unverified. That governs an attempt that produced an answer object which failed
+verification; a final attempt that produced no answer object at all is `GENERATION_FAILED`, a
+fourth outcome and not a degradation (ADR-0025).
 
 This is ordinary software. It is also the most valuable component in the system.
 

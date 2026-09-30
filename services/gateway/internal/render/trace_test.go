@@ -163,6 +163,41 @@ func TestTheTraceLogsAnswerLevelFailures(t *testing.T) {
 	}
 }
 
+// A generation-failed attempt has no checks and no answer-level failures —
+// it produced neither — but the code and the factual detail that explain why
+// it produced nothing must still reach the log, or `--show-work` gives no
+// reason for the one outcome this branch exists to make visible.
+func TestTheTraceLogsAGenerationFailure(t *testing.T) {
+	turned := turn.Turn{
+		RequestID: "00000000-0000-4000-8000-00000000000e",
+		Query:     "when does the assembly meet?",
+		Profile:   "example",
+		Overall:   bereanv1.OverallResult_OVERALL_RESULT_GENERATION_FAILED,
+		Attempts: []turn.Attempt{{
+			Number: 1,
+			Trace: &bereanv1.RetrievalTrace{
+				RewrittenQuery:  "when does the assembly meet?",
+				EmbeddingModel:  "invented-embedder",
+				Dim:             8,
+				GenerationModel: "invented-generator:1b",
+				TopK:            2,
+			},
+			Failure: &bereanv1.GenerationFailure{
+				Code:   bereanv1.GenerationFailureCode_GENERATION_FAILURE_CODE_TRUNCATED,
+				Detail: "finish_reason=length at max_tokens=2048",
+			},
+		}},
+	}
+
+	out := work(t, turned)
+
+	for _, want := range []string{"truncated", "finish_reason=length at max_tokens=2048"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("the trace is missing %q\n---\n%s", want, out)
+		}
+	}
+}
+
 // The trace is provenance, not content. A refused attempt's prose reaching a
 // reader through `--show-work` is the same failure as rendering it directly,
 // with a flag in front of it.

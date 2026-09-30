@@ -67,8 +67,8 @@ func (s *script) Answer(_ context.Context, req *bereanv1.AnswerRequest) (*berean
 		return nil, errors.New("the turn made more calls than the seam permits")
 	}
 	return &bereanv1.AnswerResponse{
-		Answer: s.answers[len(s.requests)-1],
-		Trace:  &bereanv1.RetrievalTrace{RewrittenQuery: req.GetQuery(), TopK: req.GetFilterSpec().GetTopK()},
+		Outcome: &bereanv1.AnswerResponse_Answer{Answer: s.answers[len(s.requests)-1]},
+		Trace:   &bereanv1.RetrievalTrace{RewrittenQuery: req.GetQuery(), TopK: req.GetFilterSpec().GetTopK()},
 	}, nil
 }
 
@@ -391,4 +391,193 @@ func TestAVerifiedAttemptDoesNotMutateWhatPythonSent(t *testing.T) {
 	if got.Attempts[0].Answer.GetConfidence().GetReason() != "as sent" {
 		t.Errorf("the recorded attempt was rewritten: %v", got.Attempts[0].Answer.GetConfidence())
 	}
+}
+
+// A generation failure on both attempts is its own outcome, not a degradation.
+// Degradation means verification refused to ship something it checked; nothing
+// was checked here (ADR-0024, ADR-0025).
+func TestGenerationFailureOnBothAttempts(t *testing.T) {
+	// fake generator returns a GenerationFailure response twice
+	result := mustAsk(t, runnerReturningFailures(2))
+
+	if result.Overall != bereanv1.OverallResult_OVERALL_RESULT_GENERATION_FAILED {
+		t.Fatalf("Overall = %v, want GENERATION_FAILED", result.Overall)
+	}
+	if result.Answer != nil {
+		t.Fatalf("Answer = %v, want nil — an empty AnswerObject is the honest-silence shape", result.Answer)
+	}
+	if len(result.Attempts) != 2 {
+		t.Fatalf("Attempts = %d, want 2 — a generation failure consumes the one regeneration", len(result.Attempts))
+	}
+	for i, a := range result.Attempts {
+		if a.Failure == nil {
+			t.Errorf("attempt %d: Failure = nil, want the recorded failure", i+1)
+		}
+		if a.Trace == nil {
+			t.Errorf("attempt %d: Trace = nil — the trace is the point", i+1)
+		}
+	}
+}
+
+// The regeneration still works: a failed first attempt then a verified second
+// is REGENERATED, exactly as a failed verification then a verified second is.
+func TestGenerationFailureThenVerified(t *testing.T) {
+	// The delegate is the real engine, not a trivial pass: without it, an
+	// implementation that verifies attempt 1's nil answer would still exit
+	// the loop after one call (a nil answer trivially "passing" some stub),
+	// which is indistinguishable from attempt 1 being skipped. Wired to the
+	// real engine, that nil answer fails verification for real, so the buggy
+	// path runs the loop a second time and the call count below catches it.
+	spy := &countingVerifier{delegate: verify.New(corpora(), false)}
+	result := mustAskWith(t, runnerFailingThenVerifying(), spy)
+
+	if result.Overall != bereanv1.OverallResult_OVERALL_RESULT_REGENERATED {
+		t.Fatalf("Overall = %v, want REGENERATED", result.Overall)
+	}
+	if result.Answer == nil {
+		t.Fatal("Answer = nil, want the verified answer")
+	}
+	// The name's claim: only attempt 2 was ever checked. An implementation
+	// that verifies attempt 1's failure response too would call Verify twice
+	// (once failing on the nil answer, once passing on the regeneration) and
+	// still land on REGENERATED with a non-nil Answer — the two assertions
+	// above alone cannot tell that apart from a correctly skipped attempt 1.
+	if spy.calls != 1 {
+		t.Fatalf("verifier called %d times, want 1 — only the second attempt should be verified", spy.calls)
+	}
+}
+
+// The outcome describes the final attempt. A first attempt that failed
+// verification and a second that produced no object at all ends as
+// GENERATION_FAILED: there was nothing to refuse to ship.
+func TestFailedVerificationThenGenerationFailure(t *testing.T) {
+	result := mustAsk(t, runnerUnverifiedThenFailing())
+
+	if result.Overall != bereanv1.OverallResult_OVERALL_RESULT_GENERATION_FAILED {
+		t.Fatalf("Overall = %v, want GENERATION_FAILED", result.Overall)
+	}
+}
+
+// A generation failure is never verified. Calling the verifier with a nil
+// answer would produce failures about an object that does not exist.
+func TestAGenerationFailureIsNotVerified(t *testing.T) {
+	spy := &countingVerifier{}
+	_ = mustAskWith(t, runnerReturningFailures(2), spy)
+
+	if spy.calls != 0 {
+		t.Fatalf("verifier called %d times, want 0", spy.calls)
+	}
+}
+
+// failureScript is a generator whose canned responses can be a generation
+// failure as well as an answer, following the same one-call-per-attempt
+// contract as script.
+type failureScript struct {
+	responses []*bereanv1.AnswerResponse
+	requests  []*bereanv1.AnswerRequest
+}
+
+func (s *failureScript) Answer(_ context.Context, req *bereanv1.AnswerRequest) (*bereanv1.AnswerResponse, error) {
+	s.requests = append(s.requests, req)
+	if len(s.requests) > len(s.responses) {
+		return nil, errors.New("the turn made more calls than the seam permits")
+	}
+	response := s.responses[len(s.requests)-1]
+	response.Trace = &bereanv1.RetrievalTrace{RewrittenQuery: req.GetQuery(), TopK: req.GetFilterSpec().GetTopK()}
+	return response, nil
+}
+
+// failureResponse is a generation failure carrying no answer object. All text
+// is invented (ADR-0014).
+func failureResponse() *bereanv1.AnswerResponse {
+	return &bereanv1.AnswerResponse{
+		Outcome: &bereanv1.AnswerResponse_GenerationFailure{
+			GenerationFailure: &bereanv1.GenerationFailure{
+				Code:             bereanv1.GenerationFailureCode_GENERATION_FAILURE_CODE_TRUNCATED,
+				Detail:           "finish_reason=length at max_tokens=2048",
+				CompletionTokens: 2048,
+			},
+		},
+	}
+}
+
+// answeredResponse wraps an answer object the way Catena's oneof does.
+func answeredResponse(answer *bereanv1.AnswerObject) *bereanv1.AnswerResponse {
+	return &bereanv1.AnswerResponse{
+		Outcome: &bereanv1.AnswerResponse_Answer{Answer: answer},
+	}
+}
+
+// runnerReturningFailures is a generator that returns a generation failure on
+// every one of n attempts.
+func runnerReturningFailures(n int) turn.Generator {
+	responses := make([]*bereanv1.AnswerResponse, n)
+	for i := range responses {
+		responses[i] = failureResponse()
+	}
+	return &failureScript{responses: responses}
+}
+
+// runnerFailingThenVerifying is a generator whose first attempt produces no
+// object and whose second verifies.
+func runnerFailingThenVerifying() turn.Generator {
+	return &failureScript{responses: []*bereanv1.AnswerResponse{
+		failureResponse(),
+		answeredResponse(good()),
+	}}
+}
+
+// runnerUnverifiedThenFailing is a generator whose first attempt fails
+// verification and whose second produces no object at all.
+func runnerUnverifiedThenFailing() turn.Generator {
+	return &failureScript{responses: []*bereanv1.AnswerResponse{
+		answeredResponse(fabricated()),
+		failureResponse(),
+	}}
+}
+
+// countingVerifier spies on how many times Verify is called, to prove a
+// generation failure is never checked. A zero-value countingVerifier answers
+// every call as passed, which is all TestAGenerationFailureIsNotVerified
+// needs since it asserts zero calls. Give it a delegate to also preserve real
+// pass/fail behaviour — TestGenerationFailureThenVerified needs the real
+// engine's judgement that a nil answer fails, or it cannot tell a skipped
+// verification from one that ran and happened to pass.
+type countingVerifier struct {
+	calls    int
+	delegate turn.Verifier
+}
+
+func (c *countingVerifier) Verify(ctx context.Context, answer *bereanv1.AnswerObject,
+	spec *bereanv1.FilterSpec, loci []*bereanv1.ContestedLocus) (verify.Outcome, error) {
+	c.calls++
+	if c.delegate != nil {
+		return c.delegate.Verify(ctx, answer, spec, loci)
+	}
+	return verify.Outcome{}, nil
+}
+
+// mustAsk runs a turn against the default verifier and fails the test on
+// error, the way ask does for the pre-existing tests above.
+func mustAsk(t *testing.T, gen turn.Generator) turn.Turn {
+	t.Helper()
+	return mustAskWith(t, gen, verify.New(corpora(), false))
+}
+
+// mustAskWith runs a turn against a caller-supplied verifier — the
+// countingVerifier spy needs this to stand in for the real engine.
+func mustAskWith(t *testing.T, gen turn.Generator, verifier turn.Verifier) turn.Turn {
+	t.Helper()
+	runner := turn.NewRunner(gen, verifier)
+	got, err := runner.Ask(context.Background(), turn.Question{
+		RequestID: "6f1a0b6e-9f3a-4a2e-9a8b-2d1f0c3b4a55",
+		Query:     "When must the roll be read?",
+		Profile:   "pca",
+		Spec:      spec(),
+		Loci:      loci(),
+	})
+	if err != nil {
+		t.Fatalf("Ask: %v", err)
+	}
+	return got
 }

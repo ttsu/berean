@@ -179,6 +179,17 @@ Taken with the missing trace row, the consequence is that the failure Task 7 cal
 measurement arriving early" is the one measurement Phase 2 cannot see, because the harness reads
 the trace tables and there is no row.
 
+> **Note, added later: the invisibility is fixed; the results above are not.** ADR-0025 gave a
+> generation that produces no answer object a channel of its own — a `GenerationFailure` beside the
+> answer, a `generation_failed` outcome, and a row in `trace.responses` and
+> `trace.generation_failures` where this run produced nothing. A re-run of Q4 and Q10 on the current
+> build would therefore record a row, a `generation_failed` outcome at two attempts, and the
+> truncation code per attempt, and the harness would be able to count what a human had to watch for
+> here. **Nothing in the tables above is restated against that build.** They record what one build
+> did on one day, at the ceiling and timeout recorded above, and editing results to match later code
+> would destroy the only evidence this phase produced. The generator behaviour itself is unchanged:
+> the ceiling measurements still hold, and what changed is what happens at the ceiling.
+
 ### Retrieval share is inverted relative to index share
 
 Included candidates, attempt 1, across the eight turns that produced a trace (128 candidates):

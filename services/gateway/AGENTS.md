@@ -59,6 +59,22 @@ logic here, stop — it belongs in Catena.
 - **Degradation always follows exactly two generation attempts.** An unreachable Catena or an
   unreachable database is an *error*, not a degraded answer: `DEGRADED` means verification refused
   to ship, and laundering an outage into it makes the degradation rate unreadable.
+- **A generation that produced no answer object is a fourth outcome, not a degradation.**
+  `GENERATION_FAILED` is decided by the turn's **final** attempt: whenever the last attempt came
+  back with a `GenerationFailure` instead of an answer, the outcome is `GENERATION_FAILED` even if
+  an earlier attempt was verified and failed verification. It consumes the one regeneration like any
+  other failure, so it always follows two attempts, and it renders a fixed string of its own that
+  claims nothing about the sources — never the refusal, which reports a citation that was checked
+  and did not hold (ADR-0025).
+- **Never verify an attempt that produced no object.** The verifier handed nothing produces findings
+  about an answer that does not exist, and a derived confidence over no verification is a number
+  nobody measured. Record the attempt — its retrieval trace is the evidence this channel exists to
+  keep — and go to the next one.
+- **Persist the failed turn, with the absences recorded as absences.** `responses.answer`,
+  `.confidence_level` and `.confidence_reason` are NULL exactly when the outcome is
+  `generation-failed`, and `trace.generation_failures` carries the code and the factual detail per
+  attempt. Never substitute an empty answer object: every slot empty is the honest-silence shape and
+  means the opposite thing (ADR-0020).
 - An honest non-answer is `VERIFIED`, not `DEGRADED`, and renders differently. UC-2 and UC-5 mean
   opposite things and must not share a metric.
 - Write scope: session and trace tables only. The `gateway` DB role is read-only on corpus tables
@@ -76,8 +92,8 @@ logic here, stop — it belongs in Catena.
   answer object that turn nominated. It reads no attempt, so a refused attempt's prose is
   unreachable from it — including through `--show-work`, which is provenance and prints no answer
   prose at all. It never summarises, hedges, softens, or explains: `Confidence.reason` stays the
-  only Go-authored string a reader sees, and the refusal and the silence are constants rather than
-  sentences composed per turn.
+  only Go-authored string a reader sees, and the refusal, the silence and the no-answer string are
+  constants rather than sentences composed per turn.
 - **The refusal and the honest non-answer must not read alike.** "I can't source this adequately"
   and "The sources in scope are silent on this question" share no words on purpose. UC-2 and UC-5
   mean opposite things; a reader must be able to tell them apart without opening a trace.

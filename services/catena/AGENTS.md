@@ -52,6 +52,17 @@ Auth, sessions, profile resolution, verification, trace persistence, translation
 - **Never emit anything describing your own reasoning process.** `warrant` is the theological link
   from citation to claim, not introspection. If a proposed field would describe how the model
   arrived at something, it does not belong in the contract.
+- **A completion that is not an answer object is reported, not raised.** Truncated, not JSON, not an
+  object, no content at all — return a `GenerationFailure` carrying its code, and let Go decide the
+  outcome. Raising kills the turn inside this service and discards the `RetrievalTrace` the attempt
+  had already built, which is how two of ten acceptance questions ended with no row in the trace at
+  all (ADR-0025). A **transport** failure still raises: the provider being unreachable teaches
+  nothing about the generator, and there is no attempt worth recording.
+- `GenerationFailure.detail` is **factual** — a finish reason and a ceiling, the decoder's own
+  message, "no choices" — and never the model's account of why it failed. For a provider that
+  declines on policy grounds, record the category and never the explanation. It is the field in this
+  channel through which introspection would reach the trace, so treat a proposed sibling to it the
+  same way.
 - Write scope: corpus tables only. No access to trace tables.
 - Ingestion is a batch job. Never in the request path.
 

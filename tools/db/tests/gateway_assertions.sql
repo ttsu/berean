@@ -253,6 +253,91 @@ BEGIN
     END;
 END $$;
 
+-- What migration 000007 makes recordable: a turn whose generator produced no
+-- answer object, held apart from every other outcome by CHECK constraints
+-- rather than by care taken in Go.
+DO $$
+BEGIN
+    -- Rejected: an answer alongside generation_failed
+    BEGIN
+        INSERT INTO trace.responses (request_id, profile, query, answer, overall_result,
+            confidence_level, confidence_reason, attempts, gateway_version)
+        VALUES (gen_random_uuid(), 'pca', 'q', '{}'::jsonb, 'generation-failed',
+            NULL, NULL, 2, 'test');
+        RAISE EXCEPTION 'an answer was recorded alongside generation_failed';
+    EXCEPTION WHEN check_violation THEN NULL;
+    END;
+
+    -- Rejected: generation_failed at one attempt
+    BEGIN
+        INSERT INTO trace.responses (request_id, profile, query, answer, overall_result,
+            confidence_level, confidence_reason, attempts, gateway_version)
+        VALUES (gen_random_uuid(), 'pca', 'q', NULL, 'generation-failed',
+            NULL, NULL, 1, 'test');
+        RAISE EXCEPTION 'a generation_failed turn was recorded as taking one attempt';
+    EXCEPTION WHEN check_violation THEN NULL;
+    END;
+
+    -- Rejected: a confidence on a failed generation
+    BEGIN
+        INSERT INTO trace.responses (request_id, profile, query, answer, overall_result,
+            confidence_level, confidence_reason, attempts, gateway_version)
+        VALUES (gen_random_uuid(), 'pca', 'q', NULL, 'generation-failed',
+            'low', 'because', 2, 'test');
+        RAISE EXCEPTION 'a confidence was recorded on a failed generation';
+    EXCEPTION WHEN check_violation THEN NULL;
+    END;
+
+    -- Rejected: a NULL answer on a degraded turn
+    BEGIN
+        INSERT INTO trace.responses (request_id, profile, query, answer, overall_result,
+            confidence_level, confidence_reason, attempts, gateway_version)
+        VALUES (gen_random_uuid(), 'pca', 'q', NULL, 'degraded',
+            'low', 'because', 2, 'test');
+        RAISE EXCEPTION 'a NULL answer was recorded on a degraded turn';
+    EXCEPTION WHEN check_violation THEN NULL;
+    END;
+END $$;
+
+-- Accepted: the shape this feature writes
+INSERT INTO trace.responses (request_id, profile, query, answer, overall_result,
+    confidence_level, confidence_reason, attempts, gateway_version)
+VALUES (gen_random_uuid(), 'pca', 'q', NULL, 'generation-failed',
+    NULL, NULL, 2, 'test');
+
+-- trace.generation_failures itself: the non-blank detail, the non-negative
+-- completion_tokens, and the FK to the attempt it happened on.
+DO $$
+BEGIN
+    -- Rejected: a blank detail
+    BEGIN
+        INSERT INTO trace.generation_failures (request_id, attempt, code, detail, completion_tokens)
+        VALUES ('00000000-0000-4000-8000-000000000001', 1, 'truncated', '   ', 5);
+        RAISE EXCEPTION 'a blank detail was accepted';
+    EXCEPTION WHEN check_violation THEN NULL;
+    END;
+
+    -- Rejected: a negative completion_tokens
+    BEGIN
+        INSERT INTO trace.generation_failures (request_id, attempt, code, detail, completion_tokens)
+        VALUES ('00000000-0000-4000-8000-000000000001', 1, 'truncated', 'ran out of ceiling', -1);
+        RAISE EXCEPTION 'a negative completion_tokens was accepted';
+    EXCEPTION WHEN check_violation THEN NULL;
+    END;
+
+    -- Rejected: no attempt at that (request_id, attempt) to point to
+    BEGIN
+        INSERT INTO trace.generation_failures (request_id, attempt, code, detail, completion_tokens)
+        VALUES (gen_random_uuid(), 1, 'truncated', 'an attempt nothing traced', 5);
+        RAISE EXCEPTION 'a generation failure with no matching trace was accepted';
+    EXCEPTION WHEN foreign_key_violation THEN NULL;
+    END;
+END $$;
+
+-- Accepted: a well-formed generation failure
+INSERT INTO trace.generation_failures (request_id, attempt, code, detail, completion_tokens)
+VALUES ('00000000-0000-4000-8000-000000000001', 1, 'truncated', 'hit the token ceiling', 512);
+
 -- What migration 000005 makes recordable. Nothing constrains the generator to a
 -- non-empty corpus_id -- Catena's structured-output schema requires the key and
 -- sets no minLength -- so check 1 really does reject citations that name

@@ -1,6 +1,6 @@
 # ADR-0024: Answer-level failures are their own channel
 
-- **Status:** Accepted
+- **Status:** Accepted (extended by ADR-0025 — a generation that produced no answer object has no slot to name)
 - **Date:** 2026-09-10
 - **Phase:** 1 — decided while building the verification engine (PLAN Task 8)
 
@@ -45,6 +45,13 @@ The split is by *what the rule is about*, not by severity: the four checks are p
 everything else is per slot. `Confidence.reason` remains the only Go-authored string a user ever
 reads — an `AnswerFailure` is verification metadata, the same as a `VerificationResult`, and Go
 still composes no prose telling Python how to fix an answer.
+
+**Extended by ADR-0025:** the same split has a third case, one layer upstream. A generation that
+produced no answer object at all breaks no rule and occupies no slot — there is no answer for a slot
+to be part of — so it travels in a sibling channel of its own, `GenerationFailure` beside
+`AnswerFailure`, and persists in `trace.generation_failures`. `slot` stays `NOT NULL` here, and that
+is the point: the guarantee that every answer failure names where it broke is exactly what made
+widening this channel to fit a failure with no slot the wrong fix.
 
 Two consequences of Task 8 are settled here because they follow from the same reasoning.
 

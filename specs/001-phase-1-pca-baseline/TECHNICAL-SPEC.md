@@ -303,12 +303,16 @@ the three other uncited surfaces, are enumerated in INTEGRATION-SPEC and measure
 On failure: regenerate once with the failure reasons fed back — carried as `previous_failures`, a
 list of `VerificationResult`, and `answer_failures`, a list of `AnswerFailure`, alongside `attempt`.
 On second failure, degrade to "I can't source this adequately." Never render with a warning, and
-never ship partial content beside one.
+never ship partial content beside one. That governs an attempt that produced an answer object which
+failed verification; a final attempt that produced no answer object at all is `GENERATION_FAILED`, a
+fourth outcome and not a degradation (ADR-0025).
 
-**Degradation always follows exactly two generation attempts.** No failure class skips the retry. An
-unreachable Catena or an unreachable database is an error rather than a degraded answer: `DEGRADED`
-means verification refused to ship, which is a successful outcome of the verification system, and
-counting an outage as one makes the degradation rate ADR-0010 needs kept clean unreadable.
+**Degradation always follows exactly two generation attempts, and so does a generation failure.** No
+verification-failure class skips the retry, and a generation failure does not either — it consumes
+the same one regeneration ADR-0010 grants. An unreachable Catena or an unreachable database is an
+error rather than a degraded answer: `DEGRADED` means verification refused to ship, which is a
+successful outcome of the verification system, and counting an outage as one makes the degradation
+rate ADR-0010 needs kept clean unreadable.
 
 `confidence.level` and `confidence.reason` are both derived by Go from the verification result;
 Python populates neither. A model-authored confidence is introspection in a structured field, which
