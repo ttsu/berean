@@ -31,10 +31,13 @@ from typing import Any, Sequence
 
 from catena.serve import ServeError
 from catena.serve.generate import (
+    CONSTRAINED,
     MAX_TOKENS,
+    SHAPED,
     TIMEOUT_SECONDS,
     Generation,
     GenerationFailed,
+    Provider,
     Transport,
 )
 
@@ -45,20 +48,71 @@ def _urllib_transport(url: str, body: bytes, headers: dict[str, str], timeout: f
         return response.read()
 
 
-class OllamaGenerator:
-    """The default provider: Ollama, over its OpenAI-compatible endpoint."""
+#: The schema as text, for a provider that will not enforce it. The adapter owns
+#: delivery so `prompt.py` learns nothing about providers, which keeps the
+#: translation at the provider's own edge. The cost is stated rather than
+#: discovered later: providers receive different prompts, so cross-provider
+#: quality comparison is confounded -- which is why the trace records the mode,
+#: putting the confound in the data rather than hiding it there.
+SCHEMA_INSTRUCTION = (
+    "Reply with a single JSON object and nothing else -- no prose before or "
+    "after it, and no code fence. It must validate against this JSON Schema:"
+)
+
+#: `make dev-offline` marks the network internal (SHARED §1), so a hosted
+#: provider cannot resolve. That is the intended result and the message says so,
+#: rather than reading as a broken deployment.
+_LOCAL_HINT = (
+    "The generator runs in the compose stack -- check that the `ollama` service is healthy."
+)
+_HOSTED_HINT = (
+    "`make dev-offline` blocks egress by design (SHARED §1), and a hosted provider "
+    "cannot answer there. The default provider is local and needs no account."
+)
+
+
+def _with_schema_in_system(
+    messages: Sequence[dict[str, str]], schema: dict[str, Any]
+) -> list[dict[str, str]]:
+    """The prompt with the schema appended to its system message, on a copy.
+
+    A copy because the caller still holds its list and `prompt.py` is not party
+    to this; mutating it in place would put provider-specific text into the
+    object `service.py` handed to the observability span.
+    """
+    out = [dict(message) for message in messages]
+    for message in out:
+        if message.get("role") == "system":
+            message["content"] = (
+                f"{message['content']}\n\n{SCHEMA_INSTRUCTION}\n\n{json.dumps(schema, indent=2)}"
+            )
+            return out
+    raise ServeError(
+        "a shaped or unconstrained provider needs a system message to carry the schema, "
+        "and prompt.build sent none"
+    )
+
+
+class OpenAIChatGenerator:
+    """Any provider speaking OpenAI chat-completions, under any delivery mode."""
 
     def __init__(
         self,
-        base_url: str,
+        entry: Provider,
         model: str,
+        base_url: str,
+        api_key: str = "",
         *,
         max_tokens: int = MAX_TOKENS,
         timeout: float = TIMEOUT_SECONDS,
         transport: Transport | None = None,
     ) -> None:
-        self._url = base_url.rstrip("/") + "/v1/chat/completions"
+        self.provider = entry.name
+        self.delivery = entry.delivery
         self.model = model
+        self._params = dict(entry.params)
+        self._url = base_url.rstrip("/") + "/v1/chat/completions"
+        self._key = api_key
         self._max_tokens = max_tokens
         self._timeout = timeout
         self._transport = transport or _urllib_transport
@@ -66,42 +120,68 @@ class OllamaGenerator:
     def generate(
         self, messages: Sequence[dict[str, str]], schema: dict[str, Any]
     ) -> Generation | GenerationFailed:
-        body = json.dumps({
-            "model": self.model,
-            "messages": list(messages),
-            "max_tokens": self._max_tokens,
-            # Deterministic-ish: the Phase 2 baseline is a measurement, and a
-            # default temperature makes it a distribution nobody recorded.
-            "temperature": 0.0,
-            "reasoning_effort": "none",
-            "response_format": {
-                "type": "json_schema",
-                "json_schema": {"name": "answer_object", "strict": True, "schema": schema},
-            },
-        }).encode()
+        body = json.dumps(self._request(messages, schema)).encode()
 
         try:
-            raw = self._transport(
-                self._url, body, {"Content-Type": "application/json"}, self._timeout
-            )
+            raw = self._transport(self._url, body, self._headers(), self._timeout)
         except urllib.error.HTTPError as error:
             detail = error.read().decode("utf-8", "replace")[:400]
             raise ServeError(
-                f"ollama refused the generation request ({error.code}): {detail}"
+                f"{self.provider} refused the generation request ({error.code}): {detail}"
             ) from error
         except Exception as error:  # transport, DNS, timeout
+            hint = _LOCAL_HINT if not self._key else _HOSTED_HINT
             raise ServeError(
-                f"ollama is unreachable at {self._url}: {error}. The generator runs in "
-                "the compose stack — check that the `ollama` service is healthy."
+                f"{self.provider} is unreachable at {self._url}: {error}. {hint}"
             ) from error
 
         return self._parse(raw)
+
+    def _headers(self) -> dict[str, str]:
+        """The key travels in the header, never in the body.
+
+        The body is what the observability span and every debugging aid print.
+        """
+        headers = {"Content-Type": "application/json"}
+        if self._key:
+            headers["Authorization"] = f"Bearer {self._key}"
+        return headers
+
+    def _request(
+        self, messages: Sequence[dict[str, str]], schema: dict[str, Any]
+    ) -> dict[str, Any]:
+        body: dict[str, Any] = {
+            "model": self.model,
+            "messages": list(messages),
+            "max_tokens": self._max_tokens,
+        }
+        body.update(self._params)
+
+        if self.delivery == CONSTRAINED:
+            # ADR-0018 requires AnswerObject validity to be a decoding
+            # constraint rather than a request the prompt makes politely.
+            body["response_format"] = {
+                "type": "json_schema",
+                "json_schema": {"name": "answer_object", "strict": True, "schema": schema},
+            }
+        elif self.delivery == SHAPED:
+            # JSON-ness guaranteed, the schema merely requested. The object
+            # parses, so a wrong slot regenerates through ADR-0024's machinery.
+            body["response_format"] = {"type": "json_object"}
+            body["messages"] = _with_schema_in_system(messages, schema)
+        else:
+            # Nothing enforced. GENERATION_FAILURE_CODE_NOT_JSON is the channel.
+            body["messages"] = _with_schema_in_system(messages, schema)
+
+        return body
 
     def _parse(self, raw: bytes) -> Generation | GenerationFailed:
         try:
             response = json.loads(raw)
         except json.JSONDecodeError as error:
-            raise ServeError(f"ollama returned a body that is not JSON: {error}") from error
+            raise ServeError(
+                f"{self.provider} returned a body that is not JSON: {error}"
+            ) from error
 
         usage = response.get("usage") or {}
         prompt_tokens = int(usage.get("prompt_tokens", 0))
@@ -110,7 +190,8 @@ class OllamaGenerator:
         choices = response.get("choices") or []
         if not choices:
             return GenerationFailed(
-                code="empty", detail="ollama returned no choices", prompt_tokens=prompt_tokens
+                code="empty", detail=f"{self.provider} returned no choices",
+                prompt_tokens=prompt_tokens
             )
         choice = choices[0]
 

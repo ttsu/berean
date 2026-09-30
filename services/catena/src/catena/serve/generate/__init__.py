@@ -42,17 +42,6 @@ MODEL_ENV = "CATENA_GENERATION_MODEL"
 DEFAULT_MODEL = "qwen3:8b-q4_K_M"
 
 
-def default_model() -> str:
-    """The pinned tag, or the deployer's override.
-
-    ADR-0018 documents a smaller fallback for low-RAM machines and is explicit
-    that it is a degradation rather than a second supported configuration. The
-    trace records what actually answered, so a deployment running the fallback
-    is visible in the data rather than only in someone's shell history.
-    """
-    return os.environ.get(MODEL_ENV) or DEFAULT_MODEL
-
-
 #: Generous, and measured rather than guessed. Qwen3-8B q4_K_M on the reference
 #: machine generates at **~3.4 tokens/second** against a full ~5,900-token
 #: prompt -- the KV cache makes each token dearer than the ~9 t/s a bare prompt
@@ -109,6 +98,127 @@ MAX_TOKENS = 2048
 #: encoded body, the headers and a timeout; returns the raw response bytes.
 Transport = Callable[[str, bytes, dict[str, str], float], bytes]
 
+#: The wire formats, one module each.
+OPENAI_CHAT = "openai_chat"
+MESSAGES = "messages"
+
+#: What a provider's request enforces of the answer schema. The schema itself
+#: never varies -- it is derived from the proto descriptor and ADR-0023's rules
+#: hold unaltered. What varies is enforcement, and each mode fails into a
+#: channel that already exists (ADR-0026):
+#:
+#:   constrained    the decoder is held to the schema; semantic violations only,
+#:                  caught by verification and `answer_failures`
+#:   shaped         JSON-ness only, and the schema is requested as text. The
+#:                  object parses, so a wrong slot regenerates through
+#:                  ADR-0024's machinery with no new code
+#:   unconstrained  nothing. The reply may not be JSON, which is what
+#:                  GENERATION_FAILURE_CODE_NOT_JSON catches (ADR-0025)
+CONSTRAINED = "constrained"
+SHAPED = "shaped"
+UNCONSTRAINED = "unconstrained"
+DELIVERY_MODES = (CONSTRAINED, SHAPED, UNCONSTRAINED)
+
+PROVIDER_ENV = "CATENA_GENERATION_PROVIDER"
+DEFAULT_PROVIDER = "ollama"
+
+
+@dataclass(frozen=True)
+class Provider:
+    """One row of the reviewed table. Every field is a claim a test asserts.
+
+    Operator YAML was considered and rejected (ADR-0026): it would move the
+    capability claim from something this project probed to something the
+    operator asserts, and a wrong assertion surfaces as a mysterious
+    degradation rate rather than as a clear fact.
+    """
+
+    name: str
+    #: Which module speaks for it.
+    wire: str
+    #: Absolute and pinned for a hosted provider, empty for a local one. Never
+    #: read from the environment when set: the Anthropic SDK reads
+    #: ANTHROPIC_BASE_URL by itself, so an ambient value would silently
+    #: redirect every retrieved passage to a third party while the
+    #: configuration, the trace and CORPUS-POLICY all still named Anthropic.
+    #: Pinning is what makes the provider named `anthropic` *be* Anthropic.
+    base_url: str
+    #: Where a local provider's URL comes from instead. Empty when pinned.
+    url_env: str
+    #: Empty for a provider that needs no account. The key is read at
+    #: `connect()` and never defaulted -- a stack that starts and cannot answer
+    #: is a configuration error reported at the worst possible moment.
+    key_env: str
+    default_model: str
+    delivery: str
+    #: Whether the delivery mode above was *probed* against the live provider
+    #: or read from its documentation. An unprobed mode is not a reason to
+    #: refuse the provider -- `retrieval.py` leaves its known risk "naive and
+    #: measured, not pre-empted", and the trust boundary means unconstrained
+    #: output is caught rather than shipped. It is recorded so the degradation
+    #: and generation-failure rates can be read knowing which is which.
+    probed: bool
+    #: Provider-specific request parameters, as pairs so a frozen entry is
+    #: genuinely immutable rather than merely annotated as one.
+    params: tuple[tuple[str, Any], ...] = ()
+
+
+#: The four providers this build ships. Adding a fifth is a small change plus an
+#: ADR (ADR-0026); it is deliberately not a file format.
+PROVIDERS: dict[str, Provider] = {
+    DEFAULT_PROVIDER: Provider(
+        name=DEFAULT_PROVIDER,
+        wire=OPENAI_CHAT,
+        base_url="",
+        url_env=URL_ENV,
+        key_env="",
+        default_model=DEFAULT_MODEL,
+        delivery=CONSTRAINED,
+        probed=True,
+        # `temperature` is pinned only here, and that asymmetry is the point:
+        # the Phase 2 baseline is a measurement, and a default temperature makes
+        # it a distribution nobody recorded. The hosted providers get no
+        # sampling parameters at all -- their parameter surfaces were not
+        # probed, a hosted run is not quotable as the baseline anyway, and at
+        # least one current model family rejects sampling parameters outright.
+        # `reasoning_effort: "none"` is Qwen3's, for the reason openai_chat's
+        # docstring gives; it is not a blanket rule.
+        params=(("temperature", 0.0), ("reasoning_effort", "none")),
+    ),
+    "openai": Provider(
+        name="openai",
+        wire=OPENAI_CHAT,
+        base_url="https://api.openai.com",
+        url_env="",
+        key_env="OPENAI_API_KEY",
+        default_model="gpt-6-luna",
+        # Shaped until a probe says otherwise. ADR-0023 measured the
+        # all-required shape producing `position: "no_position"` beside empty
+        # `arguments`, so if strict structured outputs demand every property in
+        # `required`, the contract does not bend to fit the provider. Shipping
+        # `constrained` unprobed would risk a 400 on every request -- a
+        # ServeError at the first question, not a generation failure -- and the
+        # failure channel can only catch what actually reaches the model. A
+        # probe promotes this cell; see PLAN, "Two decisions the design left to
+        # the plan".
+        delivery=SHAPED,
+        probed=False,
+    ),
+    "deepseek": Provider(
+        name="deepseek",
+        wire=OPENAI_CHAT,
+        base_url="https://api.deepseek.com",
+        url_env="",
+        key_env="DEEPSEEK_API_KEY",
+        default_model="deepseek-flash",
+        # Shaped, not unconstrained: `response_format` accepts
+        # `{"type": "json_object"}` -- verified -- which guarantees JSON without
+        # guaranteeing the schema.
+        delivery=SHAPED,
+        probed=True,
+    ),
+}
+
 
 @dataclass(frozen=True)
 class Generation:
@@ -147,10 +257,23 @@ class GenerationFailed:
 
 
 class Generator(Protocol):
-    """What the request path needs of a model, and nothing more."""
+    """What the request path needs of a model, and nothing more.
+
+    This protocol is the interface that makes providers interchangeable. The
+    wire format is not, and the Anthropic Messages API is the case that
+    separates the two claims (ADR-0026).
+    """
 
     #: Written to `RetrievalTrace.generation_model`.
     model: str
+    #: Written to `RetrievalTrace.generation_provider`. Present on the adapter
+    #: rather than on `Generation`, so a failed attempt still names what
+    #: attempted it.
+    provider: str
+    #: One of `DELIVERY_MODES`, written to `RetrievalTrace.schema_delivery`.
+    #: Without it, two runs of one model under different enforcement are
+    #: indistinguishable in the data the Phase 2 harness reads.
+    delivery: str
 
     def generate(
         self, messages: Sequence[dict[str, str]], schema: dict[str, Any]
@@ -159,14 +282,77 @@ class Generator(Protocol):
         ...
 
 
-def connect(url: str | None = None, model: str | None = None):
-    """The generator the server runs with."""
-    from catena.serve.generate import openai_chat
+def _base_url(entry: Provider) -> str:
+    """Where the request goes. Pinned in the table, or a local deployment's URL.
 
-    base = url or os.environ.get(URL_ENV)
+    Nothing here consults the environment for a provider whose `base_url` is
+    set. See `Provider.base_url`.
+    """
+    if entry.base_url:
+        return entry.base_url
+    base = os.environ.get(entry.url_env, "").strip()
     if not base:
         raise ServeError(
-            f"{URL_ENV} is unset. Generation runs against the Ollama the compose "
-            "stack provides -- run the service through `make dev`."
+            f"{entry.url_env} is unset. Provider {entry.name!r} runs against a local "
+            "server the compose stack provides -- run the service through `make dev`."
         )
-    return openai_chat.OllamaGenerator(base, model or default_model())
+    return base
+
+
+def _api_key(entry: Provider) -> str:
+    """The deployer's key, read once at startup.
+
+    Read here rather than per request so a missing key is a configuration error
+    at `connect()` instead of a failure at the first question, which reads to
+    whoever sees it like a broken provider.
+    """
+    if not entry.key_env:
+        return ""
+    key = os.environ.get(entry.key_env, "").strip()
+    if not key:
+        raise ServeError(
+            f"provider {entry.name!r} needs {entry.key_env}, which is unset. A hosted "
+            "provider is deployer-enabled and never default (SHARED §1); see "
+            "docs/CORPUS-POLICY.md for who receives retrieved corpus text under it."
+        )
+    return key
+
+
+def _model(entry: Provider, model: str | None) -> str:
+    """The pinned default, or the deployer's override within this provider.
+
+    `CATENA_GENERATION_MODEL` applies inside the selected provider and must name
+    a model that provider serves. ADR-0018 documents a smaller local fallback
+    for low-RAM machines and is explicit that it is a degradation rather than a
+    second supported configuration. The trace records what actually answered,
+    so a deployment running the fallback is visible in the data rather than only
+    in someone's shell history.
+    """
+    return model or os.environ.get(MODEL_ENV) or entry.default_model
+
+
+def connect(provider: str | None = None, model: str | None = None) -> Generator:
+    """The generator the server runs with.
+
+    One environment variable chooses among the providers in `PROVIDERS`, and a
+    key in the environment is a credential rather than a selection: an ambient
+    `OPENAI_API_KEY` does not move a deployment off the local default.
+    """
+    # Local: the adapters import this module's primitives, so importing them at
+    # module scope is a cycle -- and it keeps a vendor SDK off the import path
+    # of a deployment that never selects it.
+    from catena.serve.generate import openai_chat
+
+    name = (provider or os.environ.get(PROVIDER_ENV) or DEFAULT_PROVIDER).strip()
+    entry = PROVIDERS.get(name)
+    if entry is None:
+        raise ServeError(
+            f"{PROVIDER_ENV}={name!r} names no provider this build ships. "
+            f"The providers are: {', '.join(sorted(PROVIDERS))}."
+        )
+
+    if entry.wire == OPENAI_CHAT:
+        return openai_chat.OpenAIChatGenerator(
+            entry, _model(entry, model), _base_url(entry), api_key=_api_key(entry)
+        )
+    raise ServeError(f"provider {name!r} names wire format {entry.wire!r}, which has no adapter")

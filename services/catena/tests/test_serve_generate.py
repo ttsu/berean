@@ -7,7 +7,9 @@ has to be right before anything is pointed at a real model.
 
 from __future__ import annotations
 
+import dataclasses
 import json
+import os
 import pathlib
 import unittest
 
@@ -50,9 +52,10 @@ def completion(content: str, *, finish: str = "stop", reasoning: str = "") -> di
             "usage": {"prompt_tokens": 11, "completion_tokens": 22, "total_tokens": 33}}
 
 
-def generator(transport: FakeTransport) -> openai_chat.OllamaGenerator:
-    return openai_chat.OllamaGenerator(
-        "http://ollama:11434", generate_module.DEFAULT_MODEL, transport=transport)
+def generator(transport: FakeTransport) -> openai_chat.OpenAIChatGenerator:
+    entry = generate_module.PROVIDERS[generate_module.DEFAULT_PROVIDER]
+    return openai_chat.OpenAIChatGenerator(
+        entry, generate_module.DEFAULT_MODEL, "http://ollama:11434", transport=transport)
 
 
 class TheRequestItMakes(unittest.TestCase):
@@ -185,6 +188,198 @@ class ThePinMatchesProvisioning(unittest.TestCase):
         section = text[text.index("generation:"):text.index("embedding:")]
         pinned = re.search(r"^\s+reference:\s*(\S+)", section, re.M).group(1)
         self.assertEqual(generate_module.DEFAULT_MODEL, pinned)
+
+
+class TheProviderTable(unittest.TestCase):
+    """Every claim in the table is a claim a test makes, not a comment."""
+
+    def test_every_entry_is_complete(self) -> None:
+        for name, entry in generate_module.PROVIDERS.items():
+            with self.subTest(provider=name):
+                self.assertEqual(entry.name, name)
+                self.assertIn(entry.wire, (generate_module.OPENAI_CHAT, generate_module.MESSAGES))
+                self.assertIn(entry.delivery, generate_module.DELIVERY_MODES)
+                self.assertTrue(entry.default_model)
+
+    def test_a_hosted_base_url_is_absolute_and_pinned(self) -> None:
+        """An ambient variable must not be able to choose who receives corpus text."""
+        for name, entry in generate_module.PROVIDERS.items():
+            with self.subTest(provider=name):
+                if entry.key_env:
+                    self.assertTrue(entry.base_url.startswith("https://"))
+                    self.assertEqual(entry.url_env, "")
+                else:
+                    self.assertEqual(entry.base_url, "")
+                    self.assertTrue(entry.url_env)
+
+    def test_key_variables_are_distinct(self) -> None:
+        keys = [e.key_env for e in generate_module.PROVIDERS.values() if e.key_env]
+        self.assertEqual(len(keys), len(set(keys)))
+
+    def test_no_two_providers_share_a_default_model(self) -> None:
+        """A shared default makes `generation_model` alone ambiguous in the trace."""
+        models = [e.default_model for e in generate_module.PROVIDERS.values()]
+        self.assertEqual(len(models), len(set(models)))
+
+    def test_the_default_is_local_and_needs_no_account(self) -> None:
+        """SHARED §1: `docker compose up` gives a working system with no external accounts."""
+        entry = generate_module.PROVIDERS[generate_module.DEFAULT_PROVIDER]
+        self.assertEqual(generate_module.DEFAULT_PROVIDER, "ollama")
+        self.assertEqual(entry.key_env, "")
+        self.assertEqual(entry.default_model, generate_module.DEFAULT_MODEL)
+
+
+class TheHostedDefaultsArePinned(unittest.TestCase):
+    def test_each_hosted_default_is_the_identifier_the_table_names(self) -> None:
+        """Two of the three names would have been wrong if guessed.
+
+        They were read from each provider's live documentation, so a silent edit
+        has to fail here rather than at a 404 in front of a deployer.
+        """
+        self.assertEqual(
+            {n: e.default_model for n, e in generate_module.PROVIDERS.items() if e.key_env},
+            {"openai": "gpt-6-luna", "deepseek": "deepseek-flash"},
+        )
+
+
+class HowTheProviderIsChosen(unittest.TestCase):
+    def setUp(self) -> None:
+        self._saved = {
+            name: os.environ.pop(name, None)
+            for name in (
+                generate_module.PROVIDER_ENV,
+                generate_module.MODEL_ENV,
+                generate_module.URL_ENV,
+                "OPENAI_API_KEY",
+                "DEEPSEEK_API_KEY",
+            )
+        }
+        self.addCleanup(self._restore)
+
+    def _restore(self) -> None:
+        for name, value in self._saved.items():
+            if value is None:
+                os.environ.pop(name, None)
+            else:
+                os.environ[name] = value
+
+    def test_the_default_provider_is_local(self) -> None:
+        os.environ[generate_module.URL_ENV] = "http://ollama:11434"
+        chosen = generate_module.connect()
+        self.assertEqual(chosen.provider, "ollama")
+        self.assertEqual(chosen.model, generate_module.DEFAULT_MODEL)
+
+    def test_an_ambient_key_does_not_select_a_hosted_provider(self) -> None:
+        """A key in the environment is a credential, never a configuration decision."""
+        os.environ[generate_module.URL_ENV] = "http://ollama:11434"
+        os.environ["OPENAI_API_KEY"] = "sk-invented-not-a-real-key"
+        self.assertEqual(generate_module.connect().provider, "ollama")
+
+    def test_an_unknown_provider_names_the_valid_ones(self) -> None:
+        os.environ[generate_module.PROVIDER_ENV] = "togetherai"
+        with self.assertRaises(ServeError) as caught:
+            generate_module.connect()
+        message = str(caught.exception)
+        self.assertIn("togetherai", message)
+        for name in generate_module.PROVIDERS:
+            self.assertIn(name, message)
+
+    def test_a_missing_key_fails_at_connect_not_at_the_first_question(self) -> None:
+        """A stack that starts and cannot answer is a configuration error told late."""
+        os.environ[generate_module.PROVIDER_ENV] = "deepseek"
+        with self.assertRaises(ServeError) as caught:
+            generate_module.connect()
+        self.assertIn("DEEPSEEK_API_KEY", str(caught.exception))
+
+    def test_the_model_override_applies_within_the_chosen_provider(self) -> None:
+        os.environ[generate_module.PROVIDER_ENV] = "deepseek"
+        os.environ["DEEPSEEK_API_KEY"] = "dk-invented-not-a-real-key"
+        os.environ[generate_module.MODEL_ENV] = "deepseek-invented"
+        chosen = generate_module.connect()
+        self.assertEqual(chosen.provider, "deepseek")
+        self.assertEqual(chosen.model, "deepseek-invented")
+
+
+class HowTheSchemaIsDelivered(unittest.TestCase):
+    """Each mode puts the schema where its wire format requires."""
+
+    def _request(self, provider: str) -> dict:
+        entry = generate_module.PROVIDERS[provider]
+        transport = FakeTransport(completion('{"position": "p"}'))
+        openai_chat.OpenAIChatGenerator(
+            entry, entry.default_model, "https://invented.example",
+            # A key only where the table says one is needed, so the local
+            # provider is exercised as it actually runs.
+            api_key="k-invented" if entry.key_env else "",
+            transport=transport,
+        ).generate(MESSAGES, SCHEMA)
+        return transport.body
+
+    def test_constrained_holds_the_decoder_to_the_schema(self) -> None:
+        body = self._request("ollama")
+        self.assertEqual(body["response_format"]["type"], "json_schema")
+        self.assertTrue(body["response_format"]["json_schema"]["strict"])
+        self.assertEqual(body["response_format"]["json_schema"]["schema"], SCHEMA)
+
+    def test_constrained_leaves_the_prompt_alone(self) -> None:
+        """The local default is the slowest component here; it pays no tokens for
+        enforcement it already has."""
+        body = self._request("ollama")
+        self.assertEqual(body["messages"], list(MESSAGES))
+
+    def test_shaped_guarantees_json_without_guaranteeing_the_schema(self) -> None:
+        body = self._request("deepseek")
+        self.assertEqual(body["response_format"], {"type": "json_object"})
+
+    def test_shaped_appends_the_schema_to_the_system_message(self) -> None:
+        body = self._request("deepseek")
+        system = body["messages"][0]
+        self.assertEqual(system["role"], "system")
+        self.assertIn("rules", system["content"])
+        self.assertIn('"position"', system["content"])
+        self.assertEqual(body["messages"][1], dict(MESSAGES[1]))
+
+    def test_unconstrained_enforces_nothing_and_still_asks(self) -> None:
+        entry = generate_module.PROVIDERS["deepseek"]
+        loose = dataclasses.replace(entry, delivery=generate_module.UNCONSTRAINED)
+        transport = FakeTransport(completion('{"position": "p"}'))
+        openai_chat.OpenAIChatGenerator(
+            loose, loose.default_model, "https://invented.example",
+            api_key="k-invented", transport=transport,
+        ).generate(MESSAGES, SCHEMA)
+        self.assertNotIn("response_format", transport.body)
+        self.assertIn('"position"', transport.body["messages"][0]["content"])
+
+    def test_the_adapter_does_not_mutate_the_prompt_it_was_given(self) -> None:
+        """`prompt.py` learns nothing about providers, and this is the provable half:
+        delivery happens at the provider's own edge, on a copy."""
+        messages = [dict(m) for m in MESSAGES]
+        entry = generate_module.PROVIDERS["deepseek"]
+        openai_chat.OpenAIChatGenerator(
+            entry, entry.default_model, "https://invented.example", api_key="k-invented",
+            transport=FakeTransport(completion('{"position": "p"}')),
+        ).generate(messages, SCHEMA)
+        self.assertEqual(messages, [dict(m) for m in MESSAGES])
+
+
+class TheKeyTravelsInTheHeader(unittest.TestCase):
+    def test_a_hosted_request_carries_a_bearer_token_and_the_body_does_not(self) -> None:
+        entry = generate_module.PROVIDERS["deepseek"]
+        transport = FakeTransport(completion('{"position": "p"}'))
+        openai_chat.OpenAIChatGenerator(
+            entry, entry.default_model, "https://invented.example",
+            api_key="dk-invented", transport=transport,
+        ).generate(MESSAGES, SCHEMA)
+        self.assertEqual(transport.headers["Authorization"], "Bearer dk-invented")
+        self.assertNotIn("dk-invented", json.dumps(transport.body))
+
+    def test_the_local_provider_sends_no_authorization_header(self) -> None:
+        entry = generate_module.PROVIDERS["ollama"]
+        transport = FakeTransport(completion('{"position": "p"}'))
+        openai_chat.OpenAIChatGenerator(
+            entry, entry.default_model, "http://ollama:11434", transport=transport,
+        ).generate(MESSAGES, SCHEMA)
+        self.assertNotIn("Authorization", transport.headers)
 
 
 if __name__ == "__main__":
