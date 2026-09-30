@@ -123,6 +123,25 @@ about three seconds, and the trace records each stage separately, so a slow answ
 rather than guessed at. A GPU changes this picture entirely; the acceptance test does not assume
 one.
 
+**A GPU is not the only way out of that, and the alternative is one environment variable.** Four
+generation providers ship; `CATENA_GENERATION_PROVIDER` picks one and `CATENA_GENERATION_MODEL`
+optionally picks a model within it (ADR-0026).
+
+| provider | key | default model | cost, in / out per MTok |
+| --- | --- | --- | --- |
+| `ollama` *(default)* | none | `qwen3:8b-q4_K_M` | — runs locally |
+| `anthropic` | `ANTHROPIC_API_KEY` | `claude-sonnet-5-5` | $2 / $10 |
+| `openai` | `OPENAI_API_KEY` | `gpt-6-luna` | $0.10 / $0.50 |
+| `deepseek` | `DEEPSEEK_API_KEY` | `deepseek-flash` | see the provider's pricing |
+
+Three things are worth knowing before setting one. The default needs **no account and no key**, and
+`make dev-offline` proves the stack answers with egress blocked — that is the acceptance test, and
+it does not move. A hosted provider **receives retrieved corpus text** before the gateway's fourth
+verification check has ruled on whether that text may be served, so read
+[docs/CORPUS-POLICY.md](docs/CORPUS-POLICY.md) — "Who receives corpus text" names the recipient per
+provider. And a hosted run is legitimate and is labelled in the trace, but it is **not** the
+quotable baseline: that is the pinned local default (ADR-0018).
+
 `make provision` acquires seven corpora and embeds roughly 35,000 chunks, dominated by the ~31,100
 verses of the WEB Bible. It is resumable per corpus, so an interrupted run continues rather than
 restarts. Nothing in the request path is affected — ingestion is always a batch job.

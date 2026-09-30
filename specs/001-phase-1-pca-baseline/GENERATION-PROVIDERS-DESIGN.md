@@ -37,7 +37,7 @@ Two modules speak HTTP, one per wire format. Everything else is a reviewed table
 | --- | --- | --- | --- | --- | --- | --- |
 | `ollama` *(default)* | openai_chat | `CATENA_OLLAMA_URL` | — | `qwen3:8b-q4_K_M` | — | **constrained** ✓ verified |
 | `anthropic` | messages | `api.anthropic.com` | `ANTHROPIC_API_KEY` | `claude-sonnet-5-5` | $2 / $10 | **constrained** — probe pending |
-| `openai` | openai_chat | `api.openai.com` | `OPENAI_API_KEY` | `gpt-6-luna` | $0.10 / $0.50 | **probe decides** |
+| `openai` | openai_chat | `api.openai.com` | `OPENAI_API_KEY` | `gpt-6-luna` | $0.10 / $0.50 | **shaped** — probe may promote |
 | `deepseek` | openai_chat | `api.deepseek.com` | `DEEPSEEK_API_KEY` | `deepseek-flash` | — | **shaped** ✓ verified |
 
 Model identifiers were read from each provider's live documentation on 2026-09-30, not recalled.
@@ -134,16 +134,26 @@ ADR-0018's "re-decided at Phase 2 against the golden set" now has four candidate
 Both need a deployer key, both are one cheap call, and both are recorded in ADR-0026 as findings.
 
 1. **Does `output_config.format` accept the derived schema verbatim** — `$defs`, `$ref`,
-   `additionalProperties: false`, string enums? Inherited unanswered from PR #23. If not, the fix is
-   to inline the definitions at that adapter's edge, never to hand-write a second schema and never
-   to relax ADR-0023 to suit a provider.
+   `additionalProperties: false`, string enums? Inherited unanswered from PR #23. **Answered from
+   current documentation during the plan:** `output_config.format` accepts `$ref`/`$defs`, string
+   enums, `anyOf` and `additionalProperties: false` — which it in fact *requires* on every object —
+   and documents as unsupported only recursive schemas, numeric constraints, string constraints and
+   complex array constraints, none of which the derived schema uses. So the adapter sends the
+   derived schema verbatim, `anthropic` ships `constrained` with `probed=False`, and the remaining
+   work is a live call that confirms rather than decides. If the confirmation fails, the fix is
+   still to inline the definitions at that adapter's edge, never to hand-write a second schema and
+   never to relax ADR-0023 to suit a provider.
 2. **Does `gpt-6-luna` support strict structured outputs, and does strict mode require every
    property in `required`?** This decides whether `openai` is *constrained* or *shaped*. The
    requirement was asserted from training-era knowledge during design and could not be confirmed
    against current documentation, so it is an open question rather than a settled constraint. If
    strict mode does demand all-required, `openai` is shaped: ADR-0023 measured the all-required
    shape producing `position: "no_position"` beside empty `arguments`, and the contract does not
-   bend to fit a provider.
+   bend to fit a provider. **The layer ships `shaped` pending the probe**, because a table has to
+   hold a value before the probe runs and the two candidates fail differently: `constrained`
+   unprobed risks a 400 on *every* request — a `ServeError` at the first question rather than a
+   generation failure — and the safety net below only holds for requests that reach the model.
+   `shaped` reaches it under either answer, and a probe promotes the cell.
 
 Neither probe blocks the layer. An unanswered mode is recorded as unverified and the failure
 channel catches what it catches — which is the whole reason that work lands first.
@@ -206,4 +216,4 @@ Adapters keep the injected-transport pattern, so all of this runs with no networ
 
 ## Status
 
-Design approved. Plan to follow, after the failure channel lands.
+Design approved. Failure channel landed. Plan: GENERATION-PROVIDERS-PLAN.md.

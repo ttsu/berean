@@ -11,17 +11,25 @@ MUST / SHOULD / MAY are used in the RFC 2119 sense.
   this, the change is wrong.
 - First run MAY fetch container images and model weights. **Steady-state operation MUST require no
   network egress**: once provisioned, the system runs fully offline, and any code path that reaches
-  the public internet to answer a question is a defect. The ESV adapter is the sole exception and is
-  deployer-enabled, never default.
+  the public internet to answer a question is a defect. The ESV adapter and the hosted generation
+  providers are the only exceptions; both are deployer-enabled, never default, and both send data to
+  a third party only under a deployer's explicit configuration (ADR-0017, ADR-0026).
 - Model weights MUST be fetched by a documented provisioning step, not silently on first query.
 - The system MUST NOT depend on any managed service in its default path. No RDS, no EKS, no SQS,
   no Secrets Manager, no proprietary SaaS observability.
 - Object storage MUST be accessed through an S3-compatible client, with MinIO as the local
   implementation.
 - Deployment MUST be a Helm chart runnable on any Kubernetes, including k3s and kind.
-- The generation provider MUST sit behind an interface using the OpenAI-compatible
-  chat-completions shape as the internal lingua franca, so Ollama, vLLM, llama.cpp, and hosted
-  APIs are interchangeable.
+- The generation provider MUST sit behind a **typed interface** — the `Generator` protocol and the
+  answer object it returns — so Ollama, vLLM, llama.cpp and hosted APIs are interchangeable. The
+  OpenAI-compatible chat-completions shape is the lingua franca of the providers that speak it and
+  is **not** what delivers interchangeability: the Anthropic Messages API is a different wire format
+  behind the same protocol, and a vendor SDK in the request path is permitted where that is what the
+  format costs (ADR-0026).
+- A hosted generation provider MUST NOT be the default, MUST require a deployer-supplied key, and
+  MUST fail loudly under egress-blocked operation rather than degrading quietly. Its base URL MUST
+  be pinned in code, never read from the environment — an ambient variable must not be able to
+  choose who receives retrieved corpus text.
 - The translation provider MUST be a pluggable adapter. Offline mode falls back to WEB or NET.
 
 ## 2. Licensing
@@ -139,6 +147,11 @@ MUST / SHOULD / MAY are used in the RFC 2119 sense.
   verification refused to ship. The harness reads the trace tables, so a failure mode with no row —
   or with a row a query cannot tell apart from a degradation — is a failure mode no baseline can
   contain and no later phase can claim to have improved (ADR-0025).
+- Every trace MUST attribute its run to a generation **provider** and a **schema-delivery mode**, not
+  only to a model. Two runs of one model under different enforcement are otherwise
+  indistinguishable in the tables the harness reads. A hosted-provider run is legitimate and MUST be
+  labelled; it is **not** quotable as the baseline, which is the pinned local default (ADR-0018,
+  ADR-0026).
 - Cross-contamination tests are mandatory: assert no Tridentine source appears at `binding` tier
   under a PCA profile, and equivalents for every tradition pair.
 - Phase 2 (eval harness and golden set) MUST complete before Phase 3 (hybrid retrieval and

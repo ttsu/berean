@@ -71,17 +71,27 @@ Auth, sessions, profile resolution, verification, trace persistence, translation
 - Embedder behind an interface. `embedding_model` and `dim` written on every chunk, and every
   metadata field populated — `text_form` and `license` are closed enums, and `source_language` is
   the work's own language rather than the chunk's.
-- Generation behind an OpenAI-compatible interface so Ollama, vLLM, llama.cpp, and hosted APIs are
-  interchangeable. Default to local so the acceptance test holds with no accounts. The **wire
-  format** is what delivers that, not a vendor SDK — `catena.serve.generate` is a stdlib `urllib`
-  POST, on the same reasoning that keeps `acquire.fetch` on stdlib.
+- Generation behind the **typed `Generator` protocol**, so Ollama, vLLM, llama.cpp and hosted APIs
+  are interchangeable. Default to local so the acceptance test holds with no accounts. The wire
+  format is *not* what delivers that — `generate/openai_chat.py` is a stdlib `urllib` POST and
+  `generate/messages.py` is the Anthropic vendor SDK, behind one protocol (ADR-0026). Base URLs are
+  pinned in the provider table and never read from the environment.
+- **What a provider enforces of the schema varies; the schema does not.** Three modes —
+  `constrained`, `shaped`, `unconstrained` — and each fails into a channel that already exists
+  (ADR-0024, ADR-0025). The adapter puts the schema where its wire and mode require; `prompt.py`
+  learns nothing about providers. The trace records the mode, because that is what tells two
+  enforcement regimes of one model apart.
 - The decoding schema is **derived from the proto descriptor**, never hand-written, and it is where
   `confidence` is subtracted so Go's field is unpopulatable rather than merely unpopulated. What it
   marks `required` is a correctness question with measured answers — read ADR-0023 before changing
   it, and in particular do not add `minItems` to a citation list.
-- **Thinking is off** (`reasoning_effort: "none"`), and the `reasoning` field is never read. It is
-  the model's narrative about its own reasoning, which is the one thing this system must never
-  emit.
+- **The model's narrative about its own reasoning is never read**: `reasoning` on the
+  OpenAI-compatible wire, `thinking` blocks and a refusal's `stop_details.explanation` on the
+  Messages API. None of them has a path into a return value, a trace or a log. *How* thinking is
+  configured is per-provider and not a blanket rule — `reasoning_effort: "none"` is Qwen3's, where a
+  schema-constrained probe spent its whole budget inside `reasoning` and returned nothing, while on
+  `claude-sonnet-5-5` thinking is sent explicitly as `{"type": "adaptive"}` because thinking-off on
+  that family can push reasoning into the visible text.
 - **Do not repair the model's output before returning it.** A contested answer that carries
   arguments anyway, a locus that was never sent, an argument with no citations — these go to Go and
   fail there. Fixing them here would make the checks unfireable and their rates unmeasurable, which
