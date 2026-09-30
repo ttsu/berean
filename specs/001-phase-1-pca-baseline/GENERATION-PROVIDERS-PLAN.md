@@ -1133,7 +1133,8 @@ shape, a vendor SDK, and the same `Generator` protocol.
 - Create: `services/catena/src/catena/serve/generate/messages.py`
 - Modify: `services/catena/src/catena/serve/generate/__init__.py`
 - Modify: `services/catena/pyproject.toml`
-- Modify: `uv.lock` (written by `uv add`, committed)
+- Modify: `services/catena/uv.lock` (written by `uv add`, committed — there is no lockfile at
+  the repo root)
 - Create: `services/catena/tests/test_serve_generate_messages.py`
 
 **Interfaces:**
@@ -1149,7 +1150,7 @@ shape, a vendor SDK, and the same `Generator` protocol.
 
 ```bash
 cd /Users/tim/projects/berean
-uv add --project services/catena 'anthropic<1'
+uv add --project services/catena 'anthropic>=1.5,<2'
 uv run --project services/catena python -c "
 import importlib.metadata as m
 print('version:', m.version('anthropic'))
@@ -1157,8 +1158,13 @@ print('licence:', m.metadata('anthropic').get('License-Expression') or m.metadat
 "
 ```
 
-Record both values — the next step writes them into `pyproject.toml`, and the licence is stated for
-the same reason every other dependency in that file states one.
+Expected: `version: 1.5.0` (or higher within 1.x) and `licence: MIT`.
+
+**The floor is `>=1.5,<2` and this is a correction to an earlier draft that said `<1`.** The venv
+already resolves 1.5.0 transitively, and the 1.x surface is what this adapter targets: `max_retries`
+on the constructor, and `output_config` / adaptive `thinking` on `messages.create`. All four were
+verified against the installed 1.5.0 by introspection, offline. A `<1` floor would force a downgrade
+that conflicts with whatever already pulls 1.5.0.
 
 - [ ] **Step 2: Pin the floor with the reason the SDK is here at all**
 
@@ -1176,13 +1182,18 @@ Replace that line with the following, substituting the version Step 1 printed fo
     # `thinking`, `output_config` and the refusal shape against a moving API,
     # for no gain the protocol does not already give.
     #
-    # <LICENCE>, which permits the commercial downstream use CLAUDE.md tells us
-    # to assume. The floor is the `output_config.format` and adaptive-thinking
-    # surface this adapter sends; the exact version is pinned in uv.lock. It is
-    # imported lazily, so a deployment on the local default never loads it, and
-    # `docker compose up` still needs no account.
-    "anthropic>=<RESOLVED>,<1",
+    # MIT, which permits the commercial downstream use CLAUDE.md tells us to
+    # assume. The floor is the 1.x surface this adapter sends -- `max_retries`
+    # on the constructor, `output_config` and adaptive `thinking` on
+    # `messages.create` -- and the exact version is pinned in
+    # services/catena/uv.lock. It is imported lazily, so a deployment on the
+    # local default never loads it and `docker compose up` still needs no
+    # account.
+    "anthropic>=1.5,<2",
 ```
+
+If Step 1 resolved something above 1.5.0, raise the floor's minor version to match what it
+printed and leave the `<2` bound alone.
 
 - [ ] **Step 3: Write the failing tests**
 
@@ -1817,7 +1828,7 @@ Expected: `provider: ollama | delivery: constrained | model: qwen3:8b-q4_K_M` an
 - [ ] **Step 10: Commit**
 
 ```bash
-git add services/catena/pyproject.toml uv.lock \
+git add services/catena/pyproject.toml services/catena/uv.lock \
         services/catena/src/catena/serve/generate/ \
         services/catena/tests/test_serve_generate.py \
         services/catena/tests/test_serve_generate_messages.py
@@ -2051,7 +2062,10 @@ _DELIVERY_MODES = {
 }
 ```
 
-In `_answer`, immediately before the `trace = trace_pb2.RetrievalTrace(` assignment, add:
+In `_answer`, add the guard **at the top of the method**, immediately after the `attempt` block
+that raises on an invalid attempt number and before `spec = request.filter_spec`. Not immediately
+before the trace is built: a programming error must not cost a 2–4 minute generation before it is
+reported.
 
 ```python
         delivery = _DELIVERY_MODES.get(self._generator.delivery)
@@ -2098,8 +2112,9 @@ body:
         self.schema = None
 ```
 
-Its `generate` body is unchanged, except that the local import moves with the package:
-`from catena.serve.generate import Generation`.
+Its `generate` body is unchanged. The local import it already makes —
+`from catena.serve.generate import Generation` — needs no edit: Task 1 turned that module into a
+package exporting the same name.
 
 - [ ] **Step 6: Run every Python suite**
 
