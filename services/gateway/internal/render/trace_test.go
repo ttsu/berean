@@ -23,12 +23,14 @@ func regenerated() turn.Turn {
 		// nowhere else, which is the point of the assertion below.
 		Answer: &bereanv1.AnswerObject{Position: "The assembly meets on the fourth Tuesday."},
 		Trace: &bereanv1.RetrievalTrace{
-			RewrittenQuery:  "when does the assembly meet?",
-			EmbeddingModel:  "invented-embedder",
-			Dim:             8,
-			GenerationModel: "invented-generator:1b",
-			TopK:            2,
-			Timings:         &bereanv1.Timings{EmbedMs: 40, SearchMs: 9, GenerateMs: 12000},
+			RewrittenQuery:     "when does the assembly meet?",
+			EmbeddingModel:     "invented-embedder",
+			Dim:                8,
+			GenerationModel:    "invented-generator:1b",
+			GenerationProvider: "invented-provider",
+			SchemaDelivery:     bereanv1.SchemaDelivery_SCHEMA_DELIVERY_SHAPED,
+			TopK:               2,
+			Timings:            &bereanv1.Timings{EmbedMs: 40, SearchMs: 9, GenerateMs: 12000},
 			Candidates: []*bereanv1.Candidate{
 				{CorpusId: bindingID, Locator: "A 4.2", Score: 0.8125, Included: true},
 				{CorpusId: contraryID, Locator: "A 4.2", Score: 0.6250,
@@ -54,12 +56,14 @@ func regenerated() turn.Turn {
 		Number: 2,
 		Answer: &bereanv1.AnswerObject{Position: "The assembly meets annually."},
 		Trace: &bereanv1.RetrievalTrace{
-			RewrittenQuery:  "when does the assembly meet?",
-			EmbeddingModel:  "invented-embedder",
-			Dim:             8,
-			GenerationModel: "invented-generator:1b",
-			TopK:            2,
-			Timings:         &bereanv1.Timings{EmbedMs: 38, SearchMs: 8, GenerateMs: 11400},
+			RewrittenQuery:     "when does the assembly meet?",
+			EmbeddingModel:     "invented-embedder",
+			Dim:                8,
+			GenerationModel:    "invented-generator:1b",
+			GenerationProvider: "invented-provider",
+			SchemaDelivery:     bereanv1.SchemaDelivery_SCHEMA_DELIVERY_SHAPED,
+			TopK:               2,
+			Timings:            &bereanv1.Timings{EmbedMs: 38, SearchMs: 8, GenerateMs: 11400},
 			Candidates: []*bereanv1.Candidate{
 				{CorpusId: bindingID, Locator: "A 4.2", Score: 0.8125, Included: true},
 			},
@@ -102,6 +106,11 @@ func TestTheTraceLogsEveryCandidateAndTheSettingsItRanUnder(t *testing.T) {
 	for _, want := range []string{
 		"invented-embedder",
 		"invented-generator:1b",
+		// Who answered and what the request enforced. A trace a reader cannot
+		// attribute is one they cannot interpret, and the mode is what tells
+		// two enforcement regimes of one model apart (ADR-0026).
+		"invented-provider",
+		"shaped",
 		"0.8125",
 		bindingID + " A 4.2",
 		"below the retrieval depth",
@@ -176,11 +185,13 @@ func TestTheTraceLogsAGenerationFailure(t *testing.T) {
 		Attempts: []turn.Attempt{{
 			Number: 1,
 			Trace: &bereanv1.RetrievalTrace{
-				RewrittenQuery:  "when does the assembly meet?",
-				EmbeddingModel:  "invented-embedder",
-				Dim:             8,
-				GenerationModel: "invented-generator:1b",
-				TopK:            2,
+				RewrittenQuery:     "when does the assembly meet?",
+				EmbeddingModel:     "invented-embedder",
+				Dim:                8,
+				GenerationModel:    "invented-generator:1b",
+				GenerationProvider: "invented-provider",
+				SchemaDelivery:     bereanv1.SchemaDelivery_SCHEMA_DELIVERY_SHAPED,
+				TopK:               2,
 			},
 			Failure: &bereanv1.GenerationFailure{
 				Code:   bereanv1.GenerationFailureCode_GENERATION_FAILURE_CODE_TRUNCATED,

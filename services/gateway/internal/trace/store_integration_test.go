@@ -107,11 +107,13 @@ func confidence(level bereanv1.ConfidenceLevel, reason string) *bereanv1.Confide
 // that re-sorted would be inventing a ranking nobody produced.
 func probeTrace() *bereanv1.RetrievalTrace {
 	return &bereanv1.RetrievalTrace{
-		RewrittenQuery:  "An invented question about an invented locus?",
-		EmbeddingModel:  "probe-embedder",
-		Dim:             1024,
-		GenerationModel: "probe-generator:tag",
-		TopK:            20,
+		RewrittenQuery:     "An invented question about an invented locus?",
+		EmbeddingModel:     "probe-embedder",
+		Dim:                1024,
+		GenerationModel:    "probe-generator:tag",
+		GenerationProvider: "probe-provider",
+		SchemaDelivery:     bereanv1.SchemaDelivery_SCHEMA_DELIVERY_CONSTRAINED,
+		TopK:               20,
 		Candidates: []*bereanv1.Candidate{
 			{CorpusId: "probe-0000-invented", Locator: "Probe 1.1", Score: 0.91, Included: true},
 			{CorpusId: "probe-0000-invented", Locator: "Probe 9.9", Score: 0.12, Included: false,
@@ -232,16 +234,18 @@ func assertAttemptRows(t *testing.T, db *sql.DB, requestID string, attempt, veri
 	t.Helper()
 
 	var (
-		rewritten, embedding, generation string
-		dim, topK                        int
-		embedMS, searchMS, generateMS    int64
-		storedVerifyUS                   int64
+		rewritten, embedding, generation, provider, delivery string
+		dim, topK                                            int
+		embedMS, searchMS, generateMS                        int64
+		storedVerifyUS                                       int64
 	)
 	err := db.QueryRow(
 		`SELECT rewritten_query, embedding_model, dim, generation_model, top_k,
+		        generation_provider, schema_delivery,
 		        embed_ms, search_ms, generate_ms, verify_us
 		   FROM trace.traces WHERE request_id = $1 AND attempt = $2`, requestID, attempt).
 		Scan(&rewritten, &embedding, &dim, &generation, &topK,
+			&provider, &delivery,
 			&embedMS, &searchMS, &generateMS, &storedVerifyUS)
 	if err != nil {
 		t.Fatalf("attempt %d trace: %v", attempt, err)
@@ -253,6 +257,10 @@ func assertAttemptRows(t *testing.T, db *sql.DB, requestID string, attempt, veri
 	}
 	if dim != 1024 || embedding != "probe-embedder" {
 		t.Errorf("attempt %d recorded embedding %s/%d", attempt, embedding, dim)
+	}
+	if provider != "probe-provider" || delivery != "constrained" {
+		t.Errorf("attempt %d recorded generation_provider=%q schema_delivery=%q — a run the"+
+			" harness cannot attribute is a run it cannot compare", attempt, provider, delivery)
 	}
 	if embedMS != 11 || searchMS != 22 || generateMS != 333 {
 		t.Errorf("attempt %d stage timings = %d/%d/%d", attempt, embedMS, searchMS, generateMS)

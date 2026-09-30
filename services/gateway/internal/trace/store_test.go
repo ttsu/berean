@@ -167,11 +167,13 @@ func answerObject() *bereanv1.AnswerObject {
 // retrievalTrace is a well-formed trace with one included candidate.
 func retrievalTrace() *bereanv1.RetrievalTrace {
 	return &bereanv1.RetrievalTrace{
-		RewrittenQuery:  "An invented question?",
-		EmbeddingModel:  "probe-embedder",
-		Dim:             1024,
-		GenerationModel: "probe-generator:tag",
-		TopK:            20,
+		RewrittenQuery:     "An invented question?",
+		EmbeddingModel:     "probe-embedder",
+		Dim:                1024,
+		GenerationModel:    "probe-generator:tag",
+		GenerationProvider: "probe-provider",
+		SchemaDelivery:     bereanv1.SchemaDelivery_SCHEMA_DELIVERY_CONSTRAINED,
+		TopK:               20,
 		Candidates: []*bereanv1.Candidate{
 			{CorpusId: "probe-0000-invented", Locator: "Probe 1.1", Score: 0.9, Included: true},
 		},
@@ -262,6 +264,27 @@ func TestValidateRefusals(t *testing.T) {
 				t.Attempts[0].Trace.GenerationModel = ""
 			},
 			says: "generation_model",
+		},
+		{
+			// A trace the harness cannot attribute is the same contract
+			// violation as one that does not arrive: a hosted run must be
+			// labelled, and an unlabelled one is indistinguishable from a
+			// baseline run (SHARED §7, ADR-0026).
+			name: "a retrieval trace naming no provider",
+			breaks: func(t *turn.Turn) {
+				t.Attempts[0].Trace.GenerationProvider = "   "
+			},
+			says: "generation_provider",
+		},
+		{
+			// Defaulting an unset mode would write UNSPECIFIED into the column
+			// the Phase 2 harness groups by, where it would average cleanly.
+			name: "a retrieval trace reporting no schema delivery mode",
+			breaks: func(t *turn.Turn) {
+				t.Attempts[0].Trace.SchemaDelivery =
+					bereanv1.SchemaDelivery_SCHEMA_DELIVERY_UNSPECIFIED
+			},
+			says: "schema_delivery",
 		},
 		{
 			name: "a retrieval trace naming no embedding model",

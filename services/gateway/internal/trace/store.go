@@ -215,18 +215,25 @@ func writeAttempt(ctx context.Context, tx *sql.Tx, requestID string, attempt tur
 	trace := attempt.Trace
 	timings := trace.GetTimings()
 
+	delivery, err := enumValue("SCHEMA_DELIVERY_", trace.GetSchemaDelivery().String())
+	if err != nil {
+		return fmt.Errorf("trace %s attempt %d: schema_delivery: %w", requestID, attempt.Number, err)
+	}
+
 	// Microseconds, unlike the three stage timings Python reports beside it.
 	// Those measure work taking tens to hundreds of milliseconds; verification
 	// is string matching and indexed lookups, and Task 8 measured its p95 at
 	// 0.68 ms. In milliseconds this column would read `0` for very nearly every
 	// turn.
-	_, err := tx.ExecContext(ctx,
+	_, err = tx.ExecContext(ctx,
 		`INSERT INTO trace.traces
 		     (request_id, attempt, rewritten_query, embedding_model, dim,
-		      generation_model, top_k, embed_ms, search_ms, generate_ms, verify_us)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+		      generation_model, generation_provider, schema_delivery, top_k,
+		      embed_ms, search_ms, generate_ms, verify_us)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
 		requestID, attempt.Number, trace.GetRewrittenQuery(), trace.GetEmbeddingModel(),
-		trace.GetDim(), trace.GetGenerationModel(), trace.GetTopK(),
+		trace.GetDim(), trace.GetGenerationModel(), trace.GetGenerationProvider(), delivery,
+		trace.GetTopK(),
 		timings.GetEmbedMs(), timings.GetSearchMs(), timings.GetGenerateMs(),
 		attempt.Verify.Microseconds())
 	if err != nil {
@@ -403,11 +410,23 @@ func validate(t turn.Turn) error {
 			{"rewritten_query", attempt.Trace.GetRewrittenQuery()},
 			{"embedding_model", attempt.Trace.GetEmbeddingModel()},
 			{"generation_model", attempt.Trace.GetGenerationModel()},
+			{"generation_provider", attempt.Trace.GetGenerationProvider()},
 		} {
 			if strings.TrimSpace(field.value) == "" {
 				return fmt.Errorf("trace %s attempt %d: %w: catena's retrieval trace carries no %s",
 					t.RequestID, attempt.Number, ErrIncomplete, field.name)
 			}
+		}
+		// The mode is what makes two runs of one model under different
+		// enforcement distinguishable, so an unset one is a missing field
+		// rather than a default. `enumValue` refuses UNSPECIFIED already;
+		// wrapping it here names the column, because a message reading
+		// "unset" sends whoever reads it to the wrong service.
+		if _, err := enumValue(
+			"SCHEMA_DELIVERY_", attempt.Trace.GetSchemaDelivery().String(),
+		); err != nil {
+			return fmt.Errorf("trace %s attempt %d: %w: catena's retrieval trace reports no"+
+				" schema_delivery", t.RequestID, attempt.Number, ErrIncomplete)
 		}
 		// Both are recorded so a Phase 2 comparison can hold them constant, and
 		// both are meaningless at zero: a search of depth zero retrieves

@@ -61,6 +61,11 @@ func settings(out *writer, trace *bereanv1.RetrievalTrace) {
 	out.indented("rewritten_query", trace.GetRewrittenQuery())
 	out.indented("embedding_model", fmt.Sprintf("%s (dim %d)", trace.GetEmbeddingModel(), trace.GetDim()))
 	out.indented("generation_model", trace.GetGenerationModel())
+	// Who answered, and what the request enforced. A reader attributing a slow
+	// or odd turn wants these beside the model, not derived from it.
+	out.indented("generation_provider", trace.GetGenerationProvider())
+	out.indented("schema_delivery", strings.ToLower(strings.TrimPrefix(
+		trace.GetSchemaDelivery().String(), "SCHEMA_DELIVERY_")))
 	out.indented("top_k", fmt.Sprint(trace.GetTopK()))
 
 	timings := trace.GetTimings()
