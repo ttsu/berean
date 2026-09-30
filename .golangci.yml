@@ -1,0 +1,20 @@
+# The Go static checks `make lint-go` runs. `go test` runs a small subset of
+# vet on its own; nothing else looks at the code between a model's diff and
+# review. gosec is here for the narrowing conversions and unchecked-input
+# shapes that reviews kept finding by hand (an `Atoi` result cut to int32 after
+# its range guard).
+version: "2"
+linters:
+  default: none
+  enable: [govet, staticcheck, gosec, errcheck, ineffassign, unused]
+  exclusions:
+    presets: [std-error-handling]
+    rules:
+      # Tests read fixtures by computed path; there is no untrusted input.
+      - path: _test\.go
+        linters: [gosec]
+        text: G304
+      # errcheck owns unchecked errors; gosec's G104 restates it and does not
+      # honour the std-error-handling preset for `Close`.
+      - linters: [gosec]
+        text: G104

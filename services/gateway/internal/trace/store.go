@@ -361,6 +361,11 @@ func validate(t turn.Turn) error {
 	if strings.TrimSpace(t.RequestID) == "" {
 		return fmt.Errorf("%w: no request ID", ErrIncomplete)
 	}
+	// Both are recorded on every turn, and both come from the caller rather than
+	// from a service, so a blank is a bug here and not there.
+	if strings.TrimSpace(t.Profile) == "" || strings.TrimSpace(t.Query) == "" {
+		return fmt.Errorf("trace %s: %w: no profile or no query", t.RequestID, ErrIncomplete)
+	}
 	failedGeneration := t.Overall == bereanv1.OverallResult_OVERALL_RESULT_GENERATION_FAILED
 	if t.Answer == nil && !failedGeneration {
 		// Including a degraded turn, which carries the derived confidence and
@@ -413,7 +418,27 @@ func validate(t turn.Turn) error {
 				attempt.Trace.GetDim(), attempt.Trace.GetTopK())
 		}
 
+		// Stage timings are durations. A negative one is a clock that ran
+		// backwards in Catena, and reads in the trace as a stage that took
+		// less than no time.
+		timings := attempt.Trace.GetTimings()
+		if timings.GetEmbedMs() < 0 || timings.GetSearchMs() < 0 || timings.GetGenerateMs() < 0 {
+			return fmt.Errorf("trace %s attempt %d: %w: catena's retrieval trace reports a negative timing"+
+				" (embed=%d search=%d generate=%d)", t.RequestID, attempt.Number, ErrIncomplete,
+				timings.GetEmbedMs(), timings.GetSearchMs(), timings.GetGenerateMs())
+		}
+
 		for index, candidate := range attempt.Trace.GetCandidates() {
+			// A candidate names a chunk. One with no corpus or no locator
+			// names nothing, so the retrieval that produced it is the defect.
+			// Unlike a verification result this is not a fabrication to record:
+			// the model never emitted it.
+			if strings.TrimSpace(candidate.GetCorpusId()) == "" ||
+				strings.TrimSpace(candidate.GetLocator()) == "" {
+				return fmt.Errorf("trace %s attempt %d candidate %d: %w: catena's retrieval trace"+
+					" names a candidate with no corpus_id or no locator",
+					t.RequestID, attempt.Number, index+1, ErrIncomplete)
+			}
 			// The proto says the reason is empty exactly when the candidate was
 			// included. Held here as well as in the schema because an excluded
 			// candidate with no reason is the retrieval regression the table
@@ -424,6 +449,18 @@ func validate(t turn.Turn) error {
 					t.RequestID, attempt.Number, index+1,
 					candidate.GetCorpusId(), candidate.GetLocator(), ErrIncomplete,
 					candidate.GetIncluded(), candidate.GetExclusionReason())
+			}
+		}
+
+		// Catena's account of why it produced no answer object. The detail is
+		// the whole of what a reader of the trace gets, and the token count is
+		// how far the attempt got: neither can be blank or negative and still
+		// mean anything.
+		if failure := attempt.Failure; failure != nil {
+			if strings.TrimSpace(failure.GetDetail()) == "" || failure.GetCompletionTokens() < 0 {
+				return fmt.Errorf("trace %s attempt %d: %w: catena's generation failure carries"+
+					" detail=%q completion_tokens=%d", t.RequestID, attempt.Number, ErrIncomplete,
+					failure.GetDetail(), failure.GetCompletionTokens())
 			}
 		}
 	}

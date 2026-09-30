@@ -45,7 +45,7 @@ NAV = (
 
 def section_markup(numeral: str, *, footnote: bool = True) -> str:
     note = (
-        f'<a href="http://epcew.example/wcf/chapter-x/footnotes#fn1" name="fn1">[1]</a>'
+        '<a href="http://epcew.example/wcf/chapter-x/footnotes#fn1" name="fn1">[1]</a>'
         if footnote
         else ""
     )

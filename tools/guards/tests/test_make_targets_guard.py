@@ -24,6 +24,21 @@ class ReferencesInDocumentation(unittest.TestCase):
         doc = "```\nmake provision\ndocker compose up\nmake corpus-verify\n```\n"
         self.assertEqual(guard.referenced_targets(doc), {"provision", "corpus-verify"})
 
+    def test_prose_inside_a_non_shell_fence_is_ignored(self):
+        # A comment in a Go snippet saying "make the value nullable" is prose that
+        # happens to sit in a code fence, not a command.
+        doc = "```go\n// make the value nullable\nx := 1\n```\n"
+        self.assertEqual(guard.referenced_targets(doc), set())
+
+    def test_a_labelled_shell_fence_still_counts(self):
+        for label in ("bash", "sh", "shell", "console", "zsh"):
+            with self.subTest(label=label):
+                self.assertEqual(guard.referenced_targets(f"```{label}\nmake dev\n```\n"), {"dev"})
+
+    def test_a_shell_fence_after_a_non_shell_fence_still_counts(self):
+        doc = "```go\n// make the value nullable\n```\n\n```bash\nmake dev\n```\n"
+        self.assertEqual(guard.referenced_targets(doc), {"dev"})
+
     def test_flags_are_skipped_and_the_target_is_taken(self):
         self.assertEqual(guard.referenced_targets("`make -j4 provision`"), {"provision"})
 

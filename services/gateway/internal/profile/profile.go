@@ -85,7 +85,7 @@ var tiers = map[string]bereanv1.Tier{
 
 // LoadFile reads and validates the profile document at path.
 func LoadFile(ctx context.Context, path string, reg CorpusRegistry) (*Profile, error) {
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) //nolint:gosec // G304: the operator names their own profile file
 	if err != nil {
 		return nil, fmt.Errorf("read profile: %w", err)
 	}

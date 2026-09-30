@@ -294,7 +294,7 @@ func TestTheFailedAttemptsAreStillRecordedWhenTheTurnDegrades(t *testing.T) {
 		t.Fatalf("attempts = %d, want both recorded", len(got.Attempts))
 	}
 	for i, attempt := range got.Attempts {
-		if attempt.Number != int32(i+1) {
+		if int(attempt.Number) != i+1 {
 			t.Errorf("attempt[%d].Number = %d", i, attempt.Number)
 		}
 		if len(attempt.Results) == 0 {

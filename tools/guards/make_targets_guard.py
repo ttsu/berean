@@ -7,7 +7,10 @@ running it for the first time — which is the one reader who cannot tell the
 difference between a broken command and a broken project.
 
 Only `make` invocations inside code markup count: inline `code spans` and fenced
-blocks. Prose says "make sure" and "make it work", and neither is a target.
+blocks. Prose says "make sure" and "make it work", and neither is a target. A
+fenced block counts only when it holds shell -- unlabelled, or labelled `bash`,
+`sh`, `shell`, `zsh` or `console` -- because a comment in a `go` or `sql` snippet
+is prose that happens to sit in a fence.
 
 Usage:
     make_targets_guard.py                    # every tracked Markdown file
@@ -21,7 +24,11 @@ import subprocess
 import sys
 from pathlib import Path
 
-FENCED = re.compile(r"^[ \t]*(`{3,}|~{3,}).*?^[ \t]*\1", re.DOTALL | re.MULTILINE)
+FENCED = re.compile(
+    r"^[ \t]*(?P<fence>`{3,}|~{3,})(?P<info>[^\n]*)\n(?P<body>.*?)^[ \t]*(?P=fence)",
+    re.DOTALL | re.MULTILINE,
+)
+SHELL_FENCES = {"", "bash", "sh", "shell", "zsh", "console"}
 INLINE = re.compile(r"(`+)(.+?)\1", re.DOTALL)
 MAKE_CALL = re.compile(r"\bmake\b(?P<rest>[^\n]*)")
 TARGET_NAME = re.compile(r"^[A-Za-z][A-Za-z0-9._-]*$")
@@ -38,7 +45,14 @@ def _targets_in_command_line(rest: str) -> str | None:
 def referenced_targets(markdown: str) -> set[str]:
     """Every make target named inside code markup in one Markdown document."""
     spans: list[str] = []
-    remainder = FENCED.sub(lambda m: spans.append(m.group(0)) or "", markdown)
+
+    def take(fence: re.Match[str]) -> str:
+        info = fence.group("info").strip().split(maxsplit=1)
+        if not info or info[0].lower() in SHELL_FENCES:
+            spans.append(fence.group("body"))
+        return ""  # a non-shell fence is dropped, not rescanned for inline spans
+
+    remainder = FENCED.sub(take, markdown)
     spans.extend(m.group(2) for m in INLINE.finditer(remainder))
 
     found = set()
