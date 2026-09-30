@@ -1,10 +1,22 @@
 from google.protobuf.internal import containers as _containers
+from google.protobuf.internal import enum_type_wrapper as _enum_type_wrapper
 from google.protobuf import descriptor as _descriptor
 from google.protobuf import message as _message
 from collections.abc import Iterable as _Iterable, Mapping as _Mapping
 from typing import ClassVar as _ClassVar, Optional as _Optional, Union as _Union
 
 DESCRIPTOR: _descriptor.FileDescriptor
+
+class SchemaDelivery(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
+    __slots__ = ()
+    SCHEMA_DELIVERY_UNSPECIFIED: _ClassVar[SchemaDelivery]
+    SCHEMA_DELIVERY_CONSTRAINED: _ClassVar[SchemaDelivery]
+    SCHEMA_DELIVERY_SHAPED: _ClassVar[SchemaDelivery]
+    SCHEMA_DELIVERY_UNCONSTRAINED: _ClassVar[SchemaDelivery]
+SCHEMA_DELIVERY_UNSPECIFIED: SchemaDelivery
+SCHEMA_DELIVERY_CONSTRAINED: SchemaDelivery
+SCHEMA_DELIVERY_SHAPED: SchemaDelivery
+SCHEMA_DELIVERY_UNCONSTRAINED: SchemaDelivery
 
 class RetrievalTrace(_message.Message):
     __slots__ = ()
@@ -15,6 +27,8 @@ class RetrievalTrace(_message.Message):
     GENERATION_MODEL_FIELD_NUMBER: _ClassVar[int]
     TOP_K_FIELD_NUMBER: _ClassVar[int]
     TIMINGS_FIELD_NUMBER: _ClassVar[int]
+    GENERATION_PROVIDER_FIELD_NUMBER: _ClassVar[int]
+    SCHEMA_DELIVERY_FIELD_NUMBER: _ClassVar[int]
     rewritten_query: str
     candidates: _containers.RepeatedCompositeFieldContainer[Candidate]
     embedding_model: str
@@ -22,7 +36,9 @@ class RetrievalTrace(_message.Message):
     generation_model: str
     top_k: int
     timings: Timings
-    def __init__(self, rewritten_query: _Optional[str] = ..., candidates: _Optional[_Iterable[_Union[Candidate, _Mapping]]] = ..., embedding_model: _Optional[str] = ..., dim: _Optional[int] = ..., generation_model: _Optional[str] = ..., top_k: _Optional[int] = ..., timings: _Optional[_Union[Timings, _Mapping]] = ...) -> None: ...
+    generation_provider: str
+    schema_delivery: SchemaDelivery
+    def __init__(self, rewritten_query: _Optional[str] = ..., candidates: _Optional[_Iterable[_Union[Candidate, _Mapping]]] = ..., embedding_model: _Optional[str] = ..., dim: _Optional[int] = ..., generation_model: _Optional[str] = ..., top_k: _Optional[int] = ..., timings: _Optional[_Union[Timings, _Mapping]] = ..., generation_provider: _Optional[str] = ..., schema_delivery: _Optional[_Union[SchemaDelivery, str]] = ...) -> None: ...
 
 class Candidate(_message.Message):
     __slots__ = ()

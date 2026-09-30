@@ -16,7 +16,7 @@ import unittest
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 
 import grpc  # noqa: E402
-from berean.v1 import catena_pb2, common_pb2  # noqa: E402
+from berean.v1 import catena_pb2, common_pb2, trace_pb2  # noqa: E402
 from catena.serve import generate, retrieval  # noqa: E402
 from catena.serve.observability import NullObservability  # noqa: E402
 from catena.serve.service import CatenaService  # noqa: E402
@@ -169,6 +169,28 @@ class TheTrace(unittest.TestCase):
                       response.trace.timings.generate_ms):
             self.assertGreaterEqual(value, 0)
 
+    def test_records_the_provider_and_what_it_enforced(self) -> None:
+        """A hosted run is legitimate and must be labelled (SHARED §7, ADR-0026).
+
+        `generation_model` alone cannot tell two enforcement regimes apart, and
+        that becomes live the moment a probe reclassifies a provider.
+        """
+        response = service().Answer(request(), Context())
+        self.assertEqual(response.trace.generation_provider, "fake-provider")
+        self.assertEqual(
+            response.trace.schema_delivery, trace_pb2.SCHEMA_DELIVERY_CONSTRAINED)
+
+    def test_an_unmapped_delivery_mode_is_a_bug_not_a_mode(self) -> None:
+        """Defaulting to UNSPECIFIED would write a programming error into the
+        column the Phase 2 harness groups by, where it would average cleanly."""
+        from catena.serve import ServeError
+
+        generator = FakeGenerator(ANSWER)
+        generator.delivery = "invented-mode"
+        with self.assertRaises(ServeError) as caught:
+            service(generator=generator)._answer(request())
+        self.assertIn("invented-mode", str(caught.exception))
+
 
 class Retrieval(unittest.TestCase):
     def test_constrains_the_embedding_model(self) -> None:
@@ -249,7 +271,7 @@ class PreviousFailures(unittest.TestCase):
 
 class WhenTheGenerationProducesNoObject(unittest.TestCase):
     class _FailingGenerator:
-        """Stands in for `OllamaGenerator` when the model answered uselessly.
+        """Stands in for a real adapter when the model answered uselessly.
 
         Not `FakeGenerator`: that fake's `generate` returns `Generation` or
         raises, matching the old contract. This one returns `GenerationFailed`,
@@ -257,6 +279,8 @@ class WhenTheGenerationProducesNoObject(unittest.TestCase):
         """
 
         model = "fake-generator"
+        provider = "fake-provider"
+        delivery = "constrained"
 
         def generate(self, messages, schema):
             return generate.GenerationFailed(code="truncated", detail="d", completion_tokens=7)
@@ -283,6 +307,13 @@ class WhenTheGenerationProducesNoObject(unittest.TestCase):
         means the opposite thing (ADR-0020)."""
         response = self._answer_with_failure()
         self.assertFalse(response.HasField("answer"))
+
+    def test_a_failed_attempt_still_names_what_attempted_it(self) -> None:
+        """The provider is read off the adapter, not off a `Generation` there isn't."""
+        response = self._answer_with_failure()
+        self.assertEqual(response.trace.generation_provider, "fake-provider")
+        self.assertEqual(
+            response.trace.schema_delivery, trace_pb2.SCHEMA_DELIVERY_CONSTRAINED)
 
 
 if __name__ == "__main__":
