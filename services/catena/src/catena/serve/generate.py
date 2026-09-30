@@ -27,6 +27,15 @@ Nothing here retries. ADR-0010 fixes the retry at exactly one regeneration
 driven by Go on a *verification* failure; a transport retry hidden underneath
 would make "attempt" mean two different things and hide a failing generator
 behind a latency spike.
+
+A completion that comes back unusable — truncated, not JSON, not an object,
+no choices — is reported, not raised: `generate` returns a `GenerationFailed`
+rather than raising, so the caller still has something to build a response
+from. Raising used to discard the retrieval that already happened along with
+it; see `MAX_TOKENS` below for the acceptance failure that this fixes. A
+transport failure (the provider unreachable, a non-2xx response) still raises
+`ServeError` — nothing was learned about the generator there, and there is no
+attempt worth recording.
 """
 
 from __future__ import annotations
@@ -101,11 +110,15 @@ TIMEOUT_SECONDS = 900
 #: bounding it further was tried twice there without effect.
 #:
 #: Acceptance added two things Task 7 did not predict. It does **not** degrade:
-#: the truncation guard raises, so the turn dies inside Catena with no
-#: `AnswerObject` to verify and **no row in `trace.responses`** — invisible to the
-#: Phase 2 harness, which reads the trace. And it is not confined to the contested
-#: locus: "What does the Westminster Confession teach about justification?" ran
-#: away the same way, so the trigger is a broad question, not a contested one.
+#: at acceptance time the truncation guard raised, so the turn died inside
+#: Catena with no `AnswerObject` to verify and **no row in `trace.responses`**
+#: — invisible to the Phase 2 harness, which reads the trace. It now returns a
+#: `GenerationFailed` instead of raising, so the trace that retrieval already
+#: built survives the failure and reaches the harness — the ceiling and the
+#: measurements above are unchanged; only what happens at the ceiling is. And
+#: it is not confined to the contested locus: "What does the Westminster
+#: Confession teach about justification?" ran away the same way, so the
+#: trigger is a broad question, not a contested one.
 #:
 #: See specs/001-phase-1-pca-baseline/ACCEPTANCE.md.
 MAX_TOKENS = 2048
