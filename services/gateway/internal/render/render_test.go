@@ -268,3 +268,31 @@ func TestACitationToAnUndescribedCorpusStillRenders(t *testing.T) {
 		t.Errorf("an undescribed corpus did not render\n---\n%s", out)
 	}
 }
+
+// A generation failure is not a sourcing failure, and must not claim to be.
+// "I can't source this adequately" means citations were checked and did not
+// hold; here none was produced, so saying it would misreport what happened.
+func TestGenerationFailedDoesNotClaimASourcingFailure(t *testing.T) {
+	out := rendered(t, turn.Turn{
+		Overall: bereanv1.OverallResult_OVERALL_RESULT_GENERATION_FAILED,
+	})
+
+	if strings.Contains(out, render.Refusal) {
+		t.Errorf("printed the sourcing refusal for a generation failure:\n%s", out)
+	}
+	if !strings.Contains(out, render.NoAnswer) {
+		t.Errorf("did not print NoAnswer:\n%s", out)
+	}
+}
+
+// Nothing else. No partial answer, no citations, no confidence — there was no
+// answer object and no verification.
+func TestGenerationFailedPrintsNothingElse(t *testing.T) {
+	out := rendered(t, turn.Turn{
+		Overall: bereanv1.OverallResult_OVERALL_RESULT_GENERATION_FAILED,
+	})
+
+	if strings.TrimSpace(out) != render.NoAnswer {
+		t.Errorf("printed more than the fixed string:\n%q", out)
+	}
+}
