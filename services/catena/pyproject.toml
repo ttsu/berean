@@ -29,7 +29,7 @@ dependencies = [
     # this is the one corpus that costs a parser. pypdf is BSD-3-Clause, pure
     # Python, and has no runtime dependencies of its own, so the offline
     # overlay stays honest and `docker compose up` still needs no account.
-    "pypdf>=6.0,<7",
+    "pypdf>=6.21.2,<7",
     # Task 5's two. Ingestion is the first thing in this project that writes the
     # corpus tables and the first that runs a model, so it is the first that
     # needs a driver or an encoder.
